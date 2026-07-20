@@ -1,10 +1,32 @@
-/* src/index.css */
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@config "../tailwind.config.js";
+@custom-variant dark (&:where(.dark, .dark *));
+
+html,
+body,
+#root {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
 /* Définition des couleurs de fond et texte par défaut */
 body {
   transition: background-color 0.3s, color 0.3s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 body {

@@ -1,193 +1,180 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import '../index.css'; // Assure-toi que ce fichier est correct et accessible
-import Navbar from '../components/Navbar';
+import { useEffect, useRef, useState } from "react";
+import { motion } from "framer-motion";
+import { t } from "../content/ui";
+
+const emptyForm = { name: "", email: "", message: "" };
+const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z0-9]{2,}$/;
 
 const ContactPage = () => {
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    message: '',
-  });
+  const [formData, setFormData] = useState(emptyForm);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const resetTimer = useRef(null);
 
-  const [error, setError] = useState(''); // Pour afficher les erreurs
-  const [success, setSuccess] = useState(''); // Pour afficher la confirmation de succès
-  const [isSubmitting, setIsSubmitting] = useState(false); // Pour gérer l'état du bouton envoyer
+  useEffect(
+    () => () => {
+      if (resetTimer.current) clearTimeout(resetTimer.current);
+    },
+    [],
+  );
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: value,
-    });
-  };
-
-  // Vérification si tous les champs sont remplis et si l'email est valide
   useEffect(() => {
-    // Réinitialise les messages d'erreur si tous les champs sont remplis
-    if (formData.name && formData.email && formData.message) {
-      setError(''); // Efface le message d'erreur si tout est rempli
-    }
+    const isComplete = formData.name && formData.email && formData.message;
 
-    // Réinitialise le message de succès seulement si tout est validé
-    if (formData.name && formData.email && formData.message) {
-      const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z0-9]{2,}$/;
-      if (emailRegex.test(formData.email)) {
-        setSuccess('Le formulaire a bien été rempli. Vous pouvez maintenant envoyer.');
-      } else {
-        setSuccess('');
-      }
-    } else {
-      setSuccess('');
-    }
+    if (isComplete) setError("");
+    setSuccess(
+      isComplete && emailPattern.test(formData.email) ? t.contact.ready : "",
+    );
   }, [formData]);
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    setError(''); // Réinitialise le message d'erreur
-    setSuccess(''); // Réinitialise le message de succès
-
-    // Validation des champs
-    if (!formData.name || !formData.email || !formData.message) {
-      setError('Tous les champs doivent être remplis.');
-      return; // Ne pas envoyer si un champ est vide
-    }
-
-    // Vérification du format de l'email (simple)
-    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z0-9]{2,}$/;
-    if (!emailRegex.test(formData.email)) {
-      setError('L\'adresse e-mail est invalide.');
-      return; // Ne pas envoyer si l'email est invalide
-    }
-
-    // Désactive le bouton pendant l'envoi
-    setIsSubmitting(true);
-
-    // Envoi du formulaire via fetch
-    fetch('https://formspree.io/f/mwpllanl', {
-      method: 'POST',
-      body: JSON.stringify(formData),
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    })
-      .then((response) => {
-        if (response.ok) {
-          setSuccess('Message envoyé avec succès!');
-          
-          // Réinitialiser les champs après un délai de 2 secondes
-          setTimeout(() => {
-            setFormData({
-              name: '',
-              email: '',
-              message: '',
-            });
-            setIsSubmitting(false); // Réactive le bouton après 2 secondes
-          }, 2500); // Délai de 2 secondes avant de réinitialiser les champs
-        } else {
-          setError('Erreur lors de l\'envoi du message.');
-          setIsSubmitting(false); // Réactive le bouton en cas d'erreur
-        }
-      })
-      .catch(() => {
-        setError('Erreur de connexion au serveur.');
-        setIsSubmitting(false); // Réactive le bouton en cas d'erreur de connexion
-      });
+  const handleChange = (event) => {
+    const { name, value } = event.target;
+    setFormData((current) => ({ ...current, [name]: value }));
   };
 
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setError("");
+    setSuccess("");
+
+    if (!formData.name || !formData.email || !formData.message) {
+      setError(t.contact.requiredError);
+      return;
+    }
+
+    if (!emailPattern.test(formData.email)) {
+      setError(t.contact.emailError);
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch("https://formspree.io/f/mwpllanl", {
+        method: "POST",
+        body: JSON.stringify(formData),
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!response.ok) {
+        setError(t.contact.submitError);
+        setIsSubmitting(false);
+        return;
+      }
+
+      setSuccess(t.contact.success);
+      resetTimer.current = setTimeout(() => {
+        setFormData(emptyForm);
+        setIsSubmitting(false);
+      }, 2500);
+    } catch {
+      setError(t.contact.networkError);
+      setIsSubmitting(false);
+    }
+  };
+
+  const fieldClass =
+    "w-full rounded-md bg-gray-100 p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:bg-gray-900";
+
   return (
-    <div className="contact-container min-h-screen bg-light-background dark:bg-dark-background text-light-text dark:text-dark-text">
-      <Navbar />
-      <div className="max-w-screen-xl mx-auto p-8 pt-16">
+    <main className="contact-container min-h-screen overflow-x-clip bg-light-background text-light-text dark:bg-dark-background dark:text-dark-text">
+      <div className="mx-auto max-w-screen-xl p-4 pt-16 sm:p-8 sm:pt-16">
         <motion.h1
-          className="text-3xl font-semibold text-center mb-6 uppercase tracking-wide pt-12"
+          className="mb-6 pt-12 text-center text-3xl font-semibold uppercase tracking-wide"
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease: 'easeOut' }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
         >
-          Contactez-moi
+          {t.contact.title}
         </motion.h1>
 
-        {/* Affichage du message d'erreur si des champs sont manquants ou incorrects */}
-        {error && (
-          <motion.div
-            className="text-red-600 text-center mb-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5 }}
-          >
-            {error}
-          </motion.div>
-        )}
+        <div id="form-status" aria-live="polite" aria-atomic="true">
+          {error && (
+            <p className="mb-4 text-center text-red-600" role="alert">
+              {error}
+            </p>
+          )}
+          {success && (
+            <p className="mb-4 text-center text-green-600" role="status">
+              {success}
+            </p>
+          )}
+        </div>
 
-        {/* Affichage du message de succès si le formulaire est valide */}
-        {success && (
-          <motion.div
-            className="text-green-600 text-center mb-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5 }}
-          >
-            {success}
-          </motion.div>
-        )}
-
-        {/* Formulaire */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: 'easeOut' }}
-          className="w-full md:w-2/3 lg:w-1/2 mx-auto bg-gray-700 dark:bg-gray-800 p-6 rounded-md shadow-sm"
+          transition={{ duration: 0.8, ease: "easeOut" }}
+          className="mx-auto w-full rounded-md bg-gray-700 p-6 shadow-sm dark:bg-gray-800 md:w-2/3 lg:w-1/2"
         >
           <form className="space-y-6" onSubmit={handleSubmit}>
-            <motion.input
-              type="text"
-              name="name"
-              value={formData.name}
-              onChange={handleChange}
-              placeholder="Nom"
-              className="w-full p-3 rounded-md bg-gray-100 dark:bg-gray-900 focus:ring-2 focus:ring-blue-500"
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-            />
-            <motion.input
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              placeholder="Email"
-              className="w-full p-3 rounded-md bg-gray-100 dark:bg-gray-900 focus:ring-2 focus:ring-blue-500"
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-            />
-            <motion.textarea
-              name="message"
-              value={formData.message}
-              onChange={handleChange}
-              placeholder="Écrivez-moi un message ..."
-              className="w-full p-3 rounded-md bg-gray-100 dark:bg-gray-900 focus:ring-2 focus:ring-blue-500"
-              rows="5"
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-            />
+            <div>
+              <label htmlFor="contact-name" className="mb-2 block text-white">
+                {t.contact.name}
+              </label>
+              <input
+                id="contact-name"
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleChange}
+                autoComplete="name"
+                required
+                aria-describedby="form-status"
+                className={fieldClass}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="contact-email" className="mb-2 block text-white">
+                {t.contact.email}
+              </label>
+              <input
+                id="contact-email"
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                autoComplete="email"
+                required
+                aria-describedby="form-status"
+                className={fieldClass}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="contact-message" className="mb-2 block text-white">
+                {t.contact.message}
+              </label>
+              <textarea
+                id="contact-message"
+                name="message"
+                value={formData.message}
+                onChange={handleChange}
+                autoComplete="off"
+                required
+                aria-describedby="form-status"
+                className={fieldClass}
+                rows="5"
+              />
+            </div>
+
             <div className="flex justify-center">
               <motion.button
                 type="submit"
-                className="text-white p-3 px-6 rounded-md bg-blue-700 hover:bg-blue-500 transition-all"
-                whileHover={{ scale: 1.05 }}
-                transition={{ duration: 0.3 }}
-                disabled={isSubmitting} // Désactive le bouton pendant l'envoi
+                className="rounded-md bg-blue-700 px-6 py-3 text-white transition-colors hover:bg-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-700 disabled:cursor-wait disabled:opacity-70"
+                whileHover={{ scale: 1.03 }}
+                transition={{ duration: 0.2 }}
+                disabled={isSubmitting}
               >
-                {isSubmitting ? 'Envoi en cours...' : 'Envoyer'}
+                {isSubmitting ? t.contact.submitting : t.contact.submit}
               </motion.button>
             </div>
           </form>
         </motion.div>
       </div>
-    </div>
+    </main>
   );
 };
 

@@ -1,107 +1,129 @@
-import React, { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { FaBars, FaTimes } from "react-icons/fa";
-import { useTheme } from '../context/ThemeContext';  // Importation du hook
+import { useTheme } from "../context/ThemeContext";
+import { t } from "../content/ui";
+
+const navItems = [
+  { to: "/", label: t.navigation.home },
+  { to: "/mangaka", label: t.navigation.mangaka },
+  { to: "/illustration", label: t.navigation.illustration },
+  { to: "/animation", label: t.navigation.animation },
+  { to: "/contact", label: t.navigation.contact },
+];
+
+const focusClass =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900";
 
 function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
-  const { toggleTheme, theme } = useTheme(); // Récupère le thème et la fonction pour basculer
+  const menuButtonRef = useRef(null);
+  const firstLinkRef = useRef(null);
+  const { toggleTheme, theme } = useTheme();
 
-  // Gérer le focus sur le premier lien lors de l'ouverture du menu mobile
   useEffect(() => {
-    if (menuOpen) {
-      document.getElementById('menu-link-1').focus(); // Focus sur le premier lien du menu
-    }
+    if (!menuOpen) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    firstLinkRef.current?.focus();
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setMenuOpen(false);
+        menuButtonRef.current?.focus();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
   }, [menuOpen]);
 
-  return (
-    <nav className={`fixed w-full z-50 ${theme === 'dark' ? 'bg-dark-background text-dark-text' : 'bg-light-background text-light-text'}`}>
-      <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
-        <div className="">
-        
-          {/* Bouton pour changer de thème */}
-          <button
-            onClick={toggleTheme}
-            aria-label="Changer de thème"
-            className={`text-white px-4 py-2 rounded-md ${theme === 'dark' ? 'bg-blue-700 hover:bg-blue-500' : 'bg-gray-700 hover:bg-gray-500'}`}
-          >
-            {theme === 'dark' ? 'Mode Clair' : 'Mode Sombre'}
-          </button>
-        
-        </div>
+  const closeMenu = () => setMenuOpen(false);
 
-        {/* Bouton pour mobile */}
+  return (
+    <nav
+      className={`fixed z-50 w-full ${
+        theme === "dark"
+          ? "bg-dark-background text-dark-text"
+          : "bg-light-background text-light-text"
+      }`}
+    >
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
         <button
-          className="md:hidden text-2xl"
-          onClick={() => setMenuOpen(!menuOpen)}
-          aria-label={menuOpen ? "Fermer le menu" : "Ouvrir le menu"}
+          type="button"
+          onClick={toggleTheme}
+          aria-label={t.navigation.changeTheme}
+          className={`rounded-md px-4 py-2 text-white ${focusClass} ${
+            theme === "dark"
+              ? "bg-blue-700 hover:bg-blue-500"
+              : "bg-gray-700 hover:bg-gray-500"
+          }`}
         >
-          {menuOpen ? <FaTimes /> : <FaBars />}
+          {theme === "dark" ? t.navigation.lightMode : t.navigation.darkMode}
         </button>
 
-        {/* Menu Desktop */}
-        <ul className="hidden md:flex space-x-6">
-          <li><Link to="/" className="hover:text-blue-500">Accueil</Link></li>
-          <li><Link to="/Mangaka" className="hover:text-blue-500">Mangaka</Link></li>
-          <li><Link to="/Illustration" className="hover:text-blue-500">Illustration</Link></li>
-          <li><Link to="/Animation" className="hover:text-blue-500">Animation</Link></li>
-          <li><Link to="/contact" className="hover:text-blue-500">Contact</Link></li>
+        <button
+          ref={menuButtonRef}
+          type="button"
+          className={`text-2xl md:hidden ${focusClass}`}
+          onClick={() => setMenuOpen((current) => !current)}
+          aria-label={menuOpen ? t.navigation.closeMenu : t.navigation.openMenu}
+          aria-expanded={menuOpen}
+          aria-controls="mobile-navigation"
+        >
+          {menuOpen ? <FaTimes aria-hidden="true" /> : <FaBars aria-hidden="true" />}
+        </button>
+
+        <ul className="hidden space-x-6 md:flex">
+          {navItems.map((item) => (
+            <li key={item.to}>
+              <Link to={item.to} className={`hover:text-blue-500 ${focusClass}`}>
+                {item.label}
+              </Link>
+            </li>
+          ))}
         </ul>
 
-        {/* Menu Mobile */}
-        {menuOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className={`fixed top-0 left-0 w-full h-screen flex flex-col items-center justify-center space-y-6 md:hidden ${theme === 'dark' ? 'bg-dark-background' : 'bg-light-background'}`}
-          >
-            <button 
-              className="absolute top-6 right-6 text-3xl dark:text-white" 
-              onClick={() => setMenuOpen(false)}
-              aria-label="Fermer le menu"
+        <AnimatePresence>
+          {menuOpen && (
+            <motion.div
+              id="mobile-navigation"
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className={`fixed inset-0 flex h-dvh flex-col items-center justify-center space-y-6 md:hidden ${
+                theme === "dark" ? "bg-dark-background" : "bg-light-background"
+              }`}
             >
-              <FaTimes />
-            </button>
-            <Link 
-              to="/" 
-              id="menu-link-1" 
-              className="text-xl dark:text-white transition duration-200" 
-              onClick={() => setMenuOpen(false)}
-            >
-              Accueil
-            </Link>
-            <Link 
-              to="/Mangaka" 
-              className="text-xl dark:text-white transition duration-200" 
-              onClick={() => setMenuOpen(false)}
-            >
-              Mangaka
-            </Link>
-            <Link 
-              to="/Illustration" 
-              className="text-xl dark:text-white transition duration-200" 
-              onClick={() => setMenuOpen(false)}
-            >
-              Illustration
-            </Link>
-            <Link 
-              to="/Animation" 
-              className="text-xl dark:text-white transition duration-200" 
-              onClick={() => setMenuOpen(false)}
-            >
-              Animation
-            </Link>
-            <Link 
-              to="/contact" 
-              className="text-xl dark:text-white transition duration-200" 
-              onClick={() => setMenuOpen(false)}
-            >
-              Contact
-            </Link>
-          </motion.div>
-        )}
+              <button
+                type="button"
+                className={`absolute right-6 top-6 text-3xl dark:text-white ${focusClass}`}
+                onClick={closeMenu}
+                aria-label={t.navigation.closeMenu}
+              >
+                <FaTimes aria-hidden="true" />
+              </button>
+
+              {navItems.map((item, index) => (
+                <Link
+                  key={item.to}
+                  ref={index === 0 ? firstLinkRef : undefined}
+                  to={item.to}
+                  className={`text-xl transition-colors duration-200 dark:text-white ${focusClass}`}
+                  onClick={closeMenu}
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </nav>
   );

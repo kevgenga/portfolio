@@ -2,11 +2,26 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/jpeg" href="/test-portfolio-mangaka/assets/illustration/profil%20150921.jpg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- Ajoute ce script dans la section <head> -->
-<script src="https://static.elfsight.com/platform/platform.js" async></script>
-    <title>Portfoliot - Mangaka</title>
+    <script>
+      (function (location) {
+        if (location.search.startsWith("?/")) {
+          const route = location.search
+            .slice(2)
+            .split("&")
+            .map((segment) => segment.replace(/~and~/g, "&"))
+            .join("?");
+          window.history.replaceState(
+            null,
+            "",
+            `${location.pathname}${route}${location.hash}`,
+          );
+        }
+      })(window.location);
+    </script>
+    <script src="https://static.elfsight.com/platform/platform.js" async></script>
+    <title>Portfolio — Mangaka, Illustrateur &amp; Animateur 2D</title>
   </head>
   <body>
     <div id="root"></div>

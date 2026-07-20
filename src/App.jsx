@@ -1,38 +1,46 @@
-import React from "react";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { lazy, Suspense } from "react";
+import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
+import { MotionConfig } from "framer-motion";
 import Navbar from "./components/Navbar";
-import HomePage from "./pages/HomePage";
-import Animation from "./pages/Animation";
-import Contact from "./pages/ContactPage";
-import MangakaPage from "./pages/Mangaka";
-import Illustration from "./pages/Illustration";
-
-// Import des fichiers spécifiques pour chaque manga
-import BD1 from "./mangaka/1";
-import BD2 from "./mangaka/2";
-import BD3 from "./mangaka/3";
-import BD4 from "./mangaka/4";
 import Footer from "./Footer";
+import { t } from "./content/ui";
+
+const HomePage = lazy(() => import("./pages/HomePage"));
+const Animation = lazy(() => import("./pages/Animation"));
+const Contact = lazy(() => import("./pages/ContactPage"));
+const MangakaPage = lazy(() => import("./pages/Mangaka"));
+const Illustration = lazy(() => import("./pages/Illustration"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const MangaReaderPage = lazy(() => import("./pages/MangaReaderPage"));
+
+const PageFallback = () => (
+  <div
+    className="min-h-screen bg-light-background pt-24 text-center text-light-text dark:bg-dark-background dark:text-dark-text"
+    role="status"
+  >
+    {t.common.loading}
+  </div>
+);
 
 function App() {
   return (
-    <Router basename="/test-portfolio-mangaka">
-      <Navbar />
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/mangaka" element={<MangakaPage />} />
-        <Route path="/illustration" element={<Illustration />} />
-        <Route path="/animation" element={<Animation />} />
-        <Route path="/contact" element={<Contact />} />
-
-        {/* Routes spécifiques à chaque BD */}
-        <Route path="/mangas/1" element={<BD1 />} />
-        <Route path="/mangas/2" element={<BD2 />} />
-        <Route path="/mangas/3" element={<BD3 />} />
-        <Route path="/mangas/4" element={<BD4 />} />
-      </Routes>
-      <Footer /> {/* Footer global ici */}
-    </Router>
+    <MotionConfig reducedMotion="user">
+      <Router basename="/test-portfolio-mangaka">
+        <Navbar />
+        <Suspense fallback={<PageFallback />}>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/mangaka" element={<MangakaPage />} />
+            <Route path="/illustration" element={<Illustration />} />
+            <Route path="/animation" element={<Animation />} />
+            <Route path="/contact" element={<Contact />} />
+            <Route path="/mangas/:id" element={<MangaReaderPage />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </Suspense>
+        <Footer />
+      </Router>
+    </MotionConfig>
   );
 }
 

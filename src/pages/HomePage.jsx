@@ -1,13 +1,9 @@
-import React from 'react';
 import { motion } from 'framer-motion';
-import '../index.css'; // Assure-toi que ce fichier est correct et accessible
-import Navbar from '../components/Navbar';
+import { profile } from '../content/profile';
 
 const HomePage = () => {
   return (
     <div className="home-container min-h-screen bg-light-background dark:bg-dark-background text-light-text dark:text-dark-text">
-      <Navbar />
-
       <div className="max-w-screen-xl mx-auto p-8 pt-16">
 
         {/* Titre animé */}
@@ -41,21 +37,21 @@ const HomePage = () => {
           >
             <h2 className="text-4xl font-bold mb-4 text-gray-600">À propos de moi</h2>
             <p className="text-lg leading-relaxed mb-4">
-              Hello WORLD! Je me nomme <span className="font-bold text-blue-500 dark:text-blue-300">KEVGENGA</span>.
-              Je suis <span className="font-semibold">Mangaka, illustrateur et animateur 2D.</span>
+              {profile.introduction.greeting} <span className="font-bold text-blue-500 dark:text-blue-300">{profile.name}</span>.
+              Je suis <span className="font-semibold">{profile.introduction.profession}</span>
             </p>
 
             <div className="mt-4 text-left space-y-3">
-              <p>🎉 <span className="font-semibold text-yellow-500 dark:text-yellow-300">Gagnant du 1er prix</span> au <a className="underline text-blue-700 dark:text-blue-400" href="https://www.mangadraft.com/contests/mangadraft-x-xp-pen-2022.fr">Concours Mangadraft x XPPen 2022</a>.</p>
-              <p>📖 Autodidacte depuis <span className="font-semibold text-red-600 dark:text-red-300">2010</span>.</p>
-              <p>🎨 Formation en <span className="font-semibold text-blue-500 dark:text-blue-300">dessin et communication graphique</span>.</p>
-              <p>💼 Expérience en <span className="font-semibold text-green-500 dark:text-green-400">freelance</span>.</p>
+              <p>{profile.highlights.award.icon} <span className="font-semibold text-yellow-500 dark:text-yellow-300">{profile.highlights.award.label}</span> {profile.highlights.award.connector} <a className="underline text-blue-700 dark:text-blue-400" href={profile.highlights.award.link}>{profile.highlights.award.linkLabel}</a>.</p>
+              <p>{profile.highlights.selfTaught.icon} {profile.highlights.selfTaught.label} <span className="font-semibold text-red-600 dark:text-red-300">{profile.highlights.selfTaught.value}</span>.</p>
+              <p>{profile.highlights.education.icon} {profile.highlights.education.label} <span className="font-semibold text-blue-500 dark:text-blue-300">{profile.highlights.education.value}</span>.</p>
+              <p>{profile.highlights.experience.icon} {profile.highlights.experience.label} <span className="font-semibold text-green-500 dark:text-green-400">{profile.highlights.experience.value}</span>.</p>
             </div>
 
             <div className="mt-6">
               <h3 className="text-xl font-semibold">Logiciels maîtrisés :</h3>
               <p className="mt-2">
-                Clip Studio Paint EX, After Effects, Photoshop, Illustrator, InDesign, Flash Animate, OpenToonz, Toon Boom Harmony, Cinema 4D, Blender, Jump paint, Visual studio code, Git, FileZilla, Xampp, Android studio, Microsoft office.
+                {profile.software}
               </p>
             </div>
           </motion.div>
