@@ -11,11 +11,12 @@ import Illustration from "./pages/Illustration";
 import BD1 from "./mangaka/1";
 import BD2 from "./mangaka/2";
 import BD3 from "./mangaka/3";
-import Footer from "./footer";
+import BD4 from "./mangaka/4";
+import Footer from "./Footer";
 
 function App() {
   return (
-    <Router>
+    <Router basename="/test-portfolio-mangaka">
       <Navbar />
       <Routes>
         <Route path="/" element={<HomePage />} />
@@ -28,6 +29,7 @@ function App() {
         <Route path="/mangas/1" element={<BD1 />} />
         <Route path="/mangas/2" element={<BD2 />} />
         <Route path="/mangas/3" element={<BD3 />} />
+        <Route path="/mangas/4" element={<BD4 />} />
       </Routes>
       <Footer /> {/* Footer global ici */}
     </Router>

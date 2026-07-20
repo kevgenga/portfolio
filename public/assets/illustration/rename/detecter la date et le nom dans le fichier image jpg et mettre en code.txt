@@ -1,0 +1,25 @@
+# Chemin du dossier contenant les fichiers jpg
+$folderPath = "C:\mon-portfolio\public\assets\illustration\Nouveau dossier"
+
+# Obtenir tous les fichiers jpg dans le dossier
+Get-ChildItem -Path $folderPath -Filter "*.jpg" | ForEach-Object {
+    # Extraire le nom du fichier
+    $filename = $_.Name
+
+    # Expression régulière pour extraire la date (jour-mois-année) avec ou sans heure
+    if ($filename -match "penup_(\d{2})-(\d{2})-(\d{4})") {
+        # Formater la date dans le format souhaité
+        $date = "$($matches[1])-$($matches[2])-$($matches[3])"
+
+        # Générer le code JSON avec la date formatée
+        $code = "{ src: `"/test-portfolio-mangaka/assets/illustration/$filename`", alt: `"`, categories: [""sketches""], date: `"$date`" },"
+        Write-Output $code
+    } elseif ($filename -match "penup_(\d{2})-(\d{2})-(\d{4})_") {
+        # Si la date est suivie d'une heure, on extrait aussi la date
+        $date = "$($matches[1])-$($matches[2])-$($matches[3])"
+        
+        # Générer le code JSON avec la date
+        $code = "{ src: `"/test-portfolio-mangaka/assets/illustration/$filename`", alt: `"`, categories: [""sketches""], date: `"$date`" },"
+        Write-Output $code
+    }
+}

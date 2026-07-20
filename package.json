@@ -1,5 +1,6 @@
 {
   "name": "mon-portfolio",
+  "homepage": "https://kevgenga.github.io/test-portfolio-mangaka",
   "private": true,
   "version": "0.0.0",
   "scripts": {
@@ -12,6 +13,7 @@
   },
   "dependencies": {
     "@fancyapps/ui": "^5.0.36",
+    "@formspree/react": "^3.0.0",
     "@tailwindcss/postcss": "^4.0.1",
     "@tailwindcss/postcss7-compat": "^2.2.17",
     "autoprefixer": "^10.4.20",

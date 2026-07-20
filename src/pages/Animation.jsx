@@ -7,51 +7,51 @@ import './custom.css'; // Importation du fichier CSS personnalisé
 // Liste des médias à afficher dans la galerie
 const media = [
   { 
-    src: "/assets/animation/pour-cassie.mp4", 
+    src: "/test-portfolio-mangaka/assets/animation/pour-cassie.mp4", 
     alt: "court-métrage 01", 
     category: "court-métrage", 
     date: "2022-12-12", 
     type: "video",
-    thumbnail: "/assets/animation/miniature/cassie.jpg" // Miniature de la vidéo
+    thumbnail: "/test-portfolio-mangaka/assets/animation/miniature/cassie.jpg" // Miniature de la vidéo
   },
   { 
-    src: "/assets/animation/anime-transformation-v2.gif", 
+    src: "/test-portfolio-mangaka/assets/animation/anime-transformation-v2.gif", 
     alt: "animation 2d 01", 
     category: "animation 2d", 
     date: "2025-02-01", 
     type: "image"
   },
   { 
-    src: "/assets/animation/disparition.mp4", 
+    src: "/test-portfolio-mangaka/assets/animation/disparition.mp4", 
     alt: "animation 2d 02", 
     category: "animation 2d", 
     date: "2023-07-15", 
     type: "video",
-    thumbnail: "/assets/animation/miniature/disparition.jpg" // Miniature de la vidéo
+    thumbnail: "/test-portfolio-mangaka/assets/animation/miniature/disparition.jpg" // Miniature de la vidéo
   },
   { 
-    src: "/assets/animation/petite-fille.mp4", 
+    src: "/test-portfolio-mangaka/assets/animation/petite-fille.mp4", 
     alt: "animation 2d 03", 
     category: "animation 2d", 
     date: "2022-08-30", 
     type: "video",
-    thumbnail: "/assets/animation/miniature/petite-fille.jpg" // Miniature de la vidéo
+    thumbnail: "/test-portfolio-mangaka/assets/animation/miniature/petite-fille.jpg" // Miniature de la vidéo
   },
   { 
-    src: "/assets/animation/chanteuse.mp4", 
+    src: "/test-portfolio-mangaka/assets/animation/chanteuse.mp4", 
     alt: "animation 2d 03", 
     category: "animation 2d", 
     date: "2022-08-30", 
     type: "video",
-    thumbnail: "/assets/animation/miniature/chanteuse.jpg" // Miniature de la vidéo
+    thumbnail: "/test-portfolio-mangaka/assets/animation/miniature/chanteuse.jpg" // Miniature de la vidéo
   },
   { 
-    src: "/assets/animation/turn-arround.mp4", 
+    src: "/test-portfolio-mangaka/assets/animation/turn-arround.mp4", 
     alt: "animation 2d 03", 
     category: "animation 2d", 
     date: "2022-08-30", 
     type: "video",
-    thumbnail: "/assets/animation/miniature/turn-arround.jpg" // Miniature de la vidéo
+    thumbnail: "/test-portfolio-mangaka/assets/animation/miniature/turn-arround.jpg" // Miniature de la vidéo
   },
   // Ajoute d'autres vidéos avec miniatures ici...
 ];
