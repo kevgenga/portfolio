@@ -16,6 +16,7 @@ const illustrationCategories = [
   "sketches",
   "paintings",
   "character-design",
+  "backgrounds",
 ];
 
 const parseArtworkDate = (date) => {

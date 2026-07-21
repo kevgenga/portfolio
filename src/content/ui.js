@@ -42,6 +42,7 @@ export const uiText = {
         sketches: "Sketches",
         paintings: "Paintings",
         "character-design": "Character Design",
+        backgrounds: "Backgrounds",
         featured: "Personal Selection",
       },
     },
