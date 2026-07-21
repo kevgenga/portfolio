@@ -21,22 +21,30 @@ const mangaDefinitions = [
     role: "",
     year: "",
     readingDirection: "rtl",
-    pages: numberedPages({
-      directory: "assets/mangaka/legend-of-animiste",
-      prefix: "Legend of animiste_Kevgenga_Page_",
-      suffix: "_Image_0001.jpg",
-      start: 1,
-      end: 19,
-      padding: 2,
-    }),
+    defaultLanguage: "original",
+    languages: {
+      original: {
+        label: "Original",
+        shortLabel: "ORIG",
+        pages: numberedPages({
+          directory: "assets/mangaka/legend-of-animiste",
+          prefix: "Legend of animiste_Kevgenga_Page_",
+          suffix: "_Image_0001.jpg",
+          start: 1,
+          end: 19,
+          padding: 2,
+        }),
+      },
+    },
     featured: false,
   },
   {
     id: 2,
+    slug: "stubborn-love",
     route: "/mangas/2",
     title: "Stubborn love",
     edition: "",
-    cover: assetPath("assets/mangaka/stubborn-love/01.jpg"),
+    cover: assetPath("assets/mangaka/stubborn-love/300x300.jpg"),
     banner: assetPath("assets/mangaka/stubborn-love/bandeau.jpg"),
     summary:
       "Two childhood friends, Stubborn and Love, are brought to death's door after a fatal accident. Will they survive? The truth about their feelings reaches its climax. Discover the story of Stubborn Love.",
@@ -44,17 +52,37 @@ const mangaDefinitions = [
     role: "",
     year: "",
     readingDirection: "rtl",
-    pages: numberedPages({
-      directory: "assets/mangaka/stubborn-love",
-      prefix: "",
-      start: 0,
-      end: 12,
-      padding: 2,
-    }),
+    defaultLanguage: "en",
+    languages: {
+      en: {
+        label: "English",
+        shortLabel: "ENG",
+        pages: numberedPages({
+          directory: "assets/mangaka/stubborn-love/english",
+          prefix: "",
+          start: 1,
+          end: 13,
+          padding: 2,
+        }),
+      },
+      fr: {
+        label: "French",
+        shortLabel: "FR",
+        pages: numberedPages({
+          directory: "assets/mangaka/stubborn-love/french",
+          prefix: "",
+          suffix: ".webp",
+          start: 1,
+          end: 13,
+          padding: 2,
+        }),
+      },
+    },
     featured: false,
   },
   {
     id: 3,
+    slug: "ahes",
     route: "/mangas/3",
     title: "Ahès",
     edition: "",
@@ -66,21 +94,33 @@ const mangaDefinitions = [
     role: "",
     year: "",
     readingDirection: "rtl",
-    pages: numberedPages({
-      directory: "assets/mangaka/ahes",
-      prefix: "page_",
-      start: 1,
-      end: 31,
-      padding: 3,
-    }),
+    defaultLanguage: "original",
+    languages: {
+      original: {
+        label: "Original",
+        shortLabel: "ORIG",
+        pages: numberedPages({
+          directory: "assets/mangaka/ahes",
+          prefix: "page_",
+          start: 1,
+          end: 31,
+          padding: 3,
+        }),
+      },
+    },
     featured: false,
   },
 ];
 
-export const mangas = mangaDefinitions.map((manga) => ({
-  ...manga,
-  pageCount: manga.pages.length,
-}));
+export const mangas = mangaDefinitions.map((manga) => {
+  const pages = manga.languages[manga.defaultLanguage].pages;
+
+  return {
+    ...manga,
+    pages,
+    pageCount: pages.length,
+  };
+});
 
 export const getMangaById = (id) =>
   mangas.find((manga) => String(manga.id) === String(id));

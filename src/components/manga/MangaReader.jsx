@@ -1,13 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { useReducedMotion } from "framer-motion";
 import { t } from "../../content/ui";
 
 const MODE_STORAGE_KEY = "manga-reader-mode";
-const DISPLAY_STORAGE_KEY = "manga-reader-display";
 const DEFAULT_MODE = "horizontal";
-const DEFAULT_DISPLAY = "single";
 const SWIPE_THRESHOLD = 50;
+const DOUBLE_PAGE_MIN_WIDTH = 900;
+const LANGUAGE_MENU_WIDTH = 176;
+const LANGUAGE_MENU_MARGIN = 8;
+const LANGUAGE_MENU_GAP = 8;
 
 const readPreference = (key, acceptedValues, fallback) => {
   try {
@@ -70,26 +73,308 @@ const ReaderToggle = ({ label, value, activeValue, onChange, children }) => (
   </button>
 );
 
+const LanguageSelector = ({ languages, activeLanguage, onChange }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [portalTarget, setPortalTarget] = useState(() => document.fullscreenElement || document.body);
+  const [menuPosition, setMenuPosition] = useState({
+    top: LANGUAGE_MENU_MARGIN,
+    left: LANGUAGE_MENU_MARGIN,
+    width: LANGUAGE_MENU_WIDTH,
+  });
+  const root = useRef(null);
+  const trigger = useRef(null);
+  const menu = useRef(null);
+  const optionElements = useRef([]);
+  const activeOption = languages.find(([code]) => code === activeLanguage) ?? languages[0];
+  const [, activeLanguageData] = activeOption;
+
+  const updateMenuPosition = useCallback(() => {
+    const triggerElement = trigger.current;
+    if (!triggerElement) return;
+
+    const triggerRect = triggerElement.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const availableWidth = Math.max(0, viewportWidth - LANGUAGE_MENU_MARGIN * 2);
+    const width = Math.min(LANGUAGE_MENU_WIDTH, availableWidth);
+    const menuHeight = menu.current?.getBoundingClientRect().height ?? 0;
+    const belowTop = triggerRect.bottom + LANGUAGE_MENU_GAP;
+    const aboveTop = triggerRect.top - LANGUAGE_MENU_GAP - menuHeight;
+    const top = belowTop + menuHeight <= viewportHeight - LANGUAGE_MENU_MARGIN
+      ? belowTop
+      : Math.max(LANGUAGE_MENU_MARGIN, aboveTop);
+    const left = Math.min(
+      Math.max(LANGUAGE_MENU_MARGIN, triggerRect.right - width),
+      Math.max(LANGUAGE_MENU_MARGIN, viewportWidth - LANGUAGE_MENU_MARGIN - width),
+    );
+
+    setMenuPosition({ top, left, width });
+  }, []);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setPortalTarget(document.fullscreenElement || document.body);
+    };
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!isOpen) return undefined;
+
+    const currentPortalTarget = document.fullscreenElement || document.body;
+    if (portalTarget !== currentPortalTarget) {
+      setPortalTarget(currentPortalTarget);
+      return undefined;
+    }
+
+    updateMenuPosition();
+    const frame = requestAnimationFrame(updateMenuPosition);
+    const handleViewportChange = () => updateMenuPosition();
+    window.addEventListener("resize", handleViewportChange);
+    window.addEventListener("scroll", handleViewportChange, true);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("resize", handleViewportChange);
+      window.removeEventListener("scroll", handleViewportChange, true);
+    };
+  }, [isOpen, portalTarget, updateMenuPosition]);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (
+        !root.current?.contains(event.target) &&
+        !menu.current?.contains(event.target)
+      ) {
+        setIsOpen(false);
+      }
+    };
+    const handleEscape = (event) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      setIsOpen(false);
+      trigger.current?.focus();
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape, true);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape, true);
+    };
+  }, [isOpen]);
+
+  if (languages.length === 1) {
+    return (
+      <span
+        className="inline-flex min-h-9 items-center justify-center border border-white/20 px-2 text-[0.68rem] font-semibold uppercase tracking-[0.1em] text-white sm:px-3"
+        aria-label={`Language: ${activeLanguageData.label}`}
+        data-reader-language-label
+      >
+        {activeLanguageData.shortLabel}
+      </span>
+    );
+  }
+
+  const focusOption = (index) => {
+    const optionCount = optionElements.current.length;
+    if (!optionCount) return;
+    optionElements.current[(index + optionCount) % optionCount]?.focus();
+  };
+
+  const handleMenuKeyDown = (event) => {
+    const currentIndex = optionElements.current.indexOf(document.activeElement);
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      focusOption(currentIndex + 1);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      focusOption(currentIndex - 1);
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      focusOption(0);
+    } else if (event.key === "End") {
+      event.preventDefault();
+      focusOption(languages.length - 1);
+    }
+  };
+
+  const selectLanguage = (code) => {
+    onChange(code);
+    setIsOpen(false);
+    trigger.current?.focus();
+  };
+
+  return (
+    <div ref={root} className="relative">
+      <button
+        ref={trigger}
+        type="button"
+        aria-label={`Language: ${activeLanguageData.label}`}
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
+        onClick={() => setIsOpen((open) => !open)}
+        onKeyDown={(event) => {
+          if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+          event.preventDefault();
+          setIsOpen(true);
+          requestAnimationFrame(() => {
+            const activeIndex = languages.findIndex(([code]) => code === activeLanguage);
+            focusOption(activeIndex >= 0 ? activeIndex : 0);
+          });
+        }}
+        className="inline-flex min-h-9 min-w-11 items-center justify-center border border-white/25 px-2 text-[0.68rem] font-semibold uppercase tracking-[0.1em] text-white transition-colors hover:border-[#d88a7e] hover:text-[#d88a7e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d88a7e] sm:px-3"
+        data-reader-language-trigger
+      >
+        {activeLanguageData.shortLabel}
+      </button>
+
+      {isOpen && portalTarget && createPortal(
+        <div
+          ref={menu}
+          role="menu"
+          aria-label="Language"
+          onKeyDown={handleMenuKeyDown}
+          className="fixed z-[9999] max-w-[calc(100vw-1rem)] border border-white/20 bg-[#1d1d1b] p-2 text-white shadow-2xl"
+          style={menuPosition}
+          data-reader-language-menu
+        >
+          <p className="px-2 pb-2 text-[0.62rem] font-semibold uppercase tracking-[0.16em] text-[#d88a7e]">
+            Language
+          </p>
+          {languages.map(([code, language], index) => {
+            const isActive = code === activeLanguage;
+
+            return (
+              <button
+                key={code}
+                ref={(element) => {
+                  optionElements.current[index] = element;
+                }}
+                type="button"
+                role="menuitemradio"
+                aria-checked={isActive}
+                onClick={() => selectLanguage(code)}
+                className={`flex min-h-10 w-full items-center gap-2 px-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#d88a7e] ${
+                  isActive
+                    ? "bg-[#d88a7e]/15 text-[#f4f1eb]"
+                    : "text-[#c8c3ba] hover:bg-white/10 hover:text-white"
+                }`}
+              >
+                <span aria-hidden="true" className="w-3 text-[#d88a7e]">
+                  {isActive ? "●" : "○"}
+                </span>
+                {language.label}
+              </button>
+            );
+          })}
+        </div>,
+        portalTarget,
+      )}
+    </div>
+  );
+};
+
 const MangaPageImage = ({ page, title, eager = false, className = "" }) => (
   <img
     src={page.src}
     alt={t.mangaReader.pageAlt(title, page.number)}
-    className={`block h-auto max-w-full select-none bg-white object-contain ${className}`}
+    className={`block select-none bg-white object-contain ${className}`}
     loading={eager ? "eager" : "lazy"}
     decoding="async"
     draggable="false"
   />
 );
 
+const ThumbnailStrip = ({
+  pages,
+  activePages,
+  isVisible,
+  interfaceTransition,
+  thumbnailElements,
+  onSelect,
+}) => (
+  <div
+    className={`fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.08] bg-black/70 shadow-[0_-8px_24px_rgba(0,0,0,0.24)] backdrop-blur-md ${interfaceTransition} ${
+      isVisible
+        ? "translate-y-0 opacity-100"
+        : "pointer-events-none translate-y-full opacity-0"
+    }`}
+    aria-hidden={!isVisible}
+    inert={isVisible ? undefined : ""}
+    data-thumbnail-interface
+  >
+    <div className="min-h-0 overflow-hidden px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
+      <div
+        className="flex max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-2"
+        dir="rtl"
+        role="list"
+        aria-label="Manga pages"
+        data-thumbnail-strip
+      >
+        {pages.map((page, index) => {
+          const pageNumber = index + 1;
+          const isActive = activePages.includes(pageNumber);
+
+          return (
+            <div key={page} role="listitem" className="w-16 shrink-0 sm:w-20">
+              <button
+                ref={(element) => {
+                  thumbnailElements.current[index] = element;
+                }}
+                type="button"
+                aria-label={`Open page ${pageNumber}`}
+                aria-pressed={isActive}
+                onClick={() => onSelect(pageNumber)}
+                className={`relative w-full border-2 bg-white p-0.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9b4035] focus-visible:ring-offset-2 dark:focus-visible:ring-offset-[#1d1d1b] ${
+                  isActive
+                    ? "border-[#9b4035]"
+                    : "border-transparent opacity-65 hover:opacity-100"
+                }`}
+                data-thumbnail-page={pageNumber}
+              >
+                <img
+                  src={page}
+                  alt=""
+                  className="aspect-[3/4] w-full object-cover object-top"
+                  loading="lazy"
+                  decoding="async"
+                  draggable="false"
+                />
+                <span className="absolute bottom-1 right-1 bg-black/75 px-1.5 py-0.5 text-[0.6rem] font-semibold text-white" dir="ltr">
+                  {pageNumber}
+                </span>
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  </div>
+);
+
 const MangaReader = ({ manga }) => {
-  const { id, pages, pageCount, readingDirection, title } = manga;
+  const { defaultLanguage, id, languages, readingDirection, slug, title } = manga;
+  const languageOptions = useMemo(() => Object.entries(languages), [languages]);
+  const languageCodes = useMemo(() => languageOptions.map(([code]) => code), [languageOptions]);
+  const languageStorageKey = `manga-language:${slug || id}`;
+  const [activeLanguage, setActiveLanguage] = useState(() =>
+    readPreference(languageStorageKey, languageCodes, defaultLanguage),
+  );
+  const resolvedLanguage = languages[activeLanguage] ? activeLanguage : defaultLanguage;
+  const pages = languages[resolvedLanguage].pages;
+  const pageCount = pages.length;
   const [readingMode, setReadingMode] = useState(() =>
     readPreference(MODE_STORAGE_KEY, ["vertical", "horizontal"], DEFAULT_MODE),
   );
-  const [pageDisplay, setPageDisplay] = useState(() =>
-    readingMode === "vertical"
-      ? "single"
-      : readPreference(DISPLAY_STORAGE_KEY, ["single", "double"], DEFAULT_DISPLAY),
+  const [isWideReader, setIsWideReader] = useState(() =>
+    window.innerWidth >= DOUBLE_PAGE_MIN_WIDTH,
   );
   const [currentPage, setCurrentPage] = useState(1);
   const [isInterfaceVisible, setIsInterfaceVisible] = useState(true);
@@ -101,6 +386,20 @@ const MangaReader = ({ manga }) => {
   const touchStartX = useRef(null);
   const suppressZoneClick = useRef(false);
   const shouldReduceMotion = useReducedMotion();
+  const pageDisplay = readingMode === "horizontal" && isWideReader ? "double" : "single";
+
+  const selectLanguage = useCallback(
+    (language) => {
+      const nextPages = languages[language]?.pages;
+      if (!nextPages) return;
+
+      setActiveLanguage(language);
+      setCurrentPage((page) => Math.min(page, nextPages.length));
+      verticalPageElements.current = [];
+      thumbnailElements.current = [];
+    },
+    [languages],
+  );
 
   const visiblePageNumbers = useMemo(
     () => getVisiblePageNumbers(currentPage, pageDisplay, pageCount),
@@ -184,14 +483,31 @@ const MangaReader = ({ manga }) => {
   }, [readingMode]);
 
   useEffect(() => {
-    writePreference(DISPLAY_STORAGE_KEY, pageDisplay);
-  }, [pageDisplay]);
+    writePreference(languageStorageKey, resolvedLanguage);
+  }, [languageStorageKey, resolvedLanguage]);
 
   useEffect(() => {
-    if (readingMode === "vertical" && pageDisplay !== "single") {
-      setPageDisplay("single");
+    const root = readerRoot.current;
+    if (!root) return undefined;
+
+    const updateReaderWidth = (width) => {
+      setIsWideReader(width >= DOUBLE_PAGE_MIN_WIDTH);
+    };
+
+    updateReaderWidth(root.getBoundingClientRect().width);
+
+    if (typeof ResizeObserver === "undefined") {
+      const handleResize = () => updateReaderWidth(root.getBoundingClientRect().width);
+      window.addEventListener("resize", handleResize);
+      return () => window.removeEventListener("resize", handleResize);
     }
-  }, [pageDisplay, readingMode]);
+
+    const observer = new ResizeObserver(([entry]) => {
+      updateReaderWidth(entry.contentRect.width);
+    });
+    observer.observe(root);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const root = readerRoot.current;
@@ -206,11 +522,14 @@ const MangaReader = ({ manga }) => {
   }, []);
 
   useEffect(() => {
+    setActiveLanguage(
+      readPreference(languageStorageKey, languageCodes, defaultLanguage),
+    );
     setCurrentPage(1);
     setIsInterfaceVisible(true);
     verticalPageElements.current = [];
     thumbnailElements.current = [];
-  }, [id]);
+  }, [defaultLanguage, id, languageCodes, languageStorageKey]);
 
   useEffect(() => {
     if (readingMode !== "vertical") return undefined;
@@ -233,8 +552,6 @@ const MangaReader = ({ manga }) => {
   }, [pages, readingMode]);
 
   useEffect(() => {
-    if (readingMode !== "horizontal") return;
-
     const activeThumbnail = thumbnailElements.current[currentPage - 1];
     activeThumbnail?.scrollIntoView({
       behavior: shouldReduceMotion ? "auto" : "smooth",
@@ -322,19 +639,16 @@ const MangaReader = ({ manga }) => {
     action();
   };
 
-  const selectMode = (mode) => {
-    setReadingMode(mode);
-    if (mode === "vertical") setPageDisplay("single");
-  };
+  const selectMode = (mode) => setReadingMode(mode);
 
   const interfaceTransition = shouldReduceMotion
     ? ""
-    : "transition-[max-height,opacity] duration-200 ease-out";
+    : "transition-[transform,opacity] duration-200 ease-out";
 
   return (
     <main
       ref={readerRoot}
-      className={`relative flex min-h-[100dvh] flex-col overflow-x-clip bg-[#111110] text-[#f4f1eb] ${
+      className={`relative flex min-h-[100dvh] w-[100dvw] flex-col overflow-x-clip bg-[#111110] text-[#f4f1eb] ${
         readingMode === "horizontal" ? "h-[100dvh] overflow-y-hidden" : ""
       }`}
       dir="ltr"
@@ -343,19 +657,20 @@ const MangaReader = ({ manga }) => {
       data-page-display={pageDisplay}
       data-reader-interface={isInterfaceVisible ? "visible" : "hidden"}
       data-reader-fullscreen={isFullscreen ? "true" : "false"}
+      data-reader-language={resolvedLanguage}
     >
       <div
-        className={`absolute inset-x-0 top-0 z-30 overflow-hidden text-white ${interfaceTransition} ${
+        className={`fixed inset-x-0 top-0 z-40 text-white ${interfaceTransition} ${
           isInterfaceVisible
-            ? "max-h-64 opacity-100"
-            : "pointer-events-none max-h-0 opacity-0"
+            ? "translate-y-0 opacity-100"
+            : "pointer-events-none -translate-y-full opacity-0"
         }`}
         aria-hidden={!isInterfaceVisible}
         inert={isInterfaceVisible ? undefined : ""}
         data-reader-header
       >
-        <header className="min-h-0 overflow-hidden bg-black/80 shadow-lg backdrop-blur-md">
-          <div className="mx-auto max-w-[1600px] px-3 py-2 sm:px-5">
+        <header className="border-b border-white/[0.08] bg-black/70 shadow-lg backdrop-blur-md">
+          <div className="mx-auto max-w-[1600px] px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] sm:px-5">
             <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:gap-4">
               <nav className="flex min-w-0 items-center gap-1 sm:gap-2" aria-label="Reader navigation">
                 <Link
@@ -378,28 +693,28 @@ const MangaReader = ({ manga }) => {
                 {title}
               </h1>
 
-              <button
-                type="button"
-                onClick={toggleInterface}
-                aria-label="Hide reader interface"
-                className="flex min-h-9 min-w-9 items-center justify-center gap-2 border border-white/20 px-2 text-xs font-semibold uppercase tracking-[0.08em] transition-colors hover:border-[#d88a7e] hover:text-[#d88a7e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d88a7e]"
-              >
-                <span aria-hidden="true">×</span>
-                <span className="hidden sm:inline">Hide</span>
-              </button>
+              <div className="flex items-center justify-end gap-1 sm:gap-2">
+                <LanguageSelector
+                  languages={languageOptions}
+                  activeLanguage={resolvedLanguage}
+                  onChange={selectLanguage}
+                />
+                <button
+                  type="button"
+                  onClick={toggleInterface}
+                  aria-label="Hide reader interface"
+                  className="flex min-h-9 min-w-9 items-center justify-center gap-2 border border-white/20 px-2 text-xs font-semibold uppercase tracking-[0.08em] transition-colors hover:border-[#d88a7e] hover:text-[#d88a7e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d88a7e]"
+                >
+                  <span aria-hidden="true">×</span>
+                  <span className="hidden sm:inline">Hide</span>
+                </button>
+              </div>
             </div>
 
             <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-white/10 pt-2">
               <div className="flex gap-1" role="group" aria-label="Reading mode">
                 <ReaderToggle label="Reading mode" value="vertical" activeValue={readingMode} onChange={selectMode}>Vertical</ReaderToggle>
                 <ReaderToggle label="Reading mode" value="horizontal" activeValue={readingMode} onChange={selectMode}>Horizontal</ReaderToggle>
-              </div>
-
-              <div className="flex gap-1" role="group" aria-label="Page display">
-                <ReaderToggle label="Page display" value="single" activeValue={pageDisplay} onChange={setPageDisplay}>1 Page</ReaderToggle>
-                {readingMode === "horizontal" && (
-                  <ReaderToggle label="Page display" value="double" activeValue={pageDisplay} onChange={setPageDisplay}>2 Pages</ReaderToggle>
-                )}
               </div>
 
               <p
@@ -478,7 +793,7 @@ const MangaReader = ({ manga }) => {
                     page={page}
                     title={title}
                     eager={page.number === 1}
-                    className="max-h-[100dvh] w-auto"
+                    className="h-auto max-h-[100dvh] w-auto max-w-full"
                   />
                 </figure>
               ))}
@@ -492,7 +807,7 @@ const MangaReader = ({ manga }) => {
           data-horizontal-reader
         >
           <div
-            className="relative flex min-h-0 flex-1 touch-pan-y items-center justify-center overflow-hidden bg-[#111110] px-11 py-0 sm:px-16"
+            className="relative flex min-h-0 flex-1 touch-pan-y items-center justify-center overflow-hidden bg-[#111110] p-0"
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
             data-horizontal-stage
@@ -522,7 +837,9 @@ const MangaReader = ({ manga }) => {
               type="button"
               onClick={goToNext}
               disabled={!canGoNext}
+              tabIndex={isInterfaceVisible ? 0 : -1}
               aria-label="Next page or spread"
+              aria-hidden={!isInterfaceVisible}
               className={`absolute left-1 top-1/2 z-20 flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center border border-white/20 bg-black/55 text-3xl text-white transition-opacity hover:border-[#d88a7e] hover:text-[#d88a7e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d88a7e] disabled:cursor-not-allowed disabled:opacity-25 sm:left-3 ${
                 isInterfaceVisible ? "opacity-100" : "pointer-events-none opacity-0"
               }`}
@@ -531,19 +848,17 @@ const MangaReader = ({ manga }) => {
             </button>
 
             <div
-              className={`flex w-full items-center justify-center gap-0 ${
-                isInterfaceVisible ? "max-h-[78dvh]" : "max-h-[100dvh]"
-              }`}
+              className="flex h-full min-h-0 w-full items-center justify-center gap-0"
               dir={visiblePages.length > 1 ? "rtl" : "ltr"}
               data-horizontal-pages={visiblePageNumbers.join("-")}
             >
-              {visiblePages.map((page, index) => (
+              {visiblePages.map((page) => (
                 <figure
                   key={page.src}
-                  className={`min-h-0 items-center justify-center p-0 ${
+                  className={`m-0 min-h-0 border-0 p-0 ${
                     visiblePages.length > 1
-                      ? `${index > 0 ? "hidden md:flex" : "flex"} flex-none md:max-w-[50%]`
-                      : "flex w-full"
+                      ? "contents"
+                      : "flex h-full w-full items-center justify-center"
                   }`}
                   data-page={page.number}
                   dir="ltr"
@@ -552,8 +867,8 @@ const MangaReader = ({ manga }) => {
                     page={page}
                     title={title}
                     eager
-                    className={`w-auto max-w-full ${
-                      isInterfaceVisible ? "max-h-[76dvh]" : "max-h-[100dvh]"
+                    className={`m-0 h-full max-h-[100dvh] w-auto flex-none border-0 p-0 object-contain ${
+                      visiblePages.length > 1 ? "max-w-[50%]" : "max-w-full"
                     }`}
                   />
                 </figure>
@@ -564,7 +879,9 @@ const MangaReader = ({ manga }) => {
               type="button"
               onClick={goToPrevious}
               disabled={!canGoPrevious}
+              tabIndex={isInterfaceVisible ? 0 : -1}
               aria-label="Previous page or spread"
+              aria-hidden={!isInterfaceVisible}
               className={`absolute right-1 top-1/2 z-20 flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center border border-white/20 bg-black/55 text-3xl text-white transition-opacity hover:border-[#d88a7e] hover:text-[#d88a7e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d88a7e] disabled:cursor-not-allowed disabled:opacity-25 sm:right-3 ${
                 isInterfaceVisible ? "opacity-100" : "pointer-events-none opacity-0"
               }`}
@@ -573,65 +890,17 @@ const MangaReader = ({ manga }) => {
             </button>
           </div>
 
-          <div
-            className={`absolute inset-x-0 bottom-0 z-30 overflow-hidden ${interfaceTransition} ${
-              isInterfaceVisible
-                ? "max-h-32 opacity-100"
-                : "pointer-events-none max-h-0 opacity-0"
-            }`}
-            aria-hidden={!isInterfaceVisible}
-            inert={isInterfaceVisible ? undefined : ""}
-            data-thumbnail-interface
-          >
-            <div className="min-h-0 overflow-hidden border-x border-b border-black/10 bg-[#d9d3c9] p-3 dark:border-white/10 dark:bg-[#1d1d1b]">
-              <div
-              className="flex max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-2"
-              dir="rtl"
-              role="list"
-              aria-label="Manga pages"
-              data-thumbnail-strip
-              >
-              {pages.map((page, index) => {
-                const pageNumber = index + 1;
-                const isActive = visiblePageNumbers.includes(pageNumber);
-
-                return (
-                  <div key={page} role="listitem" className="w-16 shrink-0 sm:w-20">
-                    <button
-                      ref={(element) => {
-                        thumbnailElements.current[index] = element;
-                      }}
-                      type="button"
-                      aria-label={`Open page ${pageNumber}`}
-                      aria-pressed={isActive}
-                      onClick={() => goToPage(pageNumber, { scroll: false })}
-                      className={`relative w-full border-2 bg-white p-0.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9b4035] focus-visible:ring-offset-2 dark:focus-visible:ring-offset-[#1d1d1b] ${
-                        isActive
-                          ? "border-[#9b4035]"
-                          : "border-transparent opacity-65 hover:opacity-100"
-                      }`}
-                      data-thumbnail-page={pageNumber}
-                    >
-                      <img
-                        src={page}
-                        alt=""
-                        className="aspect-[3/4] w-full object-cover object-top"
-                        loading="lazy"
-                        decoding="async"
-                        draggable="false"
-                      />
-                      <span className="absolute bottom-1 right-1 bg-black/75 px-1.5 py-0.5 text-[0.6rem] font-semibold text-white" dir="ltr">
-                        {pageNumber}
-                      </span>
-                    </button>
-                  </div>
-                );
-              })}
-              </div>
-            </div>
-          </div>
         </section>
       )}
+
+      <ThumbnailStrip
+        pages={pages}
+        activePages={visiblePageNumbers}
+        isVisible={isInterfaceVisible}
+        interfaceTransition={interfaceTransition}
+        thumbnailElements={thumbnailElements}
+        onSelect={goToPage}
+      />
     </main>
   );
 };
