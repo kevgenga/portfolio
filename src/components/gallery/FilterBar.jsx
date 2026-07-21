@@ -1,5 +1,5 @@
 const baseButtonClass =
-  "px-4 py-1.5 text-sm font-medium uppercase border transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900";
+  "inline-flex items-baseline gap-1 border px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9b4035] focus-visible:ring-offset-2 dark:focus-visible:ring-offset-[#171716]";
 
 const FilterBar = ({
   filters,
@@ -10,33 +10,36 @@ const FilterBar = ({
   filtersLabel,
 }) => (
   <div
-    className="flex flex-wrap justify-center gap-4 mb-6"
+    className="mb-10 flex flex-wrap gap-2"
     role="group"
     aria-label={filtersLabel}
   >
     {onSortChange && (
       <button
         type="button"
-        className={`${baseButtonClass} border-blue-400 text-gray-600 hover:border-blue-800 hover:text-blue-800 dark:text-gray-300 dark:hover:border-blue-600`}
+        className={`${baseButtonClass} border-[#9b4035] text-[#9b4035] hover:bg-[#9b4035] hover:text-white`}
         onClick={onSortChange}
       >
         {sortLabel}
       </button>
     )}
 
-    {filters.map(({ value, label }) => (
+    {filters.map(({ value, label, count }) => (
       <button
         key={value}
         type="button"
         className={`${baseButtonClass} ${
           activeFilter === value
-            ? "border-blue-600 text-blue-500 shadow-sm"
-            : "border-gray-400 text-gray-600 hover:border-gray-700 hover:text-gray-800 dark:border-gray-600 dark:text-gray-300 dark:hover:border-gray-400"
+            ? "border-[#1d1d1b] bg-[#1d1d1b] text-white dark:border-[#f4f1eb] dark:bg-[#f4f1eb] dark:text-[#1d1d1b]"
+            : "border-black/15 text-[#5d5a55] hover:border-[#1d1d1b] hover:text-[#1d1d1b] dark:border-white/20 dark:text-[#c8c3ba] dark:hover:border-white dark:hover:text-white"
         }`}
         onClick={() => onFilterChange(value)}
         aria-pressed={activeFilter === value}
       >
-        {label}
+        <span>{label}</span>
+        {Number.isInteger(count) && (
+          <span className="text-[0.65rem] tracking-normal opacity-60">({count})</span>
+        )}
       </button>
     ))}
   </div>

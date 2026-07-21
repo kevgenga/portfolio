@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
+import { profile } from "../content/profile";
 import { t } from "../content/ui";
 
 const emptyForm = { name: "", email: "", message: "" };
@@ -21,11 +22,8 @@ const ContactPage = () => {
 
   useEffect(() => {
     const isComplete = formData.name && formData.email && formData.message;
-
     if (isComplete) setError("");
-    setSuccess(
-      isComplete && emailPattern.test(formData.email) ? t.contact.ready : "",
-    );
+    setSuccess(isComplete && emailPattern.test(formData.email) ? t.contact.ready : "");
   }, [formData]);
 
   const handleChange = (event) => {
@@ -75,102 +73,54 @@ const ContactPage = () => {
   };
 
   const fieldClass =
-    "w-full rounded-md bg-gray-100 p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:bg-gray-900";
+    "w-full border border-black/15 bg-[#f4f1eb] px-4 py-3 text-[#1d1d1b] outline-none transition-colors placeholder:text-[#8a857d] focus:border-[#9b4035] focus:ring-1 focus:ring-[#9b4035] dark:border-white/20 dark:bg-[#171716] dark:text-[#f4f1eb]";
 
   return (
-    <main className="contact-container min-h-screen overflow-x-clip bg-light-background text-light-text dark:bg-dark-background dark:text-dark-text">
-      <div className="mx-auto max-w-screen-xl p-4 pt-16 sm:p-8 sm:pt-16">
-        <motion.h1
-          className="mb-6 pt-12 text-center text-3xl font-semibold uppercase tracking-wide"
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease: "easeOut" }}
-        >
-          {t.contact.title}
-        </motion.h1>
-
-        <div id="form-status" aria-live="polite" aria-atomic="true">
-          {error && (
-            <p className="mb-4 text-center text-red-600" role="alert">
-              {error}
-            </p>
-          )}
-          {success && (
-            <p className="mb-4 text-center text-green-600" role="status">
-              {success}
-            </p>
-          )}
-        </div>
+    <main className="min-h-screen overflow-x-clip bg-[#f4f1eb] px-5 pb-20 pt-28 text-[#1d1d1b] dark:bg-[#171716] dark:text-[#f4f1eb] sm:px-8 lg:px-10">
+      <div className="mx-auto grid max-w-6xl gap-12 lg:grid-cols-[0.8fr_1.2fr] lg:gap-20">
+        <motion.header initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+          <p className="section-eyebrow">{t.contact.eyebrow}</p>
+          <h1 className="section-title">{t.contact.title}</h1>
+          <p className="mt-6 max-w-md leading-7 text-[#68645e] dark:text-[#bbb5ac]">{t.contact.introduction}</p>
+          <div className="mt-9 border-t border-black/10 pt-6 dark:border-white/10">
+            <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#8a857d]">{t.contact.directEmail}</p>
+            <a className="mt-2 inline-block text-lg underline decoration-[#9b4035] underline-offset-4 hover:text-[#9b4035]" href={`mailto:${profile.contact.email}`}>
+              {profile.contact.email}
+            </a>
+          </div>
+        </motion.header>
 
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: "easeOut" }}
-          className="mx-auto w-full rounded-md bg-gray-700 p-6 shadow-sm dark:bg-gray-800 md:w-2/3 lg:w-1/2"
+          transition={{ duration: 0.55 }}
+          className="border border-black/10 bg-[#faf8f4] p-5 dark:border-white/10 dark:bg-[#1d1d1b] sm:p-8"
         >
-          <form className="space-y-6" onSubmit={handleSubmit}>
-            <div>
-              <label htmlFor="contact-name" className="mb-2 block text-white">
-                {t.contact.name}
-              </label>
-              <input
-                id="contact-name"
-                type="text"
-                name="name"
-                value={formData.name}
-                onChange={handleChange}
-                autoComplete="name"
-                required
-                aria-describedby="form-status"
-                className={fieldClass}
-              />
-            </div>
+          <div id="form-status" className="min-h-6" aria-live="polite" aria-atomic="true">
+            {error && <p className="mb-4 text-sm text-red-700 dark:text-red-300" role="alert">{error}</p>}
+            {success && <p className="mb-4 text-sm text-green-700 dark:text-green-300" role="status">{success}</p>}
+          </div>
 
+          <form className="mt-2 space-y-6" onSubmit={handleSubmit}>
             <div>
-              <label htmlFor="contact-email" className="mb-2 block text-white">
-                {t.contact.email}
-              </label>
-              <input
-                id="contact-email"
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
-                autoComplete="email"
-                required
-                aria-describedby="form-status"
-                className={fieldClass}
-              />
+              <label htmlFor="contact-name" className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em]">{t.contact.name}</label>
+              <input id="contact-name" type="text" name="name" value={formData.name} onChange={handleChange} autoComplete="name" required aria-describedby="form-status" className={fieldClass} />
             </div>
-
             <div>
-              <label htmlFor="contact-message" className="mb-2 block text-white">
-                {t.contact.message}
-              </label>
-              <textarea
-                id="contact-message"
-                name="message"
-                value={formData.message}
-                onChange={handleChange}
-                autoComplete="off"
-                required
-                aria-describedby="form-status"
-                className={fieldClass}
-                rows="5"
-              />
+              <label htmlFor="contact-email" className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em]">{t.contact.email}</label>
+              <input id="contact-email" type="email" name="email" value={formData.email} onChange={handleChange} autoComplete="email" required aria-describedby="form-status" className={fieldClass} />
             </div>
-
-            <div className="flex justify-center">
-              <motion.button
-                type="submit"
-                className="rounded-md bg-blue-700 px-6 py-3 text-white transition-colors hover:bg-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-700 disabled:cursor-wait disabled:opacity-70"
-                whileHover={{ scale: 1.03 }}
-                transition={{ duration: 0.2 }}
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? t.contact.submitting : t.contact.submit}
-              </motion.button>
+            <div>
+              <label htmlFor="contact-message" className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em]">{t.contact.message}</label>
+              <textarea id="contact-message" name="message" value={formData.message} onChange={handleChange} autoComplete="off" required aria-describedby="form-status" className={fieldClass} rows="6" />
             </div>
+            <button
+              type="submit"
+              className="button-primary disabled:cursor-wait disabled:opacity-60"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? t.contact.submitting : t.contact.submit}
+            </button>
           </form>
         </motion.div>
       </div>

@@ -38,7 +38,7 @@ const ContactPage = () => {
     }
 
     // Si tout est valide, générer le lien mailto
-    const mailtoLink = `mailto:kevgenga@gmail.com?subject=Message de ${formData.name}&body=Nom: ${formData.name}%0AEmail: ${formData.email}%0AMessage:%0A${formData.message}`;
+    const mailtoLink = `mailto:kevin.lao@hotmail.fr?subject=Message de ${formData.name}&body=Nom: ${formData.name}%0AEmail: ${formData.email}%0AMessage:%0A${formData.message}`;
 
     // Ouvrir le client de messagerie avec le lien mailto
     window.location.href = mailtoLink;

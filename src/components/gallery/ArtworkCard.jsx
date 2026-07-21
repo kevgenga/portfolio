@@ -9,6 +9,7 @@ const ArtworkCard = ({
   metadata,
   rounded = false,
   className = "",
+  mediaClassName = "aspect-[4/5]",
 }) => {
   const imageDimensions = {};
 
@@ -17,27 +18,24 @@ const ArtworkCard = ({
 
   return (
     <motion.article
-      className={`overflow-hidden border border-gray-300 shadow-sm dark:border-gray-700 ${
-        rounded ? "rounded-xl" : "rounded-sm"
-      } ${className}`}
+      className={`overflow-hidden border border-black/10 bg-[#faf8f4] dark:border-white/10 dark:bg-[#1d1d1b] ${className}`}
       variants={{
         hidden: { opacity: 0, y: 10 },
         visible: { opacity: 1, y: 0 },
       }}
-      whileHover={{ scale: 1.015 }}
       transition={{ duration: 0.2 }}
     >
       <a
         href={href}
         data-fancybox={galleryName}
         data-caption={caption || undefined}
-        className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
+        className="group block overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#9b4035]"
       >
         <img
           src={image}
           alt={item.alt || item.title || ""}
-          className={`w-full object-cover transition-opacity duration-300 hover:opacity-85 ${
-            rounded ? "h-64 rounded-t-lg" : "h-48"
+          className={`w-full bg-[#e8e3da] object-cover transition-opacity duration-300 group-hover:opacity-90 dark:bg-[#262522] ${mediaClassName} ${
+            rounded ? "rounded-none" : ""
           }`}
           loading="lazy"
           decoding="async"
@@ -46,13 +44,13 @@ const ArtworkCard = ({
       </a>
 
       {(item.title || metadata || item.category) && (
-        <div className="bg-white px-2 py-2 text-center text-sm text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+        <div className="border-t border-black/10 px-3 py-3 text-sm text-[#716c64] dark:border-white/10 dark:text-[#aaa49b]">
           {item.title && (
-            <h2 className="font-semibold text-gray-700 dark:text-gray-100">
+            <h2 className="font-semibold text-[#1d1d1b] dark:text-[#f4f1eb]">
               {item.title}
             </h2>
           )}
-          {metadata && <p className="font-semibold">{metadata}</p>}
+          {metadata && <p className="text-xs uppercase tracking-[0.12em]">{metadata}</p>}
           {!metadata && item.category && <p>{item.category}</p>}
         </div>
       )}

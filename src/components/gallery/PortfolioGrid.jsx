@@ -8,7 +8,7 @@ const PortfolioGrid = ({ children, className = "" }) => (
       hidden: { opacity: 0 },
       visible: { opacity: 1, transition: { staggerChildren: 0.03 } },
     }}
-    className={`grid gap-3 pt-3 ${className}`}
+    className={`grid gap-4 sm:gap-5 ${className}`}
   >
     {children}
   </motion.div>

@@ -1,9 +1,9 @@
 const LoadMoreButton = ({ onClick, label, remaining }) => (
-  <div className="flex justify-center py-8">
+  <div className="flex justify-center py-12">
     <button
       type="button"
       onClick={onClick}
-      className="border border-blue-500 px-6 py-3 font-medium uppercase text-blue-600 transition-colors hover:bg-blue-500 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:text-blue-300 dark:focus-visible:ring-offset-gray-900"
+      className="border border-[#9b4035] bg-[#9b4035] px-7 py-3 text-xs font-semibold uppercase tracking-[0.15em] text-white transition-colors hover:border-[#7e3028] hover:bg-[#7e3028] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9b4035] focus-visible:ring-offset-2 dark:focus-visible:ring-offset-[#171716]"
       aria-label={`${label} (${remaining})`}
     >
       {label}

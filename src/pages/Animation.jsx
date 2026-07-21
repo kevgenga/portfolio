@@ -12,7 +12,7 @@ import "./custom.css";
 const animationCategories = ["court-métrage", "animation 2d"];
 
 const formatDate = (date) =>
-  new Date(date).toLocaleDateString("fr-FR", {
+  new Date(date).toLocaleDateString("en-GB", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -43,15 +43,19 @@ const Animation = () => {
   ];
 
   return (
-    <main className="mx-auto min-h-screen overflow-x-clip bg-light-background p-4 pt-16 text-light-text dark:bg-dark-background dark:text-dark-text sm:p-8 sm:pt-16">
-      <motion.h1
-        className="mb-6 pt-12 text-center text-3xl font-semibold uppercase tracking-wide"
+    <main className="min-h-screen overflow-x-clip bg-[#f4f1eb] px-5 pb-16 pt-28 text-[#1d1d1b] dark:bg-[#171716] dark:text-[#f4f1eb] sm:px-8 lg:px-10">
+      <motion.header
+        className="mx-auto mb-12 max-w-7xl border-b border-black/10 pb-10 dark:border-white/10"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: "easeOut" }}
       >
-        {t.animation.title}
-      </motion.h1>
+        <p className="section-eyebrow">{t.animation.eyebrow}</p>
+        <h1 className="section-title">{t.animation.title}</h1>
+        <p className="mt-5 max-w-xl text-[#68645e] dark:text-[#bbb5ac]">{t.animation.introduction}</p>
+      </motion.header>
+
+      <div className="mx-auto max-w-7xl">
 
       <FilterBar
         filters={filters}
@@ -69,7 +73,7 @@ const Animation = () => {
       <Lightbox selector="[data-fancybox='animation-gallery']" />
 
       {sortedMedia.length > 0 ? (
-        <PortfolioGrid className="grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+        <PortfolioGrid className="grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
           {sortedMedia.map((item) => (
             <ArtworkCard
               key={item.id}
@@ -78,14 +82,14 @@ const Animation = () => {
               href={item.video}
               image={item.poster || item.video}
               metadata={item.date ? formatDate(item.date) : item.category}
-              rounded
-              className="border-gray-400 shadow-lg dark:border-gray-800"
+              mediaClassName="aspect-video"
             />
           ))}
         </PortfolioGrid>
       ) : (
         <EmptyState message={t.common.noResults} />
       )}
+      </div>
     </main>
   );
 };

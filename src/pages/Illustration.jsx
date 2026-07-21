@@ -23,22 +23,35 @@ const parseArtworkDate = (date) => {
   return new Date(year, month - 1, day).getTime();
 };
 
+const countArtworksForFilter = (filter) =>
+  artworks.reduce((count, artwork) => {
+    if (filter === "all") return count + 1;
+    if (filter === "featured") return count + (artwork.featured ? 1 : 0);
+    return count + (artwork.category.includes(filter) ? 1 : 0);
+  }, 0);
+
 const Illustration = () => {
   const [filter, setFilter] = useState("all");
   const [sortOrder, setSortOrder] = useState("recent");
   const [visibleCount, setVisibleCount] = useState(ILLUSTRATION_PAGE_SIZE);
 
   const hasFeaturedArtwork = artworks.some((artwork) => artwork.featured);
-  const filters = [
-    { value: "all", label: t.common.all },
-    ...illustrationCategories.map((category) => ({
-      value: category,
-      label: t.illustration.categories[category],
+  const filters = useMemo(
+    () => [
+      { value: "all", label: t.common.all },
+      ...illustrationCategories.map((category) => ({
+        value: category,
+        label: t.illustration.categories[category],
+      })),
+      ...(hasFeaturedArtwork
+        ? [{ value: "featured", label: t.illustration.categories.featured }]
+        : []),
+    ].map((item) => ({
+      ...item,
+      count: countArtworksForFilter(item.value),
     })),
-    ...(hasFeaturedArtwork
-      ? [{ value: "featured", label: t.illustration.categories.featured }]
-      : []),
-  ];
+    [hasFeaturedArtwork],
+  );
 
   const filteredArtworks = useMemo(() => {
     const filtered = artworks.filter((artwork) => {
@@ -62,15 +75,19 @@ const Illustration = () => {
   const remainingCount = filteredArtworks.length - visibleArtworks.length;
 
   return (
-    <main className="mx-auto min-h-screen overflow-x-clip bg-light-background px-4 pt-16 dark:bg-dark-background sm:px-6">
-      <motion.h1
-        className="mb-6 pt-12 text-center text-3xl font-semibold uppercase tracking-wide"
+    <main className="min-h-screen overflow-x-clip bg-[#f4f1eb] px-5 pb-16 pt-28 text-[#1d1d1b] dark:bg-[#171716] dark:text-[#f4f1eb] sm:px-8 lg:px-10">
+      <motion.header
+        className="mx-auto mb-12 max-w-7xl border-b border-black/10 pb-10 dark:border-white/10"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: "easeOut" }}
       >
-        {t.illustration.title}
-      </motion.h1>
+        <p className="section-eyebrow">{t.illustration.eyebrow}</p>
+        <h1 className="section-title">{t.illustration.title}</h1>
+        <p className="mt-5 max-w-xl text-[#68645e] dark:text-[#bbb5ac]">{t.illustration.introduction}</p>
+      </motion.header>
+
+      <div className="mx-auto max-w-7xl">
 
       <FilterBar
         filters={filters}
@@ -94,7 +111,7 @@ const Illustration = () => {
 
       {visibleArtworks.length > 0 ? (
         <>
-          <PortfolioGrid className="grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
+          <PortfolioGrid className="grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
             {visibleArtworks.map((artwork) => (
               <ArtworkCard
                 key={artwork.id}
@@ -120,6 +137,7 @@ const Illustration = () => {
       ) : (
         <EmptyState message={t.common.noResults} />
       )}
+      </div>
     </main>
   );
 };
