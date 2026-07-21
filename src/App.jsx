@@ -92,7 +92,7 @@ const AppRoutes = () => {
 function App() {
   return (
     <MotionConfig reducedMotion="user">
-      <Router basename="/test-portfolio-mangaka/">
+      <Router basename={import.meta.env.BASE_URL}>
         <AppRoutes />
       </Router>
     </MotionConfig>

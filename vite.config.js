@@ -31,7 +31,7 @@ function excludeInternalPublicTools() {
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), excludeInternalPublicTools()],
-  base: '/test-portfolio-mangaka/', // Assure que le chemin est correct
+  base: '/portfolio/',
   server: {
     host: true, // Permet l'accès depuis d'autres appareils
     port: 5173, // Assure que le port reste le même
