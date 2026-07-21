@@ -384,6 +384,7 @@ const MangaReader = ({ manga }) => {
   const verticalPageElements = useRef([]);
   const thumbnailElements = useRef([]);
   const touchStartX = useRef(null);
+  const touchStartY = useRef(null);
   const suppressZoneClick = useRef(false);
   const shouldReduceMotion = useReducedMotion();
   const pageDisplay = readingMode === "horizontal" && isWideReader ? "double" : "single";
@@ -614,20 +615,39 @@ const MangaReader = ({ manga }) => {
   }, [goToNext, goToPrevious, isInterfaceVisible, readingMode]);
 
   const handleTouchStart = (event) => {
-    touchStartX.current = event.changedTouches[0]?.clientX ?? null;
+    const touch = event.changedTouches[0];
+    touchStartX.current = touch?.clientX ?? null;
+    touchStartY.current = touch?.clientY ?? null;
     suppressZoneClick.current = false;
   };
 
   const handleTouchEnd = (event) => {
-    if (touchStartX.current === null) return;
+    if (
+      readingMode !== "horizontal" ||
+      touchStartX.current === null ||
+      touchStartY.current === null
+    ) {
+      return;
+    }
 
-    const touchEndX = event.changedTouches[0]?.clientX ?? touchStartX.current;
-    const distance = touchEndX - touchStartX.current;
+    const touch = event.changedTouches[0];
+    const touchEndX = touch?.clientX ?? touchStartX.current;
+    const touchEndY = touch?.clientY ?? touchStartY.current;
+    const deltaX = touchEndX - touchStartX.current;
+    const deltaY = touchEndY - touchStartY.current;
     touchStartX.current = null;
+    touchStartY.current = null;
 
-    if (Math.abs(distance) < SWIPE_THRESHOLD) return;
+    if (
+      Math.abs(deltaX) < SWIPE_THRESHOLD ||
+      Math.abs(deltaX) <= Math.abs(deltaY)
+    ) {
+      return;
+    }
+
     suppressZoneClick.current = true;
-    if (distance < 0) goToNext();
+    const isNextSwipe = readingDirection === "rtl" ? deltaX > 0 : deltaX < 0;
+    if (isNextSwipe) goToNext();
     else goToPrevious();
   };
 

@@ -21,13 +21,25 @@ const mangaDefinitions = [
     role: "",
     year: "",
     readingDirection: "rtl",
-    defaultLanguage: "original",
+    defaultLanguage: "en",
     languages: {
-      original: {
-        label: "Original",
-        shortLabel: "ORIG",
+      en: {
+        label: "English",
+        shortLabel: "ENG",
         pages: numberedPages({
-          directory: "assets/mangaka/legend-of-animiste",
+          directory: "assets/mangaka/legend-of-animiste/english",
+          prefix: "Legend of animiste_Kevgenga_Page_",
+          suffix: "_Image_0001.jpg",
+          start: 1,
+          end: 19,
+          padding: 2,
+        }),
+      },
+      fr: {
+        label: "French",
+        shortLabel: "FR",
+        pages: numberedPages({
+          directory: "assets/mangaka/legend-of-animiste/french",
           prefix: "Legend of animiste_Kevgenga_Page_",
           suffix: "_Image_0001.jpg",
           start: 1,
