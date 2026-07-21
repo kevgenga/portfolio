@@ -1,31 +1,33 @@
 import { assetPath } from "../utils/assetPath";
 
-const numberedPages = ({ directory, prefix, start, end, padding }) =>
+const numberedPages = ({ directory, prefix, suffix = ".jpg", start, end, padding }) =>
   Array.from({ length: end - start + 1 }, (_, index) => {
     const pageNumber = String(start + index).padStart(padding, "0");
-    return assetPath(`${directory}/${prefix}${pageNumber}.jpg`);
+    return assetPath(`${directory}/${prefix}${pageNumber}${suffix}`);
   });
 
 const mangaDefinitions = [
   {
-    id: 1,
-    route: "/mangas/1",
-    title: "SHARING!!",
+    id: "legend-of-animiste",
+    slug: "legend-of-animiste",
+    route: "/mangas/legend-of-animiste",
+    title: "Legend of Animiste",
     edition: "",
-    cover: assetPath("assets/mangaka/sharing/447x200.jpg"),
-    banner: "",
+    cover: assetPath("assets/mangaka/legend-of-animiste/300x300-v2.jpg"),
+    banner: assetPath("assets/mangaka/legend-of-animiste/447x200.jpg"),
     summary:
-      "An angry spirit devastated everything in its path. Two fighters, each with a different approach, tried to stop it while attempting to understand what was fuelling its rage. Discover the story of SHARING!!",
+      "Legend of Animiste follows a young fighter drawn into a world shaped by spirits, ancient powers, and dangerous conflicts.\n\nDiscover the story of Legend of Animiste.",
     genre: "",
     role: "",
     year: "",
     readingDirection: "rtl",
     pages: numberedPages({
-      directory: "assets/mangaka/sharing",
-      prefix: "BD2_",
+      directory: "assets/mangaka/legend-of-animiste",
+      prefix: "Legend of animiste_Kevgenga_Page_",
+      suffix: "_Image_0001.jpg",
       start: 1,
-      end: 17,
-      padding: 3,
+      end: 19,
+      padding: 2,
     }),
     featured: false,
   },
@@ -73,28 +75,6 @@ const mangaDefinitions = [
     }),
     featured: false,
   },
-  {
-    id: 4,
-    route: "/mangas/4",
-    title: "SHARING!!",
-    edition: "[VERSION EXTENDED]",
-    cover: assetPath("assets/mangaka/sharing_version-extended/447x200.jpg"),
-    banner: "",
-    summary:
-      "An angry spirit devastated everything in its path. Two fighters, each with a different approach, tried to stop it while attempting to understand what was fuelling its rage. Discover the story of SHARING!!",
-    genre: "",
-    role: "",
-    year: "",
-    readingDirection: "rtl",
-    pages: numberedPages({
-      directory: "assets/mangaka/sharing_version-extended",
-      prefix: "BD2_",
-      start: 0,
-      end: 30,
-      padding: 3,
-    }),
-    featured: false,
-  },
 ];
 
 export const mangas = mangaDefinitions.map((manga) => ({
@@ -103,4 +83,4 @@ export const mangas = mangaDefinitions.map((manga) => ({
 }));
 
 export const getMangaById = (id) =>
-  mangas.find((manga) => manga.id === Number(id));
+  mangas.find((manga) => String(manga.id) === String(id));
