@@ -4167,11 +4167,11 @@ export const artworks = [
   },
   {
     id: "illustration30-5-bq",
-    title: "Illustration 30-5 BQ",
+    title: "",
     image: assetPath("assets/illustration/illustrations/Illustration30-5_bq.jpg"),
     thumbnail: "",
     category: ["illustrations"],
-    date: "2025-04-17",
+    date: "17-04-2025",
     year: 2025,
     alt: "Illustration 30-5 BQ",
     featured: false,
@@ -4179,7 +4179,7 @@ export const artworks = [
   },
   {
     id: "illustration44-2",
-    title: "Illustration 44-2",
+    title: "",
     image: assetPath("assets/illustration/illustrations/Illustration44-2.jpg"),
     thumbnail: "",
     category: ["illustrations"],
@@ -4191,7 +4191,7 @@ export const artworks = [
   },
   {
     id: "illustration62-5",
-    title: "Illustration 62-5",
+    title: "",
     image: assetPath("assets/illustration/illustrations/Illustration62-5.jpg"),
     thumbnail: "",
     category: ["illustrations"],
@@ -4203,7 +4203,7 @@ export const artworks = [
   },
   {
     id: "illustration67-3-bq",
-    title: "Illustration 67-3 BQ",
+    title: "",
     image: assetPath("assets/illustration/illustrations/Illustration67-3-bq.jpg"),
     thumbnail: "",
     category: ["illustrations"],
