@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Animation Admin — KEVGENGA</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/modules/animations/animation-admin.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div><p class="eyebrow">KEVGENGA PORTFOLIO ADMIN — OUTIL LOCAL</p><h1>Portfolio Admin <span class="version-mark">ANIMATION</span></h1></div>
+      <div class="header-actions">
+        <button id="animation-backup" class="button button-secondary" type="button">Créer une sauvegarde</button>
+        <button id="animation-preview" class="button button-secondary" type="button">Prévisualiser le portfolio ↗</button>
+        <button id="create-animation" class="button button-primary" type="button">Ajouter une animation</button>
+      </div>
+    </header>
+
+    <main>
+      <nav class="portfolio-module-nav" aria-label="Modules Portfolio Admin">
+        <a href="/">Illustrations</a><a href="/mangas.html">Mangas</a><a class="is-active" href="/animations.html" aria-current="page">Animations</a>
+      </nav>
+      <aside id="animation-report" class="category-report" hidden></aside>
+      <section class="toolbar animation-toolbar" aria-label="Recherche, filtres et tri">
+        <label class="field search-field"><span>Rechercher</span><input id="animation-search" type="search" placeholder="Titre, fichier, alt ou ID…" /></label>
+        <label class="field"><span>Catégorie</span><select id="animation-category"><option value="">Toutes les catégories</option></select></label>
+        <label class="field"><span>Type de média</span><select id="animation-type"><option value="">Tous les types</option><option value="video">Vidéo</option><option value="gif">GIF</option><option value="image">Image</option></select></label>
+        <label class="field"><span>Trier</span><select id="animation-sort"><option value="newest">Plus récent</option><option value="oldest">Plus ancien</option><option value="title-asc">Titre A → Z</option><option value="title-desc">Titre Z → A</option><option value="catalog">Ordre du catalogue</option></select></label>
+        <p id="animation-count" class="result-count"></p>
+      </section>
+      <section id="animation-grid" class="animation-admin-grid"></section>
+    </main>
+
+    <dialog id="animation-dialog" class="dialog animation-dialog">
+      <form id="animation-form" class="dialog-panel animation-editor-form">
+        <div class="dialog-heading"><div><p class="eyebrow">ANIMATION ADMIN</p><h2 id="animation-dialog-title">Modifier l’animation</h2><p id="animation-breadcrumb" class="muted-copy"></p></div><button class="icon-button" type="button" data-close-editor aria-label="Fermer">×</button></div>
+        <div class="animation-editor-tabs" role="tablist" aria-label="Sections de l’animation">
+          <button id="animation-tab-information" class="is-active" type="button" role="tab" data-animation-tab="information" aria-controls="animation-panel-information" aria-selected="true">Informations</button>
+          <button id="animation-tab-media" type="button" role="tab" data-animation-tab="media" aria-controls="animation-panel-media" aria-selected="false" tabindex="-1">Média</button>
+          <button id="animation-tab-poster" type="button" role="tab" data-animation-tab="poster" aria-controls="animation-panel-poster" aria-selected="false" tabindex="-1">Poster</button>
+        </div>
+        <div class="animation-tab-panels">
+          <section id="animation-panel-information" class="animation-tab-panel" role="tabpanel" aria-labelledby="animation-tab-information" data-animation-panel="information">
+            <div class="animation-form-grid">
+              <label class="field"><span>Titre *</span><input name="title" required /></label>
+              <label class="field"><span>Date (JJ-MM-AAAA) *</span><input name="date" required inputmode="numeric" placeholder="01-02-2025" pattern="\d{2}-\d{2}-\d{4}" /></label>
+              <label class="field"><span>Catégorie *</span><select name="category" required></select></label>
+              <label class="field"><span>Ordre interne du catalogue *</span><input name="position" type="number" min="1" required /><small>Cet ordre sert de référence interne. La position 1 fournit actuellement le visuel Animation de la page d’accueil. Le tri public par date reste indépendant.</small></label>
+              <label class="toggle-field animation-wide"><input name="customizeAlt" type="checkbox" /><span>Personnaliser le texte alternatif</span></label>
+              <p id="editor-alt-help" class="muted-copy animation-wide">Texte alternatif généré automatiquement depuis le titre.</p>
+              <label id="editor-alt-field" class="field animation-wide" hidden><span>Texte alternatif *</span><input name="alt" /></label>
+              <label class="toggle-field"><input name="featured" type="checkbox" /><span>Featured</span></label>
+            </div>
+            <p class="muted-copy">L’année et le type sont calculés automatiquement. La première animation du catalogue fournit le visuel Animation de la page d’accueil.</p>
+          </section>
+          <section id="animation-panel-media" class="animation-tab-panel" role="tabpanel" aria-labelledby="animation-tab-media" data-animation-panel="media" hidden><div id="animation-media-panel"></div></section>
+          <section id="animation-panel-poster" class="animation-tab-panel" role="tabpanel" aria-labelledby="animation-tab-poster" data-animation-panel="poster" hidden><div id="animation-poster-panel"></div></section>
+        </div>
+        <div class="dialog-actions split-actions"><button id="delete-animation" class="button button-danger" type="button">Supprimer</button><div><button class="button button-secondary" type="button" data-close-editor>Annuler</button><button class="button button-primary" type="submit">Enregistrer</button></div></div>
+      </form>
+    </dialog>
+
+    <dialog id="create-animation-dialog" class="dialog create-animation-dialog">
+      <form id="create-animation-form" class="dialog-panel">
+        <div class="dialog-heading"><div><p class="eyebrow">NOUVELLE ANIMATION</p><h2>Ajouter une animation</h2></div><button class="icon-button" type="button" data-close-create aria-label="Fermer">×</button></div>
+        <div class="create-animation-layout">
+          <section class="create-files-column">
+            <label class="drop-zone animation-drop-zone" data-drop-target="create-media-input"><strong>Déposez votre animation ici *</strong><span>MP4, WebM, GIF, JPG, PNG, WebP ou AVIF</span><input id="create-media-input" name="media" type="file" required accept=".mp4,.webm,.gif,.jpg,.jpeg,.png,.webp,.avif" /></label>
+            <div id="create-media-preview" class="upload-preview" hidden></div>
+            <label class="drop-zone animation-drop-zone" data-drop-target="create-poster-input"><strong>Poster de la vidéo</strong><span>Obligatoire pour MP4/WebM ; inutile pour une image ou un GIF</span><input id="create-poster-input" name="poster" type="file" accept=".jpg,.jpeg,.png,.webp,.avif" /></label>
+            <div id="create-poster-preview" class="upload-preview" hidden></div>
+          </section>
+          <section class="create-fields-column">
+            <label class="field"><span>Titre *</span><input name="title" required /></label>
+            <label class="field"><span>Date (JJ-MM-AAAA) *</span><input name="date" required inputmode="numeric" placeholder="01-02-2025" pattern="\d{2}-\d{2}-\d{4}" /></label>
+            <label class="field"><span>Catégorie *</span><select name="category" required></select></label>
+            <label class="field"><span>Ordre interne du catalogue</span><input name="position" type="number" min="1" /><small>Cet ordre sert de référence interne. La position 1 fournit actuellement le visuel Animation de la page d’accueil. Le tri public par date reste indépendant.</small></label>
+            <label class="toggle-field"><input name="customizeAlt" type="checkbox" /><span>Personnaliser le texte alternatif</span></label>
+            <p id="create-alt-help" class="muted-copy">Texte alternatif généré automatiquement depuis le titre.</p>
+            <label id="create-alt-field" class="field" hidden><span>Texte alternatif *</span><input name="alt" /></label>
+            <label class="toggle-field"><input name="featured" type="checkbox" /><span>Featured</span></label>
+            <fieldset class="compression-options"><legend>Optimisation facultative du poster</legend><label class="toggle-field"><input name="compressPoster" type="checkbox" /><span>Compresser le poster</span></label><div class="compression-fields"><label class="field"><span>Format</span><select name="posterFormat"><option value="original">Original</option><option value="webp">WebP</option><option value="jpeg">JPEG</option><option value="png">PNG</option></select></label><label class="field"><span>Qualité</span><input name="posterQuality" type="number" min="60" max="100" value="92" /></label><label class="field"><span>Dimension max.</span><input name="posterMaxDimension" type="number" min="320" max="12000" placeholder="Originale" /></label></div></fieldset>
+          </section>
+        </div>
+        <div class="dialog-actions"><button class="button button-secondary" type="button" data-close-create>Annuler</button><button class="button button-primary" type="submit">Créer et enregistrer</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="replace-animation-dialog" class="dialog replace-animation-dialog">
+      <form id="replace-animation-form" class="dialog-panel">
+        <div class="dialog-heading"><div><p class="eyebrow">REMPLACEMENT TRANSACTIONNEL</p><h2 id="replace-animation-title">Remplacer le média</h2></div><button class="icon-button" type="button" data-close-replace aria-label="Fermer">×</button></div>
+        <div class="replacement-comparison">
+          <section><h3>Fichier actuel</h3><div id="replacement-current"></div></section>
+          <section><h3>Nouveau fichier</h3><label class="drop-zone animation-drop-zone" data-drop-target="replacement-file"><strong>Déposez le nouveau fichier ici</strong><span id="replacement-formats"></span><input id="replacement-file" name="file" type="file" required /></label><div id="replacement-new" class="upload-preview" hidden></div></section>
+        </div>
+        <fieldset class="name-strategy"><legend>Stratégie de nom</legend><label><input type="radio" name="nameMode" value="current" checked /> Conserver le nom actuel</label><label><input type="radio" name="nameMode" value="new" /> Utiliser le nouveau nom</label><label><input type="radio" name="nameMode" value="custom" /> Nom personnalisé</label><label id="custom-name-field" class="field" hidden><span>Nom personnalisé</span><input name="customName" /></label></fieldset>
+        <fieldset id="replacement-compression" class="compression-options" hidden><legend>Optimisation facultative du poster</legend><label class="toggle-field"><input name="compressPoster" type="checkbox" /><span>Compresser le poster</span></label><div class="compression-fields"><label class="field"><span>Format</span><select name="posterFormat"><option value="original">Original</option><option value="webp">WebP</option><option value="jpeg">JPEG</option><option value="png">PNG</option></select></label><label class="field"><span>Qualité</span><input name="posterQuality" type="number" min="60" max="100" value="92" /></label><label class="field"><span>Dimension max.</span><input name="posterMaxDimension" type="number" min="320" max="12000" placeholder="Originale" /></label></div></fieldset>
+        <div class="dialog-actions"><button class="button button-secondary" type="button" data-close-replace>Annuler</button><button class="button button-primary" type="submit">Confirmer le remplacement</button></div>
+      </form>
+    </dialog>
+
+    <div id="animation-toast" class="toast" popover="manual" role="status" aria-live="polite" hidden></div>
+    <script type="module" src="/modules/animations/animation-admin.js"></script>
+  </body>
+</html>

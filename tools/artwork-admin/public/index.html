@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Portfolio Admin — KEVGENGA</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">KEVGENGA PORTFOLIO ADMIN — OUTIL LOCAL</p>
+        <h1>Portfolio Admin <span class="version-mark">V2.1</span></h1>
+      </div>
+      <div class="header-actions">
+        <button id="backup-button" class="button button-secondary" type="button">Créer une sauvegarde</button>
+        <button id="preview-button" class="button button-secondary" type="button">Preview portfolio ↗</button>
+        <button id="open-import-button" class="button button-primary" type="button">Importer des œuvres</button>
+      </div>
+    </header>
+
+    <main>
+      <nav class="portfolio-module-nav" aria-label="Modules Portfolio Admin">
+        <a class="is-active" href="/" aria-current="page">Illustrations</a>
+        <a href="/mangas.html">Mangas</a>
+        <a href="/animations.html">Animations</a>
+      </nav>
+      <nav class="admin-tabs" aria-label="Sections Artwork Admin">
+        <button class="admin-tab is-active" type="button" data-panel="gallery-panel" aria-selected="true">Galerie</button>
+        <button class="admin-tab" type="button" data-panel="import-panel" aria-selected="false">Importer <span id="tab-queue-count" class="tab-count" hidden></span></button>
+      </nav>
+
+      <section id="gallery-panel" class="admin-panel">
+        <aside id="category-report" class="category-report" hidden></aside>
+        <section class="toolbar" aria-label="Recherche et filtres">
+          <label class="field search-field">
+            <span>Rechercher</span>
+            <input id="search" type="search" placeholder="Nom, fichier, alt ou ID…" autocomplete="off" />
+          </label>
+          <label class="field category-filter">
+            <span>Catégorie</span>
+            <select id="category-filter">
+              <option value="">Toutes les catégories</option>
+            </select>
+          </label>
+          <label class="field sort-filter">
+            <span>Trier par</span>
+            <select id="date-sort">
+              <option value="newest">Récent → ancien</option>
+              <option value="oldest">Ancien → récent</option>
+              <option value="heaviest">Plus lourd → plus léger</option>
+              <option value="lightest">Plus léger → plus lourd</option>
+            </select>
+          </label>
+          <p id="result-count" class="result-count" aria-live="polite"></p>
+        </section>
+
+        <section id="gallery" class="gallery" aria-label="Œuvres"></section>
+        <p id="empty-state" class="empty-state" hidden>Aucune œuvre ne correspond à cette recherche.</p>
+      </section>
+
+      <section id="import-panel" class="admin-panel" hidden>
+        <div class="import-heading">
+          <div>
+            <p class="eyebrow">IMPORT PAR LOT</p>
+            <h2>Ajouter de nouvelles œuvres</h2>
+          </div>
+          <p id="import-limits" class="muted-copy"></p>
+        </div>
+
+        <div id="drop-zone" class="drop-zone" role="button" tabindex="0" aria-controls="import-files">
+          <input id="import-files" type="file" multiple accept=".jpg,.jpeg,.png,.webp,.avif,.gif,image/jpeg,image/png,image/webp,image/avif,image/gif" hidden />
+          <span class="drop-icon" aria-hidden="true">＋</span>
+          <strong>Déposez vos images ici</strong>
+          <span>ou cliquez pour sélectionner plusieurs fichiers</span>
+          <small>JPG, JPEG, PNG, WebP, AVIF ou GIF</small>
+        </div>
+
+        <section id="import-workspace" class="import-workspace" hidden>
+          <div class="batch-panel">
+            <div class="batch-heading">
+              <div>
+                <p class="eyebrow">MODIFICATIONS GROUPÉES</p>
+                <h3>Paramètres du lot</h3>
+              </div>
+              <p id="selected-count" class="selection-count">0 image sélectionnée</p>
+            </div>
+
+            <div class="batch-fields">
+              <div class="field">
+                <span>Catégories du lot</span>
+                <div id="batch-categories"></div>
+              </div>
+              <label class="field">
+                <span>Date (DD-MM-YYYY)</span>
+                <input id="batch-date" type="text" inputmode="numeric" pattern="\d{2}-\d{2}-\d{4}" />
+                <span class="date-shortcuts">
+                  <button type="button" data-date-action="today">Aujourd’hui</button>
+                  <button type="button" data-date-action="file">Date du fichier</button>
+                  <button type="button" data-date-action="clear">Effacer</button>
+                </span>
+              </label>
+              <label class="field batch-alt">
+                <span>Alt facultatif</span>
+                <input id="batch-alt" type="text" placeholder="Laisser vide pour conserver les valeurs individuelles" />
+              </label>
+            </div>
+
+            <div class="compression-panel">
+              <label class="toggle-field">
+                <input id="batch-compression" type="checkbox" />
+                <span>Compression automatique</span>
+              </label>
+              <div id="compression-settings" class="compression-settings" hidden>
+                <label class="field">
+                  <span>Dimension maximale</span>
+                  <select id="compression-size">
+                    <option value="original">Conserver la taille originale</option>
+                    <option value="2560">2560 px</option>
+                    <option value="2048">2048 px</option>
+                    <option value="1920">1920 px</option>
+                    <option value="1600">1600 px</option>
+                    <option value="1280">1280 px</option>
+                    <option value="custom">Valeur personnalisée</option>
+                  </select>
+                </label>
+                <label id="custom-size-field" class="field" hidden>
+                  <span>Dimension personnalisée</span>
+                  <input id="compression-custom-size" type="number" min="320" max="12000" step="1" value="1600" />
+                </label>
+                <label class="field">
+                  <span>Qualité : <output id="quality-output">92</output></span>
+                  <input id="compression-quality" type="range" min="60" max="100" value="92" />
+                </label>
+                <label class="field">
+                  <span>Format de sortie</span>
+                  <select id="compression-format">
+                    <option value="original">Conserver le format original</option>
+                    <option value="webp">WebP</option>
+                    <option value="jpeg">JPEG</option>
+                    <option value="png">PNG</option>
+                  </select>
+                </label>
+                <label class="toggle-field metadata-toggle">
+                  <input id="compression-metadata" type="checkbox" />
+                  <span>Conserver les métadonnées</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="batch-actions">
+              <button id="apply-all-button" class="button button-secondary" type="button">Appliquer à toutes</button>
+              <button id="apply-selected-button" class="button button-secondary" type="button">Appliquer aux images sélectionnées</button>
+              <button id="estimate-button" class="button button-secondary" type="button">Analyser la compression</button>
+            </div>
+          </div>
+
+          <div class="queue-toolbar">
+            <div>
+              <button id="select-all-button" class="text-button" type="button">Tout sélectionner</button>
+              <button id="deselect-all-button" class="text-button" type="button">Tout désélectionner</button>
+            </div>
+            <div>
+              <strong id="queue-count">0 image</strong>
+              <button id="clear-queue-button" class="text-button danger-text" type="button">Tout retirer / annuler l’import</button>
+            </div>
+          </div>
+
+          <section id="import-queue" class="import-queue" aria-label="Images en attente"></section>
+
+          <div id="import-progress" class="import-progress" hidden aria-live="polite">
+            <div class="progress-track"><span id="progress-bar"></span></div>
+            <p id="progress-message"></p>
+          </div>
+          <div id="import-report" class="import-report" hidden></div>
+          <div class="save-batch-bar">
+            <p>Les fichiers ne sont copiés dans le portfolio qu’après confirmation.</p>
+            <button id="save-batch-button" class="button button-primary" type="button">Enregistrer les œuvres</button>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <dialog id="edit-dialog" class="dialog">
+      <form id="edit-form" class="dialog-panel">
+        <div class="dialog-heading">
+          <div>
+            <p class="eyebrow">MODIFICATION AVANCÉE</p>
+            <h2>Modifier l’œuvre</h2>
+          </div>
+          <button class="icon-button" data-close-dialog="edit-dialog" type="button" aria-label="Fermer">×</button>
+        </div>
+
+        <input name="originalId" type="hidden" />
+        <div class="form-layout">
+          <div class="replacement-column">
+            <section class="replacement-image-block">
+              <p class="eyebrow">IMAGE ACTUELLE</p>
+              <div class="preview-frame replacement-current-preview">
+                <img id="edit-preview" alt="Aperçu de l’œuvre" />
+              </div>
+              <dl class="metadata replacement-file-metadata">
+                <div><dt>Fichier</dt><dd id="current-file-name"></dd></div>
+                <div><dt>Chemin</dt><dd id="current-file-path"></dd></div>
+                <div><dt>Format</dt><dd id="current-file-format"></dd></div>
+                <div><dt>Dimensions</dt><dd id="current-file-dimensions"></dd></div>
+                <div><dt>Poids</dt><dd id="current-file-size"></dd></div>
+              </dl>
+              <div class="current-image-actions">
+                <button id="reveal-file-button" class="button button-secondary" type="button">Ouvrir dans l’Explorateur</button>
+                <button id="toggle-current-optimization" class="button button-primary" type="button" aria-expanded="false" aria-controls="current-optimization-panel">Optimiser l’image actuelle</button>
+              </div>
+              <section id="current-optimization-panel" class="optimization-panel" hidden>
+                <p class="eyebrow">OPTIMISATION DE L’IMAGE ACTUELLE</p>
+                <div class="replacement-compression-settings">
+                  <label class="field"><span>Format</span><select id="current-optimization-format"><option value="original">Conserver le format actuel</option><option value="webp">WebP</option><option value="jpeg">JPEG</option><option value="png">PNG</option></select></label>
+                  <label class="field"><span>Qualité : <output id="current-optimization-quality-output">92</output></span><input id="current-optimization-quality" type="range" min="60" max="100" value="92" /></label>
+                  <label class="field"><span>Dimension maximale</span><select id="current-optimization-size"><option value="original">Conserver</option><option value="800">800 px</option><option value="1200">1200 px</option><option value="1600">1600 px</option><option value="2000">2000 px</option><option value="3000">3000 px</option></select></label>
+                  <label class="field"><span>Métadonnées</span><select id="current-optimization-metadata"><option value="preserve">Conserver</option><option value="remove">Supprimer</option></select></label>
+                </div>
+                <div class="optimization-actions">
+                  <button id="analyze-current-optimization" class="button button-secondary" type="button">Analyser l’optimisation</button>
+                  <button id="commit-current-optimization" class="button button-primary" type="button">Optimiser l’image actuelle</button>
+                </div>
+                <div id="current-optimization-report" class="optimization-report" aria-live="polite" hidden></div>
+              </section>
+            </section>
+            <div id="replacement-drop-zone" class="replacement-drop-zone" role="button" tabindex="0">
+              <input id="replacement-file" type="file" accept=".jpg,.jpeg,.png,.webp,.avif,.gif,image/jpeg,image/png,image/webp,image/avif,image/gif" hidden />
+              <strong>Changer l’image de l’œuvre</strong>
+              <span>Déposez une nouvelle image ici ou cliquez</span>
+            </div>
+            <section id="replacement-new-panel" class="replacement-image-block" hidden>
+              <p class="eyebrow">NOUVELLE IMAGE</p>
+              <div class="preview-frame"><img id="replacement-preview" alt="Aperçu de la nouvelle image" /></div>
+              <dl class="metadata replacement-file-metadata">
+                <div><dt>Fichier</dt><dd id="replacement-file-name"></dd></div>
+                <div><dt>Format</dt><dd id="replacement-file-format"></dd></div>
+                <div><dt>Dimensions</dt><dd id="replacement-file-dimensions"></dd></div>
+                <div><dt>Poids</dt><dd id="replacement-file-size"></dd></div>
+              </dl>
+              <p id="replacement-status" class="dirty-indicator">Remplacement non enregistré</p>
+              <button id="remove-replacement-button" class="button button-secondary" type="button">Retirer la nouvelle image</button>
+            </section>
+          </div>
+          <div class="form-fields">
+            <dl class="metadata">
+              <div><dt>ID actuel</dt><dd id="edit-id"></dd></div>
+              <div><dt>Année</dt><dd id="edit-year"></dd></div>
+            </dl>
+            <label class="field">
+              <span>Nom du fichier *</span>
+              <input name="fileName" type="text" required />
+            </label>
+            <div class="field">
+              <span>Catégories *</span>
+              <div id="edit-categories-v21"></div>
+              <small>La catégorie principale est la première et détermine le dossier physique.</small>
+            </div>
+            <label class="field">
+              <span>Date (DD-MM-YYYY) *</span>
+              <input name="date" type="text" inputmode="numeric" pattern="\d{2}-\d{2}-\d{4}" required />
+            </label>
+            <label class="field">
+              <span>Texte alternatif</span>
+              <textarea name="alt" rows="3"></textarea>
+            </label>
+            <section id="replacement-options" class="replacement-options" hidden>
+              <p class="eyebrow">OPTIONS DE REMPLACEMENT</p>
+              <fieldset class="name-mode-options">
+                <legend>Nom du fichier final</legend>
+                <label><input type="radio" name="replacementNameMode" value="current" checked /> Conserver le nom actuel</label>
+                <label><input type="radio" name="replacementNameMode" value="new" /> Utiliser le nom du nouveau fichier</label>
+                <label><input type="radio" name="replacementNameMode" value="custom" /> Nom personnalisé</label>
+              </fieldset>
+              <label id="replacement-custom-name-field" class="field" hidden>
+                <span>Nom personnalisé</span>
+                <input id="replacement-custom-name" type="text" autocomplete="off" />
+              </label>
+              <label class="toggle-field">
+                <input id="replacement-compression" type="checkbox" />
+                <span>Optimisation facultative de la nouvelle image</span>
+              </label>
+              <div id="replacement-compression-settings" class="replacement-compression-settings" hidden>
+                <label class="field">
+                  <span>Dimension maximale</span>
+                  <select id="replacement-compression-size">
+                    <option value="original">Conserver</option>
+                    <option value="800">800 px</option>
+                    <option value="1200">1200 px</option>
+                    <option value="1600">1600 px</option>
+                    <option value="2000">2000 px</option>
+                    <option value="3000">3000 px</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>Qualité : <output id="replacement-quality-output">92</output></span>
+                  <input id="replacement-quality" type="range" min="60" max="100" value="92" />
+                </label>
+                <label class="field">
+                  <span>Format de sortie</span>
+                  <select id="replacement-format">
+                    <option value="original">Conserver le format original</option>
+                    <option value="webp">WebP</option>
+                    <option value="jpeg">JPEG</option>
+                    <option value="png">PNG</option>
+                  </select>
+                </label>
+                <label class="toggle-field">
+                  <input id="replacement-metadata" type="checkbox" />
+                  <span>Conserver les métadonnées</span>
+                </label>
+                <button id="estimate-replacement-button" class="button button-secondary" type="button">Analyser le résultat</button>
+              </div>
+              <p id="replacement-estimate" class="estimate" hidden></p>
+              <div id="thumbnail-warning" class="category-report" hidden></div>
+            </section>
+          </div>
+        </div>
+        <div class="dialog-actions split-actions">
+          <button id="delete-button" class="button button-danger" type="button">Supprimer</button>
+          <div>
+            <button class="button button-secondary" data-close-dialog="edit-dialog" type="button">Annuler</button>
+            <button class="button button-primary" type="submit">Sauvegarder</button>
+          </div>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

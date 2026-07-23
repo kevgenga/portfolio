@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Manga Admin — KEVGENGA</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/modules/mangas/manga-admin.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div><p class="eyebrow">KEVGENGA PORTFOLIO ADMIN — OUTIL LOCAL</p><h1>Portfolio Admin <span class="version-mark">MANGA</span></h1></div>
+      <div class="header-actions"><a class="button button-secondary" href="/">Illustrations</a><button id="create-manga" class="button button-primary" type="button">Ajouter un manga</button></div>
+    </header>
+    <main>
+      <nav class="portfolio-module-nav" aria-label="Modules"><a href="/">Illustrations</a><a class="is-active" href="/mangas.html" aria-current="page">Mangas</a><a href="/animations.html">Animations</a></nav>
+      <aside id="manga-report" class="category-report" hidden></aside>
+      <section class="toolbar manga-toolbar">
+        <label class="field search-field"><span>Rechercher</span><input id="manga-search" type="search" placeholder="Titre ou slug…" /></label>
+        <label class="field"><span>Statut</span><select id="manga-status"><option value="">Tous</option></select></label>
+        <label class="field"><span>Langue</span><select id="manga-language"><option value="">Toutes</option></select></label>
+        <label class="field"><span>Tri</span><select id="manga-sort"><option value="title">Titre A → Z</option><option value="date">Date récente</option></select></label>
+        <p id="manga-count" class="result-count"></p>
+      </section>
+      <section id="manga-grid" class="manga-admin-grid"></section>
+    </main>
+
+    <dialog id="manga-dialog" class="dialog manga-dialog">
+      <form id="manga-form" class="dialog-panel manga-editor-form">
+        <div class="dialog-heading"><div><p class="eyebrow">MANGA ADMIN</p><h2 id="manga-dialog-title">Modifier le manga</h2><p id="manga-breadcrumb" class="muted-copy"></p></div><button class="icon-button" type="button" data-close aria-label="Fermer">×</button></div>
+        <div class="manga-editor-tabs" role="tablist" aria-label="Sections du manga">
+          <button id="manga-tab-information" type="button" role="tab" data-editor-tab="information" aria-controls="manga-panel-information" aria-selected="false" tabindex="-1">Informations</button>
+          <button id="manga-tab-pages" type="button" role="tab" data-editor-tab="pages" aria-controls="manga-panel-pages" aria-selected="true" class="is-active">Langues &amp; pages</button>
+          <button id="manga-tab-media" type="button" role="tab" data-editor-tab="media" aria-controls="manga-panel-media" aria-selected="false" tabindex="-1">Bannière</button>
+        </div>
+        <div class="manga-tab-panels">
+          <section id="manga-panel-information" class="manga-general manga-tab-panel" role="tabpanel" aria-labelledby="manga-tab-information" data-editor-panel="information" hidden>
+            <h3>Informations générales</h3>
+            <div class="manga-form-grid">
+              <label class="field"><span>Titre *</span><input name="title" required /></label>
+              <label class="field"><span>Édition / titre secondaire</span><input name="edition" /></label>
+              <label class="field"><span>Auteur</span><input name="author" /></label>
+              <label class="field"><span>Année</span><input name="year" /></label>
+              <label class="field"><span>Date</span><input name="date" /></label>
+              <label class="field"><span>Statut</span><select name="status"><option>published</option><option>draft</option><option>archived</option></select></label>
+              <label class="field"><span>Visibilité</span><select name="visibility"><option>public</option><option>private</option></select></label>
+              <label class="field"><span>Sens de lecture</span><select name="readingDirection"><option value="rtl">Japonais — RTL</option><option value="ltr">Occidental — LTR</option></select></label>
+              <label class="field"><span>Genre</span><input name="genre" /></label>
+              <label class="field"><span>Rôle</span><input name="role" /></label>
+              <label class="field"><span>Tags (séparés par des virgules)</span><input name="tags" /></label>
+              <label class="field"><span>Ordre d’affichage</span><input name="order" type="number" /></label>
+              <label class="field"><span>Mode conseillé</span><select name="defaultReadingMode"><option value="">Lecteur actuel</option><option value="vertical">Vertical</option><option value="horizontal">Horizontal</option></select></label>
+              <label class="field manga-wide"><span>Description</span><textarea name="description" rows="2"></textarea></label>
+              <label class="field manga-wide"><span>Résumé</span><textarea name="summary" rows="4"></textarea></label>
+              <label class="toggle-field"><input name="featured" type="checkbox" /><span>Featured</span></label>
+            </div>
+          </section>
+          <section id="manga-panel-pages" class="manga-language-editor manga-tab-panel" role="tabpanel" aria-labelledby="manga-tab-pages" data-editor-panel="pages">
+            <div class="manga-pages-toolbar">
+              <div class="manga-language-controls">
+                <h3>Langues et pages</h3>
+                <div id="language-tabs" class="language-tabs"></div>
+                <button id="add-language" class="button button-secondary" type="button">Ajouter une langue</button>
+                <div id="language-summary"></div>
+              </div>
+              <div class="page-import"><label class="field"><span>Ajouter plusieurs pages</span><input id="page-files" type="file" multiple accept=".jpg,.jpeg,.png,.webp,.avif,.gif" /></label><label class="field compact"><span>Position</span><input id="page-position" type="number" min="1" /></label><button id="add-pages" class="button button-secondary" type="button">Ajouter les pages</button></div>
+            </div>
+            <p class="muted-copy">Glissez les cartes ou utilisez les boutons. Le réordre ne renomme pas les fichiers physiques.</p>
+            <div id="page-grid" class="manga-page-grid"></div>
+          </section>
+          <section id="manga-panel-media" class="manga-media manga-tab-panel" role="tabpanel" aria-labelledby="manga-tab-media" data-editor-panel="media" hidden>
+            <div id="manga-media"></div>
+          </section>
+        </div>
+        <div class="dialog-actions split-actions"><button id="delete-manga" class="button button-danger" type="button">Supprimer le manga</button><div><button class="button button-secondary" type="button" data-close>Annuler</button><button class="button button-primary" type="submit">Enregistrer</button></div></div>
+      </form>
+    </dialog>
+
+    <dialog id="create-dialog" class="dialog compact-dialog">
+      <form id="create-form" class="dialog-panel">
+        <div class="dialog-heading"><div><p class="eyebrow">NOUVEAU MANGA</p><h2>Ajouter un manga</h2></div><button class="icon-button" type="button" data-close-create aria-label="Fermer">×</button></div>
+        <label class="field"><span>Titre *</span><input name="title" required /></label>
+        <label class="field"><span>Slug facultatif</span><input name="slug" /></label>
+        <label class="field"><span>Type linguistique</span><select name="languageType"><option value="multilingual">Manga avec texte et langues</option><option value="original">Version originale uniquement</option><option value="silent">Manga silencieux</option></select></label>
+        <label class="field" id="initial-language-field"><span>Langue initiale</span><select name="languageCode"><option value="en">English</option><option value="fr">French</option><option value="ja">Japanese</option></select></label>
+        <label class="field"><span>Image principale du manga *</span><input name="primaryImage" type="file" required accept="image/*" /><small>Utilisée dans la liste publique. Taille Photoshop idéale : 1280 × 720 px.</small></label>
+        <div id="create-media-review" class="inline-media-review" hidden></div>
+        <label class="field"><span>Pages *</span><input name="pages" type="file" multiple required accept=".jpg,.jpeg,.png,.webp,.avif,.gif" /></label>
+        <label class="field"><span>Résumé</span><textarea name="summary" rows="3"></textarea></label>
+        <div class="dialog-actions"><button class="button button-secondary" type="button" data-close-create>Annuler</button><button class="button button-primary" type="submit">Créer et enregistrer</button></div>
+      </form>
+    </dialog>
+    <dialog id="media-review-dialog" class="dialog compact-dialog">
+      <div class="dialog-panel">
+        <div class="dialog-heading"><div><p class="eyebrow">VÉRIFICATION DU MÉDIA</p><h2>Nouvelle image principale</h2></div></div>
+        <div id="media-review-content"></div>
+        <div class="dialog-actions"><button id="cancel-media-review" class="button button-secondary" type="button">Annuler</button><button id="accept-media-review" class="button button-primary" type="button">Utiliser cette image</button></div>
+      </div>
+    </dialog>
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+    <script type="module" src="/modules/mangas/manga-admin.js"></script>
+  </body>
+</html>

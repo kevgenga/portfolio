@@ -48,12 +48,13 @@ export const uiText = {
     },
     animation: {
       eyebrow: "Motion work",
-      title: "2D Animation",
-      introduction: "Short films, animation studies and character motion.",
+      title: "Animation",
+      introduction: "Short films, 2D and 3D animation studies, and character motion.",
       filtersLabel: "Filter animations",
       categories: {
         "court-métrage": "Short Film",
         "animation 2d": "2D Animation",
+        "animation 3d": "3D Animation",
       },
     },
     manga: {

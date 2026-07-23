@@ -7,6 +7,7 @@ const ArtworkCard = ({
   image = item.thumbnail || item.poster || item.image,
   caption = item.alt || item.title,
   metadata,
+  lightboxId,
   rounded = false,
   className = "",
   mediaClassName = "aspect-[4/5]",
@@ -28,6 +29,7 @@ const ArtworkCard = ({
       <a
         href={href}
         data-fancybox={galleryName}
+        data-lightbox-id={lightboxId || undefined}
         data-caption={caption || undefined}
         className="group block overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#9b4035]"
       >
@@ -43,15 +45,15 @@ const ArtworkCard = ({
         />
       </a>
 
-      {(item.title || metadata || item.category) && (
+      {(item.title || metadata || (metadata === undefined && item.category)) && (
         <div className="border-t border-black/10 px-3 py-3 text-sm text-[#716c64] dark:border-white/10 dark:text-[#aaa49b]">
           {item.title && (
             <h2 className="font-semibold text-[#1d1d1b] dark:text-[#f4f1eb]">
               {item.title}
             </h2>
           )}
-          {metadata && <p className="text-xs uppercase tracking-[0.12em]">{metadata}</p>}
-          {!metadata && item.category && <p>{item.category}</p>}
+          {metadata && <p className="text-xs tracking-[0.12em]">{metadata}</p>}
+          {metadata === undefined && item.category && <p>{item.category}</p>}
         </div>
       )}
     </motion.article>

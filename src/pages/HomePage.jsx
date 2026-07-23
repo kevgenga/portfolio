@@ -10,13 +10,13 @@ const workCategories = [
     title: "Manga",
     description: "Original sequential art and complete manga projects.",
     to: "/mangaka",
-    image: mangas[0].cover,
+    image: mangas[0].banner || mangas[0].cover,
   },
   {
     title: "Illustration",
     description: "Illustration, sketches, painting and character design.",
     to: "/illustration",
-    image: profile.image,
+    image: `${import.meta.env.BASE_URL}assets/illustration/illustrations/page1-v8-bq.jpg`,
   },
   {
     title: "Animation",

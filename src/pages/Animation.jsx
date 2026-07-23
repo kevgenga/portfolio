@@ -7,16 +7,10 @@ import Lightbox from "../components/gallery/Lightbox";
 import PortfolioGrid from "../components/gallery/PortfolioGrid";
 import { animations } from "../content/animations";
 import { t } from "../content/ui";
+import { formatPortfolioDate } from "../utils/formatPortfolioDate";
 import "./custom.css";
 
-const animationCategories = ["court-métrage", "animation 2d"];
-
-const formatDate = (date) =>
-  new Date(date).toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
+const animationCategories = ["court-métrage", "animation 2d", "animation 3d"];
 
 const Animation = () => {
   const [filter, setFilter] = useState("all");
@@ -74,17 +68,22 @@ const Animation = () => {
 
       {sortedMedia.length > 0 ? (
         <PortfolioGrid className="grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
-          {sortedMedia.map((item) => (
-            <ArtworkCard
-              key={item.id}
-              item={item}
-              galleryName="animation-gallery"
-              href={item.video}
-              image={item.poster || item.video}
-              metadata={item.date ? formatDate(item.date) : item.category}
-              mediaClassName="aspect-video"
-            />
-          ))}
+          {sortedMedia.map((item) => {
+            const formattedDate = formatPortfolioDate(item.date);
+
+            return (
+              <ArtworkCard
+                key={item.id}
+                item={item}
+                galleryName="animation-gallery"
+                href={item.video}
+                image={item.poster || item.video}
+                caption={formattedDate}
+                metadata={formattedDate}
+                mediaClassName="aspect-video"
+              />
+            );
+          })}
         </PortfolioGrid>
       ) : (
         <EmptyState message={t.common.noResults} />

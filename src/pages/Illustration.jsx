@@ -1,13 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import ArtworkCard from "../components/gallery/ArtworkCard";
+import BackToTopButton from "../components/gallery/BackToTopButton";
 import EmptyState from "../components/gallery/EmptyState";
 import FilterBar from "../components/gallery/FilterBar";
 import Lightbox from "../components/gallery/Lightbox";
-import LoadMoreButton from "../components/gallery/LoadMoreButton";
 import PortfolioGrid from "../components/gallery/PortfolioGrid";
 import { artworks } from "../content/artworks";
 import { t } from "../content/ui";
+import { formatPortfolioDate } from "../utils/formatPortfolioDate";
 
 export const ILLUSTRATION_PAGE_SIZE = 24;
 
@@ -32,9 +33,11 @@ const countArtworksForFilter = (filter) =>
   }, 0);
 
 const Illustration = () => {
-  const [filter, setFilter] = useState("all");
+  const [filter, setFilter] = useState("illustrations");
   const [sortOrder, setSortOrder] = useState("recent");
   const [visibleCount, setVisibleCount] = useState(ILLUSTRATION_PAGE_SIZE);
+  const loadSentinelRef = useRef(null);
+  const loadingNextBatchRef = useRef(false);
 
   const hasFeaturedArtwork = artworks.some((artwork) => artwork.featured);
   const filters = useMemo(
@@ -68,12 +71,45 @@ const Illustration = () => {
     );
   }, [filter, sortOrder]);
 
-  useEffect(() => {
-    setVisibleCount(ILLUSTRATION_PAGE_SIZE);
-  }, [filter, sortOrder]);
-
   const visibleArtworks = filteredArtworks.slice(0, visibleCount);
   const remainingCount = filteredArtworks.length - visibleArtworks.length;
+  const lightboxSlides = useMemo(
+    () => filteredArtworks.map((artwork) => ({
+      id: artwork.id,
+      src: artwork.image,
+      thumbSrc: artwork.thumbnail || artwork.image,
+      caption: formatPortfolioDate(artwork.date) || "",
+      alt: artwork.alt || "",
+    })),
+    [filteredArtworks],
+  );
+
+  useEffect(() => {
+    loadingNextBatchRef.current = false;
+    const sentinel = loadSentinelRef.current;
+    if (!sentinel || remainingCount <= 0) return undefined;
+
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry.isIntersecting || loadingNextBatchRef.current) return;
+      loadingNextBatchRef.current = true;
+      setVisibleCount((current) =>
+        Math.min(current + ILLUSTRATION_PAGE_SIZE, filteredArtworks.length),
+      );
+    }, { rootMargin: "0px 0px 800px 0px" });
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [filteredArtworks.length, remainingCount, visibleCount]);
+
+  const changeFilter = (nextFilter) => {
+    setFilter(nextFilter);
+    setVisibleCount(ILLUSTRATION_PAGE_SIZE);
+  };
+
+  const toggleSort = () => {
+    setSortOrder((current) => current === "recent" ? "oldest" : "recent");
+    setVisibleCount(ILLUSTRATION_PAGE_SIZE);
+  };
 
   return (
     <main className="min-h-screen overflow-x-clip bg-[#f4f1eb] px-5 pb-16 pt-28 text-[#1d1d1b] dark:bg-[#171716] dark:text-[#f4f1eb] sm:px-8 lg:px-10">
@@ -93,12 +129,8 @@ const Illustration = () => {
       <FilterBar
         filters={filters}
         activeFilter={filter}
-        onFilterChange={setFilter}
-        onSortChange={() =>
-          setSortOrder((current) =>
-            current === "recent" ? "oldest" : "recent",
-          )
-        }
+        onFilterChange={changeFilter}
+        onSortChange={toggleSort}
         sortLabel={`${t.common.sortLabel} : ${
           sortOrder === "recent" ? t.common.oldest : t.common.newest
         }`}
@@ -107,38 +139,44 @@ const Illustration = () => {
 
       <Lightbox
         selector="[data-fancybox='illustration-gallery']"
-        refreshKey={visibleCount}
+        galleryName="illustration-gallery"
+        slides={lightboxSlides}
       />
 
       {visibleArtworks.length > 0 ? (
         <>
           <PortfolioGrid className="grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
-            {visibleArtworks.map((artwork) => (
-              <ArtworkCard
-                key={artwork.id}
-                item={artwork}
-                galleryName="illustration-gallery"
-                metadata={artwork.date || artwork.category}
-              />
-            ))}
+            {visibleArtworks.map((artwork) => {
+              const formattedDate = formatPortfolioDate(artwork.date);
+
+              return (
+                <ArtworkCard
+                  key={artwork.id}
+                  item={artwork}
+                  galleryName="illustration-gallery"
+                  lightboxId={artwork.id}
+                  caption={formattedDate}
+                  metadata={formattedDate}
+                />
+              );
+            })}
           </PortfolioGrid>
 
           {remainingCount > 0 && (
-            <LoadMoreButton
-              label={t.common.loadMore}
-              remaining={remainingCount}
-              onClick={() =>
-                setVisibleCount((current) =>
-                  Math.min(current + ILLUSTRATION_PAGE_SIZE, filteredArtworks.length),
-                )
-              }
-            />
+            <div
+              ref={loadSentinelRef}
+              className="flex min-h-20 items-center justify-center py-8"
+              aria-hidden="true"
+            >
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#9b4035] motion-reduce:animate-none" />
+            </div>
           )}
         </>
       ) : (
         <EmptyState message={t.common.noResults} />
       )}
       </div>
+      <BackToTopButton />
     </main>
   );
 };

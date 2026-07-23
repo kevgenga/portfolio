@@ -1,0 +1,6 @@
+backups/*
+trash/*
+staging/*
+!backups/.gitkeep
+!trash/.gitkeep
+!staging/.gitkeep
