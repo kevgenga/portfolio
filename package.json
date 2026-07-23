@@ -10,6 +10,7 @@
     "artwork-admin:test": "node tools/artwork-admin/tests/integration.mjs",
     "animation-admin:test": "node tools/artwork-admin/tests/animation-integration.mjs",
     "manga-admin:test": "node tools/artwork-admin/tests/manga-integration.mjs",
+    "contact-form:test": "node --test src/services/contactForm.test.mjs src/services/contactValidation.test.mjs",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
