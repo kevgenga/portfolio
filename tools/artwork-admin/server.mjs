@@ -1,5 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { createServer } from "node:http";
+import { createReadStream } from "node:fs";
+import { pipeline } from "node:stream/promises";
 import { spawn, spawnSync } from "node:child_process";
 import { copyFile, mkdir, open, readFile, readdir, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -9,12 +11,14 @@ import vm from "node:vm";
 import { inspectImage, normalizeCompression, processImage } from "./image-processor.mjs";
 import { runReplacementTransaction } from "./artwork-replacement.mjs";
 import { runOptimizationTransaction } from "./artwork-optimization.mjs";
+import { FileTransaction } from "./file-transaction.mjs";
 import { buildRevealCommand, isPathInside, launchReveal, resolveArtworkFile } from "./reveal-file.mjs";
 import { CATEGORY_VALUES, createCategoryReport, normalizeCategorySelection } from "./public/category-utils.js";
 import { createMangaService } from "./manga/service.mjs";
 import { handleMangaRoute } from "./manga/routes.mjs";
 import { createAnimationService } from "./animation/service.mjs";
 import { handleAnimationRoute } from "./animation/routes.mjs";
+import { createMediaAuditService, handleMediaAuditRoute } from "./media-audit.mjs";
 
 const ADMIN_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(process.env.ARTWORK_ADMIN_TEST_ROOT || path.resolve(ADMIN_DIR, "../.."));
@@ -34,11 +38,13 @@ const MAX_REQUEST_BYTES = Math.ceil(Math.max(MAX_FILE_BYTES, MAX_ANIMATION_FILE_
 const MAX_BACKUPS = 20;
 const EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".avif", ".gif"]);
 const CATEGORIES = Object.freeze(Object.fromEntries(CATEGORY_VALUES.map((category) => [category, category])));
+let mediaAuditService;
 const mangaService = createMangaService({
   projectRoot: PROJECT_ROOT,
   runtimeRoot: RUNTIME_DIR,
   disableReveal: process.env.ARTWORK_ADMIN_DISABLE_REVEAL === "1",
   failurePoint: process.env.MANGA_ADMIN_TEST_FAIL_AT || "",
+  onMutation: () => mediaAuditService?.invalidate("manga"),
 });
 const animationService = createAnimationService({
   projectRoot: PROJECT_ROOT,
@@ -46,6 +52,17 @@ const animationService = createAnimationService({
   disableReveal: process.env.ARTWORK_ADMIN_DISABLE_REVEAL === "1",
   failurePoint: process.env.ANIMATION_ADMIN_TEST_FAIL_AT || "",
   maxMediaBytes: MAX_ANIMATION_FILE_BYTES,
+  onMutation: () => mediaAuditService?.invalidate("animation"),
+});
+mediaAuditService = createMediaAuditService({
+  projectRoot: PROJECT_ROOT,
+  runtimeRoot: RUNTIME_DIR,
+  disableReveal: process.env.ARTWORK_ADMIN_DISABLE_REVEAL === "1",
+  catalogLoaders: {
+    artwork: readCatalog,
+    animation: animationService.readCatalog,
+    manga: mangaService.readCatalog,
+  },
 });
 
 let mutationQueue = Promise.resolve();
@@ -263,6 +280,9 @@ function publicStagedFile(session, staged) {
     animated: staged.animated,
     lastModified: staged.lastModified,
     previewUrl: `/api/import/sessions/${session.id}/files/${staged.token}/image`,
+    source: staged.source || "upload",
+    mode: staged.mode || "copy-new",
+    existingAssetPath: staged.existingAssetPath || "",
   };
 }
 
@@ -384,10 +404,46 @@ async function stageImportFile(session, payload) {
   }
 }
 
+async function stageExistingImportFile(session, payload) {
+  assert(payload.source === "media-audit" && payload.mode === "reference-existing", "Mode d’intégration existant invalide.");
+  assert(session.files.size < MAX_BATCH_FILES, `Un lot ne peut pas dépasser ${MAX_BATCH_FILES} images.`, 413);
+  const { normalized, target } = await mediaAuditService.resolveFile("artwork", payload.path);
+  const extension = path.extname(normalized).toLowerCase();
+  assert(EXTENSIONS.has(extension), `Format non autorisé : ${extension || "inconnu"}.`);
+  const entries = await readCatalog();
+  assert(!entries.some((entry) => entry.image.toLowerCase() === normalized.toLowerCase()), "Ce fichier est déjà intégré au portfolio.", 409);
+  assert(![...session.files.values()].some((item) => item.existingAssetPath?.toLowerCase() === normalized.toLowerCase()), "Ce fichier est déjà dans la file.", 409);
+  const [metadata, fileStats, hash] = await Promise.all([
+    inspectImage(target),
+    stat(target),
+    fileHash(target),
+  ]);
+  const token = randomUUID();
+  const staged = {
+    token,
+    temporaryPath: target,
+    originalName: path.basename(normalized),
+    suggestedName: path.basename(normalized),
+    extension,
+    size: fileStats.size,
+    hash,
+    width: metadata.width,
+    height: metadata.height,
+    animated: metadata.animated,
+    lastModified: fileStats.mtimeMs,
+    source: "media-audit",
+    mode: "reference-existing",
+    existingAssetPath: normalized,
+  };
+  session.files.set(token, staged);
+  session.status = { phase: "ready", current: session.files.size, total: session.files.size, message: "Fichier existant prêt à être référencé." };
+  return publicStagedFile(session, staged);
+}
+
 async function removeStagedFile(session, token) {
   const staged = session.files.get(token);
   assert(staged, "Fichier temporaire introuvable.", 404);
-  await rm(staged.temporaryPath, { force: true });
+  if (staged.mode !== "reference-existing") await rm(staged.temporaryPath, { force: true });
   session.files.delete(token);
 }
 
@@ -435,52 +491,108 @@ async function commitImport(session, payload) {
   const usedPaths = new Set(entries.map((entry) => entry.image.toLowerCase()));
   const physicalAssets = await listPhysicalAssets();
   for (const asset of physicalAssets) usedPaths.add(asset.assetPath.toLowerCase());
-  const prepared = payload.items.map((item) => {
+  const prepared = [];
+  for (const item of payload.items) {
     const staged = session.files.get(item.token);
     assert(staged, "Un fichier de la file est introuvable.", 404);
     const categories = validateCategories(item.categories || [item.category]);
     const category = categories[0];
     const year = validateDate(item.date);
     const compression = checkedCompression(item.compression);
+    if (staged.mode === "reference-existing") {
+      const { normalized, target } = await mediaAuditService.resolveFile("artwork", staged.existingAssetPath);
+      assert(!entries.some((entry) => entry.image.toLowerCase() === normalized.toLowerCase()), "Ce fichier est déjà intégré au portfolio.", 409);
+      assert(EXTENSIONS.has(path.extname(normalized).toLowerCase()), "Format du fichier existant non pris en charge.");
+      prepared.push({
+        item,
+        staged: { ...staged, temporaryPath: target, existingAssetPath: normalized },
+        category,
+        categories,
+        year,
+        compression,
+        existing: true,
+        fileName: path.basename(normalized),
+        assetPath: normalized,
+      });
+      continue;
+    }
     const extension = outputExtension(staged, compression);
     const destination = availableDestinationName(category, item.finalName || staged.suggestedName, extension, usedPaths);
-    return { item, staged, category, categories, year, compression, ...destination };
-  });
+    prepared.push({ item, staged, category, categories, year, compression, existing: false, ...destination });
+  }
 
   const backup = await createBackup();
-  const createdFiles = [];
   const nextEntries = [...entries];
   const results = [];
+  const transaction = new FileTransaction();
+  const rollbackCleanupFolders = [];
+  let catalogWritten = false;
   session.status = { phase: "processing", current: 0, total: prepared.length, message: `Traitement 0 / ${prepared.length}` };
 
   try {
     for (const [index, preparedItem] of prepared.entries()) {
       let processed;
-      try {
-        processed = await processImage(
-          preparedItem.staged.temporaryPath,
-          preparedItem.staged.originalName,
-          preparedItem.compression,
-        );
-      } catch (error) {
-        throw new HttpError(422, `${preparedItem.staged.originalName} : ${error.message}`);
+      let outputAssetPath = preparedItem.assetPath;
+      if (preparedItem.existing && !preparedItem.compression.enabled) {
+        const currentHash = await fileHash(preparedItem.staged.temporaryPath);
+        assert(currentHash === preparedItem.staged.hash, `${preparedItem.staged.originalName} a changé depuis l’ouverture de l’audit. Relancez l’audit.`, 409);
+        processed = {
+          originalSize: preparedItem.staged.size,
+          outputSize: preparedItem.staged.size,
+          outputWidth: preparedItem.staged.width,
+          outputHeight: preparedItem.staged.height,
+          warning: "",
+        };
+      } else {
+        try {
+          processed = await processImage(
+            preparedItem.staged.temporaryPath,
+            preparedItem.staged.originalName,
+            preparedItem.compression,
+          );
+        } catch (error) {
+          throw new HttpError(422, `${preparedItem.staged.originalName} : ${error.message}`);
+        }
+        const extension = processed.extension;
+        if (preparedItem.existing) {
+          const currentPath = preparedItem.staged.existingAssetPath;
+          const currentFile = preparedItem.staged.temporaryPath;
+          const outputName = `${path.basename(currentPath, path.extname(currentPath))}${extension}`;
+          outputAssetPath = `${path.posix.dirname(currentPath)}/${outputName}`;
+          assert(!entries.some((entry) => entry.image.toLowerCase() === outputAssetPath.toLowerCase()), "Le chemin optimisé est déjà référencé.", 409);
+          const outputFile = assetPathToFile(outputAssetPath);
+          if (outputFile.toLowerCase() !== currentFile.toLowerCase()) {
+            try { await stat(outputFile); throw new HttpError(409, `Un fichier existe déjà à la destination : ${outputAssetPath}`); }
+            catch (error) { if (error.code !== "ENOENT") throw error; }
+          }
+          const trashFolder = path.join(TRASH_DIR, `${timestamp()}-reference-existing-${preparedItem.staged.token}`);
+          rollbackCleanupFolders.push(trashFolder);
+          await transaction.move(currentFile, path.join(trashFolder, path.basename(currentFile)));
+          await transaction.writeExclusive(outputFile, processed.buffer);
+          await transaction.writeExclusive(path.join(trashFolder, "manifest.json"), `${JSON.stringify({
+            operation: "reference-existing-compression",
+            originalPath: currentPath,
+            optimizedPath: outputAssetPath,
+            createdAt: new Date().toISOString(),
+          }, null, 2)}\n`);
+        } else {
+          assert(extension === path.extname(preparedItem.fileName).toLowerCase(), "Extension de sortie incohérente.", 500);
+          const destinationFile = path.join(ASSET_ROOT, CATEGORIES[preparedItem.category], preparedItem.fileName);
+          assert(isInside(path.join(ASSET_ROOT, CATEGORIES[preparedItem.category]), destinationFile), "Destination invalide.");
+          await transaction.writeExclusive(destinationFile, processed.buffer);
+        }
       }
-      assert(processed.extension === path.extname(preparedItem.fileName).toLowerCase(), "Extension de sortie incohérente.", 500);
-      const destinationFile = path.join(ASSET_ROOT, CATEGORIES[preparedItem.category], preparedItem.fileName);
-      assert(isInside(path.join(ASSET_ROOT, CATEGORIES[preparedItem.category]), destinationFile), "Destination invalide.");
-      await writeFileExclusive(destinationFile, processed.buffer);
-      createdFiles.push(destinationFile);
 
-      const id = uniqueId(path.parse(preparedItem.fileName).name, nextEntries);
+      const id = uniqueId(path.parse(outputAssetPath).name, nextEntries);
       const entry = {
         id,
         title: "",
-        image: preparedItem.assetPath,
+        image: outputAssetPath,
         thumbnail: "",
         category: preparedItem.categories,
         date: preparedItem.item.date,
         year: preparedItem.year,
-        alt: String(preparedItem.item.alt || "").trim() || humanizeFileName(preparedItem.fileName),
+        alt: String(preparedItem.item.alt || "").trim() || humanizeFileName(path.basename(outputAssetPath)),
         featured: false,
         orientation: "",
       };
@@ -493,6 +605,7 @@ async function commitImport(session, payload) {
         outputWidth: processed.outputWidth,
         outputHeight: processed.outputHeight,
         warning: processed.warning,
+        mode: preparedItem.existing ? "reference-existing" : "copy-new",
       });
 
       session.status = {
@@ -507,13 +620,36 @@ async function commitImport(session, payload) {
 
     session.status = { phase: "writing", current: prepared.length, total: prepared.length, message: "Écriture atomique du catalogue…" };
     await writeCatalogAtomic(nextEntries);
+    catalogWritten = true;
+    const validatedCatalog = await readCatalog();
+    validateEntries(validatedCatalog);
+    assert(validatedCatalog.length === nextEntries.length, "Le catalogue relu ne contient pas toutes les œuvres.", 500);
+    if (process.env.ARTWORK_ADMIN_TEST_REFERENCE_FAIL_AT === "after-catalog") {
+      throw new Error("Échec de test simulé après écriture du catalogue.");
+    }
+    transaction.commit();
   } catch (error) {
-    await Promise.all(createdFiles.map((file) => rm(file, { force: true })));
-    session.status = { phase: "error", current: createdFiles.length, total: prepared.length, message: error.message };
+    const rollbackErrors = [];
+    if (catalogWritten) {
+      try { await restoreCatalogBackup(backup); } catch (restoreError) { rollbackErrors.push(restoreError); }
+    }
+    let filesRolledBack = false;
+    try {
+      await transaction.rollback();
+      filesRolledBack = true;
+    } catch (rollbackError) { rollbackErrors.push(rollbackError); }
+    if (filesRolledBack) {
+      await Promise.all(rollbackCleanupFolders.map((folder) => rm(folder, { recursive: true, force: true })));
+    }
+    session.status = { phase: "error", current: results.length, total: prepared.length, message: error.message };
+    if (rollbackErrors.length) throw new AggregateError([error, ...rollbackErrors], "L’import a échoué et son rollback est incomplet.");
     throw error;
   }
 
-  for (const file of createdFiles) hashCache.delete(file);
+  for (const preparedItem of prepared) {
+    hashCache.delete(preparedItem.staged.temporaryPath);
+    if (preparedItem.existing) hashCache.delete(assetPathToFile(results.find((result) => result.originalName === preparedItem.staged.originalName)?.entry.image || preparedItem.assetPath));
+  }
   session.status = { phase: "done", current: prepared.length, total: prepared.length, message: "Import terminé." };
   await rm(session.directory, { recursive: true, force: true }).catch(() => undefined);
   session.files.clear();
@@ -1121,7 +1257,12 @@ async function deleteArtwork(id) {
 }
 
 function queueMutation(operation) {
-  const result = mutationQueue.then(operation, operation);
+  const run = async () => {
+    const result = await operation();
+    mediaAuditService.invalidate("artwork");
+    return result;
+  };
+  const result = mutationQueue.then(run, run);
   mutationQueue = result.catch(() => undefined);
   return result;
 }
@@ -1173,7 +1314,48 @@ const MIME_TYPES = {
   ".webp": "image/webp",
   ".avif": "image/avif",
   ".gif": "image/gif",
+  ".mp4": "video/mp4",
+  ".webm": "video/webm",
 };
+
+async function sendLocalMedia(response, file, request) {
+  const fileStats = await stat(file);
+  const headers = {
+    "Content-Type": MIME_TYPES[path.extname(file).toLowerCase()] || "application/octet-stream",
+    "Cache-Control": "private, max-age=60",
+    "X-Content-Type-Options": "nosniff",
+    "Accept-Ranges": "bytes",
+  };
+  const range = request.headers.range?.match(/^bytes=(\d*)-(\d*)$/);
+  if (range) {
+    const start = range[1] ? Number(range[1]) : 0;
+    const end = range[2] ? Math.min(Number(range[2]), fileStats.size - 1) : fileStats.size - 1;
+    assert(Number.isInteger(start) && Number.isInteger(end) && start >= 0 && start <= end && end < fileStats.size, "Plage média invalide.", 416);
+    response.writeHead(206, {
+      ...headers,
+      "Content-Length": end - start + 1,
+      "Content-Range": `bytes ${start}-${end}/${fileStats.size}`,
+    });
+    await pipeLocalFile(response, file, { start, end });
+    return;
+  }
+  response.writeHead(200, { ...headers, "Content-Length": fileStats.size });
+  await pipeLocalFile(response, file);
+}
+
+async function pipeLocalFile(response, file, options) {
+  const stream = createReadStream(file, options);
+  const closeStream = () => stream.destroy();
+  response.once("close", closeStream);
+  try {
+    await pipeline(stream, response);
+  } catch (error) {
+    if (error.code !== "ERR_STREAM_PREMATURE_CLOSE" && error.code !== "ECONNRESET") throw error;
+  } finally {
+    response.off("close", closeStream);
+    stream.destroy();
+  }
+}
 
 async function serveStatic(response, pathname) {
   const relative = pathname === "/" ? "index.html" : pathname.replace(/^\/+/, "");
@@ -1200,6 +1382,12 @@ async function cleanStagingDirectory() {
 async function handleRequest(request, response) {
   checkLocalRequest(request);
   const url = new URL(request.url, `http://${request.headers.host}`);
+  if (await handleMediaAuditRoute(request, response, url, {
+    service: mediaAuditService,
+    readJson,
+    sendJson,
+    sendFile: sendLocalMedia,
+  })) return;
   if (await handleMangaRoute(request, response, url, { service: mangaService, readJson, sendJson })) return;
   if (await handleAnimationRoute(request, response, url, { service: animationService, readJson, sendJson })) return;
   if (request.method === "GET" && url.pathname === "/api/artworks") {
@@ -1317,6 +1505,13 @@ async function handleRequest(request, response) {
     return;
   }
   const importFileMatch = url.pathname.match(/^\/api\/import\/sessions\/([^/]+)\/files(?:\/([^/]+))?$/);
+  const importExistingMatch = url.pathname.match(/^\/api\/import\/sessions\/([^/]+)\/existing$/);
+  if (importExistingMatch && request.method === "POST") {
+    const session = getImportSession(decodeURIComponent(importExistingMatch[1]));
+    const staged = await stageExistingImportFile(session, await readJson(request));
+    sendJson(response, 201, { file: staged, message: "Fichier existant préparé pour être référencé sans copie." });
+    return;
+  }
   if (importFileMatch && request.method === "POST" && !importFileMatch[2]) {
     const session = getImportSession(decodeURIComponent(importFileMatch[1]));
     const staged = await stageImportFile(session, await readJson(request));

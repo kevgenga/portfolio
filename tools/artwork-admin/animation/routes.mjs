@@ -1,14 +1,42 @@
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
+import { pipeline } from "node:stream/promises";
 
 const MIME_TYPES = {
   ".mp4": "video/mp4", ".webm": "video/webm", ".gif": "image/gif", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
   ".png": "image/png", ".webp": "image/webp", ".avif": "image/avif",
 };
 
+async function pipeAsset(response, file, options) {
+  const stream = createReadStream(file, options);
+  const closeStream = () => stream.destroy();
+  response.once("close", closeStream);
+  try {
+    await pipeline(stream, response);
+  } catch (error) {
+    if (error.code !== "ERR_STREAM_PREMATURE_CLOSE" && error.code !== "ECONNRESET") throw error;
+  } finally {
+    response.off("close", closeStream);
+    stream.destroy();
+  }
+}
+
 export async function handleAnimationRoute(request, response, url, { service, readJson, sendJson }) {
   if (request.method === "GET" && url.pathname === "/api/animations") {
     sendJson(response, 200, await service.report()); return true;
+  }
+  if (request.method === "POST" && url.pathname === "/api/animations/existing-references") {
+    sendJson(response, 201, {
+      preparation: await service.prepareExisting(await readJson(request)),
+      message: "Fichier Animation existant préparé sans copie.",
+    });
+    return true;
+  }
+  const existingReference = url.pathname.match(/^\/api\/animations\/existing-references\/([^/]+)$/);
+  if (existingReference && request.method === "DELETE") {
+    service.discardExistingPreparation(decodeURIComponent(existingReference[1]));
+    sendJson(response, 200, { message: "Préparation Animation annulée." });
+    return true;
   }
   if (request.method === "GET" && url.pathname.startsWith("/api/animation-asset/")) {
     const asset = service.resolveAsset(decodeURIComponent(url.pathname.slice("/api/animation-asset/".length)));
@@ -24,7 +52,7 @@ export async function handleAnimationRoute(request, response, url, { service, re
         "Content-Type": MIME_TYPES[asset.extension] || "application/octet-stream", "Content-Length": end - start + 1,
         "Content-Range": `bytes ${start}-${end}/${size}`, "Accept-Ranges": "bytes", "Cache-Control": "private, max-age=60", "X-Content-Type-Options": "nosniff",
       });
-      createReadStream(asset.file, { start, end }).pipe(response); return true;
+      await pipeAsset(response, asset.file, { start, end }); return true;
     }
     response.writeHead(200, {
       "Content-Type": MIME_TYPES[asset.extension] || "application/octet-stream",
@@ -33,7 +61,7 @@ export async function handleAnimationRoute(request, response, url, { service, re
       "X-Content-Type-Options": "nosniff",
       "Accept-Ranges": "bytes",
     });
-    createReadStream(asset.file).pipe(response); return true;
+    await pipeAsset(response, asset.file); return true;
   }
   if (request.method === "POST" && url.pathname === "/api/animations") {
     const output = await service.create(await readJson(request));

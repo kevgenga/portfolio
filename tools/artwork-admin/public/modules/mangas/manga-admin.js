@@ -1,10 +1,16 @@
 import { analyzeMangaCardMedia } from "./media-policy.js";
+import { auditItemAsFile, mountMediaAudit } from "../../media-audit-ui.js";
 
 const state = { mangas: [], report: null, currentId: null, language: null, workingPages: [], savedPages: [], dirty: false, toastTimer: null, createMediaReview: null };
 const $ = (selector) => document.querySelector(selector);
 const dialog = $("#manga-dialog");
 const form = $("#manga-form");
 const toast = $("#toast");
+let mediaAuditController;
+const sectionLabels = {
+  completed: "Completed Manga",
+  storyboard: "Complete Storyboards",
+};
 
 async function api(url, options = {}) {
   const response = await fetch(url, { ...options, headers: options.body ? { "Content-Type": "application/json" } : undefined });
@@ -38,14 +44,15 @@ async function filePayload(file) {
 }
 
 function renderList() {
-  const search = $("#manga-search").value.trim().toLowerCase(); const status = $("#manga-status").value; const language = $("#manga-language").value;
-  let items = state.mangas.filter((manga) => (!search || `${manga.title} ${manga.slug}`.toLowerCase().includes(search)) && (!status || (manga.status || "published") === status) && (!language || manga.languages[language]));
+  const search = $("#manga-search").value.trim().toLowerCase(); const section = $("#manga-section").value; const status = $("#manga-status").value; const language = $("#manga-language").value;
+  let items = state.mangas.filter((manga) => (!search || `${manga.title} ${manga.slug}`.toLowerCase().includes(search)) && (!section || manga.presentationSection === section) && (!status || (manga.status || "published") === status) && (!language || manga.languages[language]));
   items = [...items].sort((a, b) => $("#manga-sort").value === "date" ? String(b.date || b.year || "").localeCompare(String(a.date || a.year || "")) : a.title.localeCompare(b.title));
   $("#manga-count").textContent = `${items.length} manga(s)`;
   $("#manga-grid").replaceChildren(...items.map((manga) => {
     const card = document.createElement("article"); card.className = "manga-card";
     const counts = Object.entries(manga.languages).map(([code, item]) => `${code.toUpperCase()} ${item.pageCount}`).join(" · ");
-    card.innerHTML = `<img src="${imageUrl(manga.banner || manga.cover)}" alt="" /><div class="manga-card-body"><div><h2>${escapeHtml(manga.title)}</h2><span class="manga-card-meta">${escapeHtml(manga.slug)} · ${escapeHtml(manga.status || "published")}</span></div><div class="language-counts">Défaut : ${escapeHtml(manga.defaultLanguage)}<br>${escapeHtml(counts)}</div><div class="manga-card-actions"><button class="button button-primary" data-edit>Modifier</button><a class="button button-secondary" href="${previewUrl(manga)}" target="_blank" rel="noopener">Prévisualiser</a></div></div>`;
+    const temporary = manga.isTemporaryExample ? '<span class="temporary-example">Copie temporaire de test</span>' : "";
+    card.innerHTML = `<img src="${imageUrl(manga.banner || manga.cover)}" alt="" /><div class="manga-card-body"><div><h2>${escapeHtml(manga.title)}</h2><span class="manga-card-meta">${escapeHtml(manga.slug)} · ${escapeHtml(manga.status || "published")}</span></div><div class="manga-section-meta"><span>${escapeHtml(sectionLabels[manga.presentationSection] || sectionLabels.completed)}</span>${temporary}</div><div class="language-counts">Défaut : ${escapeHtml(manga.defaultLanguage)}<br>${escapeHtml(counts)}</div><div class="manga-card-actions"><button class="button button-primary" data-edit>Modifier</button><a class="button button-secondary" href="${previewUrl(manga)}" target="_blank" rel="noopener">Prévisualiser</a></div></div>`;
     card.querySelector("[data-edit]").onclick = () => openEditor(manga.id); return card;
   }));
 }
@@ -72,13 +79,14 @@ async function load() {
   state.report = await api("/api/mangas"); state.mangas = state.report.mangas;
   const statuses = [...new Set(state.mangas.map((manga) => manga.status || "published"))]; $("#manga-status").innerHTML = `<option value="">Tous</option>${statuses.map((value) => `<option>${escapeHtml(value)}</option>`).join("")}`;
   const languages = [...new Set(state.mangas.flatMap((manga) => Object.keys(manga.languages)))]; $("#manga-language").innerHTML = `<option value="">Toutes</option>${languages.map((value) => `<option value="${value}">${value === "orig" || value === "original" ? "Original" : value.toUpperCase()}</option>`).join("")}`;
-  const report = $("#manga-report"); report.hidden = false; report.textContent = `Audit — ${state.report.count} mangas, ${state.report.languageVersions} versions linguistiques, ${state.report.totalPages} pages. ${state.report.issues.length ? state.report.issues.join(" · ") : "Aucune anomalie détectée."}`;
+  const report = $("#manga-report"); report.hidden = false; report.textContent = `Audit — ${state.report.count} mangas (${state.report.sectionCounts.completed} Completed Manga, ${state.report.sectionCounts.storyboard} Complete Storyboards), ${state.report.languageVersions} versions linguistiques, ${state.report.totalPages} pages. ${state.report.issues.length ? state.report.issues.join(" · ") : "Aucune anomalie détectée."}`;
   renderList();
+  if (mediaAuditController) mediaAuditController.refresh();
 }
 
 function openEditor(id) {
   const manga = state.mangas.find((item) => String(item.id) === String(id)); state.currentId = manga.id; state.language = manga.defaultLanguage; setDirty(false);
-  for (const field of ["title", "edition", "author", "year", "date", "status", "visibility", "readingDirection", "genre", "role", "description", "summary", "order", "defaultReadingMode"]) form.elements[field].value = manga[field] ?? (field === "status" ? "published" : field === "visibility" ? "public" : field === "readingDirection" ? "rtl" : "");
+  for (const field of ["title", "edition", "author", "year", "date", "status", "visibility", "presentationSection", "readingDirection", "genre", "role", "description", "summary", "order", "defaultReadingMode"]) form.elements[field].value = manga[field] ?? (field === "status" ? "published" : field === "visibility" ? "public" : field === "presentationSection" ? "completed" : field === "readingDirection" ? "rtl" : "");
   form.elements.tags.value = (manga.tags || []).join(", ");
   form.elements.featured.checked = Boolean(manga.featured); $("#manga-breadcrumb").textContent = `Mangas / ${manga.title} / ${manga.slug}`;
   renderMedia(); renderLanguages(); switchEditorTab("pages"); if (!dialog.open) dialog.showModal();
@@ -138,7 +146,7 @@ $("#delete-manga").onclick = async () => { const manga = currentManga(); const c
 function requestClose() { if (state.dirty && !confirm("Abandonner les modifications non enregistrées ?")) return; setDirty(false); dialog.close(); }
 document.querySelectorAll("[data-close]").forEach((button) => button.onclick = requestClose); dialog.addEventListener("cancel", (event) => { if (state.dirty && !confirm("Abandonner les modifications non enregistrées ?")) event.preventDefault(); else setDirty(false); });
 window.addEventListener("beforeunload", (event) => { if (state.dirty) event.preventDefault(); });
-for (const selector of ["#manga-search", "#manga-status", "#manga-language", "#manga-sort"]) $(selector).addEventListener("input", renderList);
+for (const selector of ["#manga-search", "#manga-section", "#manga-status", "#manga-language", "#manga-sort"]) $(selector).addEventListener("input", renderList);
 
 const editorTabs = [...document.querySelectorAll("[data-editor-tab]")];
 editorTabs.forEach((tab, index) => {
@@ -158,6 +166,52 @@ editorTabs.forEach((tab, index) => {
 $("#create-manga").onclick = () => $("#create-dialog").showModal(); document.querySelectorAll("[data-close-create]").forEach((button) => button.onclick = () => { if (state.createMediaReview?.url) URL.revokeObjectURL(state.createMediaReview.url); state.createMediaReview = null; $("#create-media-review").hidden = true; $("#create-dialog").close(); });
 $("#create-form").elements.languageType.onchange = (event) => { $("#initial-language-field").hidden = event.target.value !== "multilingual"; };
 $("#create-form").elements.primaryImage.onchange = async (event) => { const file = event.target.files[0]; const container = $("#create-media-review"); if (state.createMediaReview?.url) URL.revokeObjectURL(state.createMediaReview.url); if (!file) { state.createMediaReview = null; container.hidden = true; return; } try { state.createMediaReview = await inspectLocalMedia(file); container.innerHTML = mediaReviewMarkup(state.createMediaReview); container.hidden = false; } catch (error) { message(error.message, "error"); event.target.value = ""; } };
-$("#create-form").onsubmit = async (event) => { event.preventDefault(); const createForm = event.currentTarget; const data = new FormData(createForm); const pages = await Promise.all([...createForm.elements.pages.files].map(filePayload)); const primaryFile = createForm.elements.primaryImage.files[0]; const payload = { title: data.get("title"), slug: data.get("slug"), languageType: data.get("languageType"), languageCode: data.get("languageCode"), summary: data.get("summary"), pages, primaryImage: primaryFile ? await filePayload(primaryFile) : null }; const risk = state.createMediaReview?.analysis.level === "error" ? "\n\nAttention : la résolution ou le ratio nécessite une correction importante." : ""; if (!confirm(`Créer « ${payload.title} » avec ${pages.length} page(s) ?${risk}`)) return; try { await api("/api/mangas", { method: "POST", body: JSON.stringify(payload) }); $("#create-dialog").close(); createForm.reset(); if (state.createMediaReview?.url) URL.revokeObjectURL(state.createMediaReview.url); state.createMediaReview = null; $("#create-media-review").hidden = true; await load(); message("Manga créé avec transaction complète."); } catch (error) { message(error.message, "error"); } };
+$("#create-form").onsubmit = async (event) => { event.preventDefault(); const createForm = event.currentTarget; const data = new FormData(createForm); const pages = await Promise.all([...createForm.elements.pages.files].map(filePayload)); const primaryFile = createForm.elements.primaryImage.files[0]; const payload = { title: data.get("title"), slug: data.get("slug"), presentationSection: data.get("presentationSection"), languageType: data.get("languageType"), languageCode: data.get("languageCode"), summary: data.get("summary"), pages, primaryImage: primaryFile ? await filePayload(primaryFile) : null }; const risk = state.createMediaReview?.analysis.level === "error" ? "\n\nAttention : la résolution ou le ratio nécessite une correction importante." : ""; if (!confirm(`Créer « ${payload.title} » dans ${sectionLabels[payload.presentationSection]} avec ${pages.length} page(s) ?${risk}`)) return; try { await api("/api/mangas", { method: "POST", body: JSON.stringify(payload) }); $("#create-dialog").close(); createForm.reset(); if (state.createMediaReview?.url) URL.revokeObjectURL(state.createMediaReview.url); state.createMediaReview = null; $("#create-media-review").hidden = true; await load(); message("Manga créé avec transaction complète."); } catch (error) { message(error.message, "error"); } };
 
+mediaAuditController = mountMediaAudit({
+  module: "manga",
+  container: $("#manga-media-audit"),
+  notify: message,
+  onOpenMissing: (item) => {
+    if (!state.mangas.some((manga) => String(manga.id) === String(item.entryId))) return;
+    openEditor(item.entryId);
+    if (item.role === "page" && item.language && currentManga().languages[item.language]) {
+      state.language = item.language;
+      renderLanguages();
+      switchEditorTab("pages");
+    } else switchEditorTab("media");
+  },
+  onIntegrate: async (item) => {
+    if (!state.report) await load();
+    const file = await auditItemAsFile(item);
+    let manga = state.mangas.find((candidate) => String(candidate.id) === String(item.mangaId) || candidate.slug === item.mangaSlug);
+    if (!manga) {
+      const target = prompt("ID, slug ou titre du manga cible :");
+      manga = state.mangas.find((candidate) => String(candidate.id) === target || candidate.slug === target || candidate.title === target);
+    }
+    if (!manga) throw new Error("Manga cible introuvable.");
+    openEditor(manga.id);
+    if (item.type === "page" || item.type === "orphan-language" || item.type === "page-or-legacy") {
+      const language = item.language && manga.languages[item.language] ? item.language : prompt(`Code de langue cible (${Object.keys(manga.languages).join(", ")}) :`, manga.defaultLanguage);
+      if (!language || !manga.languages[language]) throw new Error("Langue cible introuvable.");
+      state.language = language;
+      renderLanguages();
+      switchEditorTab("pages");
+      const maximum = manga.languages[language].pageCount + 1;
+      const position = Number(prompt(`Position d’insertion (1 à ${maximum}) :`, String(maximum)));
+      if (!Number.isInteger(position) || position < 1 || position > maximum) throw new Error("Position d’insertion invalide.");
+      const transfer = new DataTransfer();
+      transfer.items.add(file);
+      $("#page-files").files = transfer.files;
+      $("#page-position").value = position;
+      message("Page préparée dans le workflow existant. Vérifiez la langue et la position, puis cliquez sur « Ajouter les pages ».", "warning");
+      return;
+    }
+    switchEditorTab("media");
+    if (!await reviewReplacementMedia(file)) return;
+    if (!confirm("Utiliser ce fichier comme image principale du manga ? L’ancien média sera déplacé dans la corbeille.")) return;
+    await api(`/api/mangas/${encodeURIComponent(manga.id)}/media/primary`, { method: "PUT", body: JSON.stringify({ file: await filePayload(file) }) });
+    await reloadEditor("Image principale intégrée après validation.");
+  },
+});
 load().catch((error) => message(error.message, "error"));

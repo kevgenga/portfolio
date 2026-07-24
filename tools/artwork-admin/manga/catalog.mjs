@@ -1,4 +1,9 @@
 import vm from "node:vm";
+import {
+  getMangaPresentationDirectory,
+  getMangaPresentationSection,
+  MANGA_PRESENTATION_SECTION_VALUES,
+} from "../../../src/content/mangaPresentation.js";
 
 const ASSET_PREFIX = "assets/mangaka/";
 
@@ -32,6 +37,7 @@ export function normalizeLanguageCode(code) {
 export function validateMangaCatalog(mangas) {
   const ids = new Set();
   const slugs = new Set();
+  const routes = new Set();
   const paths = new Set();
   for (const manga of mangas) {
     if (manga.id === undefined || manga.id === null || String(manga.id).trim() === "") throw new Error("ID manga manquant.");
@@ -39,8 +45,21 @@ export function validateMangaCatalog(mangas) {
     if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(manga.slug || "")) throw new Error(`Slug invalide pour ${manga.title}.`);
     if (ids.has(String(manga.id))) throw new Error(`ID manga dupliqué : ${manga.id}.`);
     if (slugs.has(manga.slug)) throw new Error(`Slug manga dupliqué : ${manga.slug}.`);
+    if (routes.has(manga.route)) throw new Error(`Route manga dupliquée : ${manga.route}.`);
+    if (
+      manga.presentationSection !== undefined
+      && !MANGA_PRESENTATION_SECTION_VALUES.includes(manga.presentationSection)
+    ) {
+      throw new Error(`Section de présentation invalide pour ${manga.title}.`);
+    }
     ids.add(String(manga.id));
     slugs.add(manga.slug);
+    routes.add(manga.route);
+    const projectPrefix = `${ASSET_PREFIX}${getMangaPresentationDirectory(manga)}/${manga.slug}/`;
+    const legacyPrefix = `${ASSET_PREFIX}${manga.slug}/`;
+    const pathBelongsToProject = (value) =>
+      value.startsWith(projectPrefix)
+      || (manga.presentationSection === undefined && value.startsWith(legacyPrefix));
     if (!manga.languages || typeof manga.languages !== "object") throw new Error(`Langues manquantes pour ${manga.title}.`);
     if (!manga.languages[manga.defaultLanguage]) throw new Error(`Langue par défaut absente pour ${manga.title}.`);
     for (const [code, language] of Object.entries(manga.languages)) {
@@ -48,6 +67,7 @@ export function validateMangaCatalog(mangas) {
       if (!Array.isArray(language.pages)) throw new Error(`Pages invalides pour ${manga.title}/${code}.`);
       for (const page of language.pages) {
         if (typeof page !== "string" || !page.startsWith(ASSET_PREFIX)) throw new Error(`Chemin de page invalide pour ${manga.title}/${code}.`);
+        if (!pathBelongsToProject(page)) throw new Error(`Page hors du dossier de section pour ${manga.title}/${code} : ${page}.`);
         if (paths.has(page)) throw new Error(`Chemin manga dupliqué : ${page}.`);
         paths.add(page);
       }
@@ -55,10 +75,17 @@ export function validateMangaCatalog(mangas) {
     for (const field of ["cover", "banner", "thumbnail", "presentation"]) {
       const value = manga[field];
       if (value && (typeof value !== "string" || !value.startsWith(ASSET_PREFIX))) throw new Error(`${field} invalide pour ${manga.title}.`);
+      if (value && !pathBelongsToProject(value)) throw new Error(`${field} hors du dossier de section pour ${manga.title}.`);
     }
   }
   return true;
 }
+
+export {
+  getMangaPresentationDirectory,
+  getMangaPresentationSection,
+  MANGA_PRESENTATION_SECTION_VALUES,
+};
 
 export function slugify(value) {
   return String(value || "")

@@ -6,6 +6,7 @@
     <meta name="robots" content="noindex, nofollow" />
     <title>Animation Admin — KEVGENGA</title>
     <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/media-audit.css" />
     <link rel="stylesheet" href="/modules/animations/animation-admin.css" />
   </head>
   <body>
@@ -23,6 +24,7 @@
         <a href="/">Illustrations</a><a href="/mangas.html">Mangas</a><a class="is-active" href="/animations.html" aria-current="page">Animations</a>
       </nav>
       <aside id="animation-report" class="category-report" hidden></aside>
+      <section id="animation-media-audit" aria-label="Audit des médias Animation"></section>
       <section class="toolbar animation-toolbar" aria-label="Recherche, filtres et tri">
         <label class="field search-field"><span>Rechercher</span><input id="animation-search" type="search" placeholder="Titre, fichier, alt ou ID…" /></label>
         <label class="field"><span>Catégorie</span><select id="animation-category"><option value="">Toutes les catégories</option></select></label>
@@ -69,8 +71,14 @@
           <section class="create-files-column">
             <label class="drop-zone animation-drop-zone" data-drop-target="create-media-input"><strong>Déposez votre animation ici *</strong><span>MP4, WebM, GIF, JPG, PNG, WebP ou AVIF</span><input id="create-media-input" name="media" type="file" required accept=".mp4,.webm,.gif,.jpg,.jpeg,.png,.webp,.avif" /></label>
             <div id="create-media-preview" class="upload-preview" hidden></div>
+            <div id="create-existing-media-review" class="existing-animation-reference" hidden></div>
             <label class="drop-zone animation-drop-zone" data-drop-target="create-poster-input"><strong>Poster de la vidéo</strong><span>Obligatoire pour MP4/WebM ; inutile pour une image ou un GIF</span><input id="create-poster-input" name="poster" type="file" accept=".jpg,.jpeg,.png,.webp,.avif" /></label>
             <div id="create-poster-preview" class="upload-preview" hidden></div>
+            <div id="create-existing-poster-review" class="existing-animation-reference" hidden></div>
+            <div id="create-existing-poster-picker" class="existing-poster-picker" hidden>
+              <label class="field"><span>Poster existant détecté par l’audit</span><select id="create-existing-poster-select"></select></label>
+              <button id="use-existing-poster" class="button button-secondary" type="button">Utiliser ce poster sans copie</button>
+            </div>
           </section>
           <section class="create-fields-column">
             <label class="field"><span>Titre *</span><input name="title" required /></label>

@@ -1,9 +1,10 @@
 import { formatAnimationAdminDate, formatAnimationDisplayDate, parseAnimationDate } from "./date-utils.js";
 import { usesCustomAlternativeText } from "./alt-utils.js";
+import { mountMediaAudit } from "../../media-audit-ui.js";
 
 const state = {
   animations: [], report: null, currentId: null, dirty: false, toastTimer: null, replacementKind: null,
-  previewUrls: new Set(),
+  previewUrls: new Set(), createExistingMedia: null, createExistingPoster: null, replacementExisting: null,
 };
 const $ = (selector) => document.querySelector(selector);
 const editorDialog = $("#animation-dialog");
@@ -13,6 +14,7 @@ const createForm = $("#create-animation-form");
 const replaceDialog = $("#replace-animation-dialog");
 const replaceForm = $("#replace-animation-form");
 const toast = $("#animation-toast");
+let mediaAuditController;
 if (typeof toast.showPopover !== "function") toast.removeAttribute("popover");
 const categoryLabels = { "court-métrage": "Short Film", "animation 2d": "2D Animation", "animation 3d": "3D Animation" };
 
@@ -75,6 +77,31 @@ function detailsMarkup(details) {
   if (!details) return "<p>Aucun fichier distinct.</p>";
   return `<dl class="asset-facts"><div><dt>Chemin</dt><dd>${escapeHtml(details.path)}</dd></div><div><dt>Fichier</dt><dd>${escapeHtml(details.name)}</dd></div><div><dt>Format</dt><dd>${escapeHtml((details.extension || "—").replace(".", "").toUpperCase())}</dd></div><div><dt>Type</dt><dd>${escapeHtml(details.kind || "—")}</dd></div><div><dt>Dimensions</dt><dd>${details.width && details.height ? `${details.width} × ${details.height} px` : "Détectées par le lecteur si disponibles"}</dd></div><div><dt>Durée</dt><dd>Non stockée dans le catalogue</dd></div><div><dt>Poids</dt><dd>${formatBytes(details.size)}</dd></div><div><dt>SHA-256</dt><dd>${escapeHtml(details.hash || "—")}</dd></div><div><dt>Statut</dt><dd>${details.missing ? "Fichier manquant" : "Présent"}</dd></div></dl>`;
 }
+function existingReferenceMarkup(reference) {
+  return `<span class="queue-status existing">Fichier existant à référencer</span>${mediaMarkup(assetUrl(reference.path), reference.kind, reference.name)}<dl class="asset-facts"><div><dt>Chemin actuel</dt><dd>${escapeHtml(reference.path)}</dd></div><div><dt>Fichier</dt><dd>${escapeHtml(reference.name)}</dd></div><div><dt>Format</dt><dd>${escapeHtml(reference.format)}</dd></div><div><dt>Poids</dt><dd>${formatBytes(reference.size)}</dd></div><div><dt>Dimensions</dt><dd>${reference.width && reference.height ? `${reference.width} × ${reference.height} px` : "Lues par le navigateur si disponibles"}</dd></div><div><dt>SHA-256</dt><dd>${escapeHtml(reference.hash)}</dd></div></dl><p class="muted-copy">Ce fichier est déjà présent dans les assets et sera référencé sans copie, déplacement ni renommage.</p>`;
+}
+async function prepareExistingReference(item) {
+  const output = await api("/api/animations/existing-references", {
+    method: "POST",
+    body: JSON.stringify({ path: item.path, source: "media-audit", mode: "reference-existing" }),
+  });
+  return output.preparation;
+}
+async function discardExistingReference(reference) {
+  if (!reference?.token) return;
+  await api(`/api/animations/existing-references/${encodeURIComponent(reference.token)}`, { method: "DELETE" }).catch(() => undefined);
+}
+function renderCreateExistingReferences() {
+  const mediaContainer = $("#create-existing-media-review");
+  const posterContainer = $("#create-existing-poster-review");
+  mediaContainer.hidden = !state.createExistingMedia;
+  mediaContainer.innerHTML = state.createExistingMedia ? existingReferenceMarkup(state.createExistingMedia) : "";
+  posterContainer.hidden = !state.createExistingPoster;
+  posterContainer.innerHTML = state.createExistingPoster ? existingReferenceMarkup(state.createExistingPoster) : "";
+  createForm.elements.media.required = !state.createExistingMedia;
+  createForm.elements.compressPoster.disabled = Boolean(state.createExistingPoster);
+  if (state.createExistingPoster) createForm.elements.compressPoster.checked = false;
+}
 function renderCardPreview(entry) {
   const relative = entry.effectivePoster;
   if (!relative || entry.mediaDetails?.missing) return `<div class="animation-card-preview"><span>Média manquant</span><span class="animation-type-mark">${escapeHtml(entry.mediaKind)}</span></div>`;
@@ -113,6 +140,7 @@ async function load() {
   const report = $("#animation-report"); report.hidden = false;
   report.textContent = `Audit — ${state.report.count} animations · ${state.report.audit.mediaFormats.join(", ")} · posters ${state.report.audit.posterFormats.join(", ") || "aucun"}. ${state.report.issues.length} anomalie(s), ${state.report.unreferenced.length} fichier(s) non référencé(s). Aucune correction automatique.`;
   renderList();
+  if (mediaAuditController) mediaAuditController.refresh();
 }
 function switchEditorTab(name, focus = false) {
   const tabs = [...document.querySelectorAll("[data-animation-tab]")];
@@ -169,18 +197,61 @@ async function renderSelectedFile(input, container) {
 function compressionPayload(form) {
   return { enabled: form.elements.compressPoster.checked, format: form.elements.posterFormat.value, quality: Number(form.elements.posterQuality.value), maxDimension: form.elements.posterMaxDimension.value || null };
 }
-function openReplacement(kind) {
-  clearPreviewUrls(); state.replacementKind = kind; replaceForm.reset();
+function openReplacement(kind, existingReference = null) {
+  clearPreviewUrls(); state.replacementKind = kind; state.replacementExisting = existingReference; replaceForm.reset();
   const entry = currentAnimation(); const details = kind === "media" ? entry.mediaDetails : entry.posterDetails; const relative = kind === "media" ? entry.video : entry.poster;
   $("#replace-animation-title").textContent = `${relative ? "Remplacer" : "Ajouter"} ${kind === "media" ? "le média" : "le poster"}`;
   $("#replacement-formats").textContent = kind === "media" ? "MP4, WebM, GIF, JPG, PNG, WebP ou AVIF" : "JPG, PNG, WebP ou AVIF";
   replaceForm.elements.file.accept = kind === "media" ? ".mp4,.webm,.gif,.jpg,.jpeg,.png,.webp,.avif" : ".jpg,.jpeg,.png,.webp,.avif";
-  $("#replacement-compression").hidden = kind !== "poster";
+  replaceForm.elements.file.required = !existingReference;
+  replaceForm.querySelector(".name-strategy").hidden = Boolean(existingReference);
+  $("#replacement-compression").hidden = kind !== "poster" || Boolean(existingReference);
   $("#replacement-current").innerHTML = relative && !details?.missing ? `<div class="replacement-current-preview">${mediaMarkup(assetUrl(relative), kind === "media" ? entry.mediaKind : "image", "Fichier actuel")}${detailsMarkup(details)}</div>` : '<div class="empty-asset"><p>Aucun fichier actuel.</p></div>';
-  $("#replacement-new").hidden = true; replaceDialog.showModal();
+  $("#replacement-new").hidden = !existingReference;
+  $("#replacement-new").innerHTML = existingReference ? existingReferenceMarkup(existingReference) : "";
+  replaceDialog.showModal();
 }
-function closeReplacement() { clearPreviewUrls(); replaceDialog.close(); }
-function closeCreate() { clearPreviewUrls(); createForm.reset(); $("#create-media-preview").hidden = true; $("#create-poster-preview").hidden = true; createDialog.close(); }
+async function closeReplacement({ discard = true } = {}) {
+  if (discard) await discardExistingReference(state.replacementExisting);
+  state.replacementExisting = null;
+  clearPreviewUrls();
+  replaceDialog.close();
+}
+async function closeCreate({ discard = true } = {}) {
+  if (discard) await Promise.all([discardExistingReference(state.createExistingMedia), discardExistingReference(state.createExistingPoster)]);
+  state.createExistingMedia = null;
+  state.createExistingPoster = null;
+  clearPreviewUrls();
+  createForm.reset();
+  $("#create-media-preview").hidden = true;
+  $("#create-poster-preview").hidden = true;
+  renderCreateExistingReferences();
+  createDialog.close();
+}
+async function populateExistingPosterPicker() {
+  const report = await mediaAuditController.refresh();
+  const posters = report?.unreferenced?.filter((item) => item.type === "poster") || [];
+  const picker = $("#create-existing-poster-picker");
+  const select = $("#create-existing-poster-select");
+  picker.hidden = posters.length === 0;
+  select.replaceChildren(...posters.map((item) => {
+    const option = document.createElement("option");
+    option.value = item.path;
+    option.textContent = `${item.name} — ${formatBytes(item.size)}`;
+    return option;
+  }));
+}
+async function openCreateDialog() {
+  clearPreviewUrls();
+  createForm.reset();
+  createForm.elements.position.value = state.animations.length + 1;
+  setAltMode(createForm, "create", false);
+  $("#create-media-preview").hidden = true;
+  $("#create-poster-preview").hidden = true;
+  renderCreateExistingReferences();
+  await populateExistingPosterPicker();
+  createDialog.showModal();
+}
 function configureDropZones() {
   document.querySelectorAll("[data-drop-target]").forEach((zone) => {
     const input = $(`#${zone.dataset.dropTarget}`);
@@ -206,29 +277,71 @@ editorTabs.forEach((tab, index) => {
   tab.onkeydown = (event) => { let next; if (event.key === "ArrowRight") next = (index + 1) % editorTabs.length; else if (event.key === "ArrowLeft") next = (index - 1 + editorTabs.length) % editorTabs.length; else if (event.key === "Home") next = 0; else if (event.key === "End") next = editorTabs.length - 1; else return; event.preventDefault(); switchEditorTab(editorTabs[next].dataset.animationTab, true); };
 });
 
-$("#create-animation").onclick = () => { clearPreviewUrls(); createForm.reset(); createForm.elements.position.value = state.animations.length + 1; setAltMode(createForm, "create", false); $("#create-media-preview").hidden = true; $("#create-poster-preview").hidden = true; createDialog.showModal(); };
-document.querySelectorAll("[data-close-create]").forEach((button) => { button.onclick = closeCreate; });
-$("#create-media-input").onchange = (event) => renderSelectedFile(event.target, $("#create-media-preview")).catch((error) => { event.target.value = ""; message(error.message, "error"); });
-$("#create-poster-input").onchange = (event) => renderSelectedFile(event.target, $("#create-poster-preview")).catch((error) => { event.target.value = ""; message(error.message, "error"); });
+$("#create-animation").onclick = () => openCreateDialog().catch((error) => message(error.message, "error"));
+document.querySelectorAll("[data-close-create]").forEach((button) => { button.onclick = () => closeCreate(); });
+createDialog.addEventListener("cancel", (event) => { event.preventDefault(); closeCreate(); });
+$("#create-media-input").onchange = async (event) => {
+  if (event.target.files[0] && state.createExistingMedia) {
+    await discardExistingReference(state.createExistingMedia);
+    state.createExistingMedia = null;
+    renderCreateExistingReferences();
+  }
+  renderSelectedFile(event.target, $("#create-media-preview")).catch((error) => { event.target.value = ""; message(error.message, "error"); });
+};
+$("#create-poster-input").onchange = async (event) => {
+  if (event.target.files[0] && state.createExistingPoster) {
+    await discardExistingReference(state.createExistingPoster);
+    state.createExistingPoster = null;
+    renderCreateExistingReferences();
+  }
+  renderSelectedFile(event.target, $("#create-poster-preview")).catch((error) => { event.target.value = ""; message(error.message, "error"); });
+};
+$("#use-existing-poster").onclick = async () => {
+  const selectedPath = $("#create-existing-poster-select").value;
+  if (!selectedPath) return;
+  await discardExistingReference(state.createExistingPoster);
+  state.createExistingPoster = await prepareExistingReference({ path: selectedPath });
+  createForm.elements.poster.value = "";
+  $("#create-poster-preview").hidden = true;
+  renderCreateExistingReferences();
+  message("Poster existant préparé sans copie.", "warning");
+};
 createForm.onsubmit = async (event) => {
   event.preventDefault(); const data = new FormData(createForm); const mediaFile = createForm.elements.media.files[0]; const posterFile = createForm.elements.poster.files[0];
-  if (mediaKind(mediaFile?.name) === "video" && !posterFile) return message("Un poster est obligatoire pour une vidéo.", "warning");
-  if (!confirm(`Créer « ${data.get("title")} » et copier les fichiers dans les assets Animation ?`)) return;
+  const effectiveMediaKind = state.createExistingMedia?.kind || mediaKind(mediaFile?.name);
+  if (!state.createExistingMedia && !mediaFile) return message("Le média principal est obligatoire.", "warning");
+  if (effectiveMediaKind === "video" && !posterFile && !state.createExistingPoster) return message("Un poster est obligatoire pour une vidéo.", "warning");
+  const referenceCount = Number(Boolean(state.createExistingMedia)) + Number(Boolean(state.createExistingPoster));
+  if (!confirm(`Créer « ${data.get("title")} » ? ${referenceCount ? `${referenceCount} fichier(s) existant(s) seront uniquement référencés, sans copie.` : "Les nouveaux fichiers seront copiés dans les assets Animation."}`)) return;
   const useTitleAsAlt = !createForm.elements.customizeAlt.checked;
-  const payload = { title: data.get("title"), date: data.get("date"), category: data.get("category"), alt: useTitleAsAlt ? String(data.get("title")).trim() : createForm.elements.alt.value.trim(), useTitleAsAlt, position: data.get("position"), featured: createForm.elements.featured.checked, media: await filePayload(mediaFile), poster: posterFile ? await filePayload(posterFile) : null, posterCompression: compressionPayload(createForm) };
-  try { const output = await api("/api/animations", { method: "POST", body: JSON.stringify(payload) }); closeCreate(); await load(); message(`${output.message} Sauvegarde : ${output.backup}`); }
+  const payload = { title: data.get("title"), date: data.get("date"), category: data.get("category"), alt: useTitleAsAlt ? String(data.get("title")).trim() : createForm.elements.alt.value.trim(), useTitleAsAlt, position: data.get("position"), featured: createForm.elements.featured.checked, media: mediaFile ? await filePayload(mediaFile) : null, mediaReference: state.createExistingMedia ? { token: state.createExistingMedia.token, source: "media-audit", mode: "reference-existing" } : null, poster: posterFile ? await filePayload(posterFile) : null, posterReference: state.createExistingPoster ? { token: state.createExistingPoster.token, source: "media-audit", mode: "reference-existing" } : null, posterCompression: state.createExistingPoster ? { enabled: false } : compressionPayload(createForm) };
+  try { const output = await api("/api/animations", { method: "POST", body: JSON.stringify(payload) }); await closeCreate({ discard: false }); await load(); message(`${output.message} Sauvegarde : ${output.backup}`); }
   catch (error) { message(error.message, "error"); }
 };
 
-document.querySelectorAll("[data-close-replace]").forEach((button) => { button.onclick = closeReplacement; });
-$("#replacement-file").onchange = (event) => renderSelectedFile(event.target, $("#replacement-new")).catch((error) => { event.target.value = ""; message(error.message, "error"); });
+document.querySelectorAll("[data-close-replace]").forEach((button) => { button.onclick = () => closeReplacement(); });
+replaceDialog.addEventListener("cancel", (event) => { event.preventDefault(); closeReplacement(); });
+$("#replacement-file").onchange = async (event) => {
+  if (event.target.files[0] && state.replacementExisting) {
+    await discardExistingReference(state.replacementExisting);
+    state.replacementExisting = null;
+    replaceForm.querySelector(".name-strategy").hidden = false;
+    $("#replacement-compression").hidden = state.replacementKind !== "poster";
+  }
+  renderSelectedFile(event.target, $("#replacement-new")).catch((error) => { event.target.value = ""; message(error.message, "error"); });
+};
 [...replaceForm.elements.nameMode].forEach((radio) => { radio.onchange = () => { $("#custom-name-field").hidden = replaceForm.elements.nameMode.value !== "custom"; }; });
 replaceForm.onsubmit = async (event) => {
-  event.preventDefault(); const file = replaceForm.elements.file.files[0]; if (!file) return;
+  event.preventDefault(); const file = replaceForm.elements.file.files[0]; if (!file && !state.replacementExisting) return;
   const kind = state.replacementKind; const data = new FormData(replaceForm);
-  if (!confirm(`Confirmer le remplacement ${kind === "media" ? "du média" : "du poster"} ? L’ancien fichier sera placé dans la corbeille.`)) return;
-  const payload = { file: await filePayload(file), nameMode: data.get("nameMode"), customName: data.get("customName"), ...(kind === "poster" ? { compression: compressionPayload(replaceForm) } : {}) };
-  try { const output = await api(`/api/animations/${encodeURIComponent(state.currentId)}/${kind}`, { method: "PUT", body: JSON.stringify(payload) }); closeReplacement(); await reloadEditor(`${output.message} Sauvegarde : ${output.backup}`); }
+  const confirmation = state.replacementExisting
+    ? `Référencer ${state.replacementExisting.path} comme ${kind === "media" ? "média" : "poster"} sans déplacer le fichier ?`
+    : `Confirmer le remplacement ${kind === "media" ? "du média" : "du poster"} ? L’ancien fichier sera placé dans la corbeille.`;
+  if (!confirm(confirmation)) return;
+  const payload = state.replacementExisting
+    ? { existingReference: { token: state.replacementExisting.token, source: "media-audit", mode: "reference-existing" } }
+    : { file: await filePayload(file), nameMode: data.get("nameMode"), customName: data.get("customName"), ...(kind === "poster" ? { compression: compressionPayload(replaceForm) } : {}) };
+  try { const output = await api(`/api/animations/${encodeURIComponent(state.currentId)}/${kind}`, { method: "PUT", body: JSON.stringify(payload) }); await closeReplacement({ discard: false }); await reloadEditor(`${output.message} Sauvegarde : ${output.backup}`); }
   catch (error) { message(error.message, "error"); }
 };
 
@@ -241,4 +354,36 @@ $("#animation-preview").onclick = () => window.open(portfolioUrl(), "_blank", "n
 $("#animation-backup").onclick = async () => { try { const output = await api("/api/animations/backup", { method: "POST", body: JSON.stringify({}) }); message(`${output.message} ${output.backup}`); } catch (error) { message(error.message, "error"); } };
 window.addEventListener("beforeunload", (event) => { if (state.dirty) event.preventDefault(); });
 configureDropZones();
+mediaAuditController = mountMediaAudit({
+  module: "animation",
+  container: $("#animation-media-audit"),
+  notify: message,
+  onOpenMissing: (item) => {
+    if (!state.animations.some((entry) => entry.id === item.entryId)) return;
+    openEditor(item.entryId);
+    switchEditorTab(item.role === "poster" ? "poster" : "media");
+  },
+  onIntegrate: async (item) => {
+    if (!state.report) await load();
+    const preparation = await prepareExistingReference(item);
+    if (item.type === "poster") {
+      const target = prompt("ID ou titre de l’animation à laquelle rattacher ce poster :");
+      const entry = state.animations.find((candidate) => candidate.id === target || displayTitle(candidate) === target);
+      if (!entry) {
+        await discardExistingReference(preparation);
+        throw new Error("Animation cible introuvable.");
+      }
+      openEditor(entry.id);
+      switchEditorTab("poster");
+      openReplacement("poster", preparation);
+      message("Poster existant préparé sans copie. Vérifiez puis confirmez.", "warning");
+      return;
+    }
+    await openCreateDialog();
+    state.createExistingMedia = preparation;
+    createForm.elements.category.value = preparation.suggestedCategory || "animation 2d";
+    renderCreateExistingReferences();
+    message("Média existant préparé sans copie. Complétez les informations avant enregistrement.", "warning");
+  },
+});
 load().catch((error) => message(error.message, "error"));

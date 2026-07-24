@@ -48,6 +48,10 @@
 .upload-preview { display:grid; grid-template-columns:160px minmax(0,1fr); gap:12px; align-items:center; border:1px solid var(--line); padding:10px; }
 .upload-preview img,.upload-preview video { width:160px; aspect-ratio:16/9; object-fit:contain; background:#080708; }
 .upload-preview dl { display:grid; gap:4px; margin:0; font-size:.72rem; }
+.existing-animation-reference { padding:.85rem; border:1px solid rgba(242,200,121,.42); border-radius:8px; background:rgba(109,76,25,.13); }
+.existing-animation-reference .queue-status { margin:0 0 .65rem; }
+.existing-animation-reference .asset-facts { margin-bottom:0; }
+.existing-poster-picker { display:grid; gap:.6rem; padding:.75rem; border:1px solid #3a3034; border-radius:8px; }
 .compression-options,.name-strategy { display:grid; gap:10px; margin:16px 0 0; border:1px solid var(--line); padding:12px; }
 .compression-options legend,.name-strategy legend { padding:0 6px; color:#ddd; font-weight:700; }
 .compression-fields { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }

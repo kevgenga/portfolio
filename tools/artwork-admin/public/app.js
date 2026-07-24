@@ -7,6 +7,7 @@ import { formatFileSize } from "./file-size-utils.js";
 import { CATEGORY_LABELS as labels, createCategoryPicker, normalizeCategorySelection } from "./category-utils.js";
 import { createReplacementController } from "./replacement-ui.js";
 import { CATEGORY_STORAGE_KEY, resolveCategoryPreference } from "./filter-preference.js";
+import { mountMediaAudit } from "./media-audit-ui.js";
 const ACCEPTED_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp", "avif", "gif"]);
 const SORT_STORAGE_KEY = "artwork-admin-sort";
 const invalidDateWarnings = new Set();
@@ -25,6 +26,7 @@ const state = {
 };
 let batchCategoryPicker;
 let editCategoryPicker;
+let mediaAuditController;
 
 const $ = (selector) => document.querySelector(selector);
 const gallery = $("#gallery");
@@ -294,6 +296,7 @@ async function loadArtworks() {
   report.textContent = `Rapport catégories — ${categoryReport.singleCategory.length} œuvres avec une catégorie, ${categoryReport.multipleCategories.length} avec plusieurs catégories, ${categoryReport.withoutCategory.length} sans catégorie, ${categoryReport.unknownCategories.length} avec une catégorie inconnue, ${categoryReport.primaryFolderMismatch.length} avec un dossier différent de la catégorie principale. Aucune correction automatique.`;
   $("#import-limits").textContent = `Maximum ${state.limits.maxBatchFiles} images par lot et ${Math.round(state.limits.maxFileBytes / 1024 / 1024)} Mo par fichier.`;
   renderGallery();
+  if (mediaAuditController) mediaAuditController.refresh();
 }
 
 async function openEdit(id) {
@@ -415,6 +418,37 @@ async function addFiles(files) {
   }
 }
 
+async function addExistingAsset(item) {
+  await ensureImportSession();
+  switchPanel("import-panel");
+  importReport.hidden = true;
+  const response = await api(`/api/import/sessions/${state.sessionId}/existing`, {
+    method: "POST",
+    body: JSON.stringify({
+      path: item.path,
+      source: "media-audit",
+      mode: "reference-existing",
+    }),
+  });
+  const detectedCategory = state.categories.includes(item.directory) ? item.directory : "illustrations";
+  const queued = queueItemDefaults({
+    name: response.file.originalName,
+    size: response.file.size,
+    lastModified: response.file.lastModified,
+  }, null);
+  Object.assign(queued, response.file, {
+    localUrl: null,
+    finalName: response.file.originalName,
+    categories: [detectedCategory],
+    selected: true,
+    compressionEnabled: false,
+    status: "existing",
+    error: "",
+  });
+  state.queue.push(queued);
+  renderQueue();
+}
+
 function batchCompression() {
   const size = $("#compression-size").value;
   return {
@@ -481,16 +515,28 @@ function createQueueCard(item) {
   const fileInfo = element("div", "queue-file");
   fileInfo.append(element("strong", "", item.originalName));
   fileInfo.append(element("small", "", `${item.extension.replace(".", "").toUpperCase()} · ${item.width || "?"} × ${item.height || "?"} px · ${formatBytes(item.size)}`));
-  const status = element("span", `queue-status ${item.status === "error" || item.status === "warning" ? "warning" : ""}`, item.status === "uploading" ? "Analyse…" : item.status === "error" ? "À ignorer" : item.status === "warning" ? "Avertissement" : "Prête");
+  const statusLabel = item.status === "uploading"
+    ? "Analyse…"
+    : item.status === "error"
+      ? "À ignorer"
+      : item.status === "warning"
+        ? "Avertissement"
+        : item.mode === "reference-existing"
+          ? "Fichier existant à référencer"
+          : "Prête";
+  const status = element("span", `queue-status ${item.status === "error" || item.status === "warning" ? "warning" : item.mode === "reference-existing" ? "existing" : ""}`, statusLabel);
   fileInfo.append(status);
+  if (item.mode === "reference-existing") {
+    fileInfo.append(element("small", "existing-reference-note", "Ce fichier est déjà présent dans les assets mais n’est pas encore référencé dans artworks.js. Il sera intégré sans être copié."));
+  }
   if (item.error) fileInfo.append(element("small", "", item.error));
 
   const mainFields = element("div", "queue-fields");
   const nameLabel = element("label", "field");
-  nameLabel.append(element("span", "", "Nom final"));
+  nameLabel.append(element("span", "", item.mode === "reference-existing" ? "Nom du fichier (conservé)" : "Nom final"));
   const nameInput = document.createElement("input");
   nameInput.value = item.finalName;
-  nameInput.disabled = !item.token || state.busy;
+  nameInput.disabled = !item.token || state.busy || item.mode === "reference-existing";
   nameInput.addEventListener("input", () => { item.finalName = nameInput.value; });
   nameLabel.append(nameInput);
   const categoryLabel = element("div", "field");
@@ -656,8 +702,10 @@ async function saveBatch() {
     return counts;
   }, {});
   const compressed = ready.filter((item) => item.compressionEnabled).length;
+  const existingReferences = ready.filter((item) => item.mode === "reference-existing").length;
   const summary = [
     `${ready.length} œuvre(s) seront ajoutée(s).`,
+    ...(existingReferences ? [`Fichiers existants référencés sans copie : ${existingReferences}.`] : []),
     `Catégories : ${Object.entries(categoryCounts).map(([category, count]) => `${labels[category]} (${count})`).join(", ")}.`,
     `Compression : ${compressed ? `${compressed} image(s)` : "désactivée"}.`,
     "Une seule sauvegarde et une seule écriture atomique seront effectuées.",
@@ -862,4 +910,16 @@ try {
   dateSort.value = "newest";
 }
 
+mediaAuditController = mountMediaAudit({
+  module: "artwork",
+  container: $("#artwork-media-audit"),
+  notify: showMessage,
+  onOpenMissing: (item) => openEdit(item.entryId),
+  onIntegrate: async (item) => {
+    if (state.categories.length === 0) await loadArtworks();
+    if (batchCategoryPicker && state.categories.includes(item.directory)) batchCategoryPicker.setValue([item.directory]);
+    await addExistingAsset(item);
+    showMessage(`${item.name} est prêt à être référencé sans copie. Vérifiez la catégorie, la date et l’alt avant enregistrement.`, "warning");
+  },
+});
 loadArtworks().catch((error) => showMessage(error.message, true));

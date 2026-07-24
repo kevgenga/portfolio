@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { copyFile, mkdir, readFile, readdir, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
-import sharp from "sharp";
+import sharp from "../sharp-runtime.mjs";
 import { FileTransaction } from "../file-transaction.mjs";
 import { normalizeCompression, processImage } from "../image-processor.mjs";
 import { buildRevealCommand, isPathInside, launchReveal } from "../reveal-file.mjs";
@@ -33,6 +33,7 @@ export function createAnimationService({
   runtimeRoot,
   disableReveal = false,
   failurePoint = "",
+  onMutation = null,
   maxMediaBytes = Number.parseInt(process.env.ANIMATION_ADMIN_MAX_FILE_MB || "300", 10) * 1024 * 1024,
 } = {}) {
   const catalogPath = path.join(projectRoot, "src/content/animations.js");
@@ -42,6 +43,7 @@ export function createAnimationService({
   const trashRoot = path.join(runtimeRoot, "trash/animations");
   const stagingRoot = path.join(runtimeRoot, "staging/animations");
   let mutationQueue = Promise.resolve();
+  const existingPreparations = new Map();
 
   function queueMutation(operation) {
     const output = mutationQueue.then(operation, operation);
@@ -54,6 +56,80 @@ export function createAnimationService({
     const target = path.resolve(projectRoot, "public", ...relative.split("/"));
     ensure(isPathInside(assetRoot, target), "Le chemin Animation sort du dossier autorisé.", 403);
     return target;
+  }
+
+  async function secureExistingFile(relative) {
+    ensure(typeof relative === "string" && relative.trim(), "Chemin Animation manquant.");
+    const normalized = relative.trim().replaceAll("\\", "/").normalize("NFC");
+    ensure(!path.isAbsolute(normalized) && !path.win32.isAbsolute(normalized), "Les chemins absolus sont interdits.", 403);
+    ensure(!normalized.split("/").some((segment) => segment === ".." || segment === "." || segment === ""), "La traversée de chemin est interdite.", 403);
+    ensure(normalized.startsWith("assets/animation/"), "Le chemin n’appartient pas aux assets Animation.", 403);
+    const expected = assetFile(normalized);
+    const [actual, actualRoot] = await Promise.all([
+      realpath(expected).catch(() => { throw new AnimationAdminError(404, "Fichier Animation introuvable."); }),
+      realpath(assetRoot),
+    ]);
+    ensure(isPathInside(actualRoot, actual), "Le lien symbolique sort des assets Animation.", 403);
+    ensure((await stat(actual)).isFile(), "Le chemin Animation ne correspond pas à un fichier.");
+    return { normalized, file: actual };
+  }
+
+  function isReferenced(catalog, relative) {
+    const key = relative.toLocaleLowerCase("en");
+    return catalog.some((entry) => [entry.video, entry.poster].filter(Boolean)
+      .some((value) => value.normalize("NFC").toLocaleLowerCase("en") === key));
+  }
+
+  async function prepareExisting(payload) {
+    for (const [token, preparation] of existingPreparations) {
+      if (Date.now() - preparation.createdAt > 60 * 60 * 1000) existingPreparations.delete(token);
+    }
+    ensure(payload?.source === "media-audit" && payload?.mode === "reference-existing", "Mode de préparation Animation invalide.");
+    const { normalized, file } = await secureExistingFile(payload.path);
+    const extension = extensionOf(normalized);
+    ensure([...MEDIA_EXTENSIONS, ...POSTER_EXTENSIONS].includes(extension), `Format Animation non pris en charge : ${extension || "inconnu"}.`);
+    const catalog = await readCatalog();
+    ensure(!isReferenced(catalog, normalized), "Ce fichier est déjà intégré au catalogue Animation.", 409);
+    const role = normalized.toLocaleLowerCase("en").startsWith("assets/animation/miniature/") ? "poster" : "media";
+    const details = await inspectAsset(normalized);
+    ensure(details && !details.missing, "Fichier Animation introuvable.", 404);
+    const token = randomUUID();
+    const preparation = {
+      token,
+      source: "media-audit",
+      mode: "reference-existing",
+      role,
+      path: normalized,
+      file,
+      name: path.basename(normalized),
+      extension,
+      format: extension.slice(1).toUpperCase(),
+      size: details.size,
+      width: details.width || null,
+      height: details.height || null,
+      hash: details.hash,
+      kind: details.kind,
+      suggestedCategory: "animation 2d",
+      createdAt: Date.now(),
+    };
+    existingPreparations.set(token, preparation);
+    return { ...preparation, file: undefined, previewUrl: `/api/animation-asset/${encodeURIComponent(normalized)}` };
+  }
+
+  async function validateExistingReference(reference, role, catalog) {
+    ensure(reference?.source === "media-audit" && reference?.mode === "reference-existing" && reference?.token, "Référence Animation existante invalide.");
+    const prepared = existingPreparations.get(reference.token);
+    ensure(prepared, "La préparation du fichier existant est introuvable ou expirée.", 404);
+    ensure(prepared.role === role, role === "poster" ? "Ce fichier n’est pas un poster détecté." : "Ce fichier n’est pas un média principal détecté.");
+    const { normalized, file } = await secureExistingFile(prepared.path);
+    ensure(!isReferenced(catalog, normalized), "Ce fichier est déjà intégré au catalogue Animation.", 409);
+    ensure(await fileHash(file) === prepared.hash, "Le fichier a changé depuis l’audit. Relancez l’audit.", 409);
+    return { ...prepared, path: normalized, file };
+  }
+
+  function discardExistingPreparation(token) {
+    ensure(existingPreparations.has(token), "Préparation Animation introuvable.", 404);
+    existingPreparations.delete(token);
   }
 
   async function readCatalog() { return parseAnimationCatalog(await readFile(catalogPath, "utf8")); }
@@ -135,7 +211,12 @@ export function createAnimationService({
     const hash = createHash("sha256");
     await new Promise((resolve, reject) => {
       const stream = createReadStream(file);
-      stream.on("data", (chunk) => hash.update(chunk)); stream.on("end", resolve); stream.on("error", reject);
+      stream.on("data", (chunk) => hash.update(chunk));
+      stream.once("close", resolve);
+      stream.once("error", (error) => {
+        stream.destroy();
+        reject(error);
+      });
     });
     return hash.digest("hex");
   }
@@ -196,8 +277,10 @@ export function createAnimationService({
       failAt("before-catalog");
       await validateFiles(catalog);
       await writeAtomic(serializeAnimationCatalog(catalog));
+      await validateFiles(await readCatalog());
       failAt("after-catalog");
       transaction.commit();
+      onMutation?.();
       return { result, backup: path.relative(projectRoot, backupPath).replaceAll("\\", "/") };
     } catch (error) {
       await writeAtomic(original).catch(() => undefined);
@@ -223,24 +306,44 @@ export function createAnimationService({
     return candidate;
   }
   async function create(payload) {
+    const preparationTokens = [payload.mediaReference?.token, payload.posterReference?.token].filter(Boolean);
+    try {
     const metadata = validateMetadata(payload);
-    ensure(payload.media, "Le média principal est obligatoire.");
-    return mutate("create", metadata.title, async (catalog, tx, stageDirectory) => {
-      const media = await stageUpload(payload.media, "media", stageDirectory);
-      await rejectDuplicateHash(media.hash);
+    ensure(payload.media || payload.mediaReference, "Le média principal est obligatoire.");
+    return await mutate("create", metadata.title, async (catalog, tx, stageDirectory) => {
+      const existingMedia = payload.mediaReference
+        ? await validateExistingReference(payload.mediaReference, "media", catalog)
+        : null;
+      const media = existingMedia || await stageUpload(payload.media, "media", stageDirectory);
+      if (!existingMedia) await rejectDuplicateHash(media.hash);
       let poster = null;
-      if (payload.poster) {
+      const existingPoster = payload.posterReference
+        ? await validateExistingReference(payload.posterReference, "poster", catalog)
+        : null;
+      if (existingPoster) {
+        poster = existingPoster;
+      } else if (payload.poster) {
         poster = await stageUpload(payload.poster, "poster", stageDirectory);
         await rejectDuplicateHash(poster.hash);
         ensure(poster.hash !== media.hash, "Le poster duplique le média principal.", 409);
       }
       ensure(media.kind !== "video" || poster, "Un poster est obligatoire pour une vidéo.");
-      const mediaName = destinationName(media, "new", "", "");
-      const mediaDestination = path.join(assetRoot, mediaName);
-      await ensureDestinationAvailable(mediaDestination);
-      await tx.move(media.path, mediaDestination); failAt("after-copy");
+      let mediaRelative;
+      let mediaName;
+      if (existingMedia) {
+        mediaRelative = existingMedia.path;
+        mediaName = existingMedia.name;
+      } else {
+        mediaName = destinationName(media, "new", "", "");
+        const mediaDestination = path.join(assetRoot, mediaName);
+        await ensureDestinationAvailable(mediaDestination);
+        await tx.move(media.path, mediaDestination); failAt("after-copy");
+        mediaRelative = relativeFromFile(mediaDestination);
+      }
       let posterRelative = "";
-      if (poster) {
+      if (existingPoster) {
+        posterRelative = existingPoster.path;
+      } else if (poster) {
         const compression = normalizeCompression(payload.posterCompression || {});
         const processed = await processImage(poster.path, poster.originalName, compression);
         const posterName = destinationName(poster, "new", "", "", processed.extension);
@@ -251,7 +354,7 @@ export function createAnimationService({
         posterRelative = relativeFromFile(posterDestination);
       }
       const entry = {
-        id: uniqueId(metadata.title, catalog), title: metadata.title, video: relativeFromFile(mediaDestination), poster: posterRelative,
+        id: uniqueId(metadata.title, catalog), title: metadata.title, video: mediaRelative, poster: posterRelative,
         category: metadata.category, duration: null, date: metadata.date, year: metadata.year, alt: metadata.alt,
         featured: metadata.featured, type: publicAnimationType(mediaName),
       };
@@ -259,6 +362,9 @@ export function createAnimationService({
       catalog.splice(position - 1, 0, entry);
       return entry;
     });
+    } finally {
+      preparationTokens.forEach((token) => existingPreparations.delete(token));
+    }
   }
   async function update(id, payload) {
     const currentCatalog = await readCatalog();
@@ -277,6 +383,20 @@ export function createAnimationService({
   }
   async function replaceAsset(id, kind, payload) {
     ensure(["media", "poster"].includes(kind), "Type de fichier invalide.");
+    if (payload.existingReference) {
+      try {
+      return await mutate(`reference-existing-${kind}`, id, async (catalog) => {
+        const entry = findEntry(catalog, id);
+        const prepared = await validateExistingReference(payload.existingReference, kind, catalog);
+        if (kind === "media" && prepared.kind === "video") ensure(entry.poster, "Ajoutez un poster avant de référencer cette vidéo.");
+        entry[kind === "media" ? "video" : "poster"] = prepared.path;
+        if (kind === "media") entry.type = publicAnimationType(prepared.name);
+        return entry;
+      });
+      } finally {
+        existingPreparations.delete(payload.existingReference.token);
+      }
+    }
     ensure(["current", "new", "custom"].includes(payload.nameMode || "current"), "Stratégie de nom invalide.");
     if (payload.nameMode === "custom") ensure(String(payload.customName || "").trim(), "Le nom personnalisé est obligatoire.");
     return mutate(`replace-${kind}`, id, async (catalog, tx, stageDirectory) => {
@@ -338,8 +458,13 @@ export function createAnimationService({
       const fileStat = await stat(file); const extension = extensionOf(file); const kind = mediaKindFromName(file);
       let metadata = {};
       if (kind !== "video") {
-        const info = await sharp(file, { animated: true }).metadata();
-        metadata = { width: info.width || null, height: info.height || null, animated: (info.pages || 1) > 1 };
+        const image = sharp(file, { animated: true });
+        try {
+          const info = await image.metadata();
+          metadata = { width: info.width || null, height: info.height || null, animated: (info.pages || 1) > 1 };
+        } finally {
+          image.destroy();
+        }
       }
       return { path: relative, name: path.basename(file), extension, kind, size: fileStat.size, hash: await fileHash(file), missing: false, ...metadata };
     } catch (error) {
@@ -395,12 +520,15 @@ export function createAnimationService({
   function resolveAsset(relative) { return { file: assetFile(relative), extension: extensionOf(relative) }; }
   async function manualBackup() { const output = await backup("manual", "catalog"); return path.relative(projectRoot, output).replaceAll("\\", "/"); }
   async function initialize() {
+    existingPreparations.clear();
     await Promise.all([mkdir(assetRoot, { recursive: true }), mkdir(posterRoot, { recursive: true }), mkdir(backupRoot, { recursive: true }), mkdir(trashRoot, { recursive: true }), mkdir(stagingRoot, { recursive: true })]);
     const staged = await readdir(stagingRoot, { withFileTypes: true });
     await Promise.all(staged.filter((entry) => entry.name !== ".gitkeep").map((entry) => rm(path.join(stagingRoot, entry.name), { recursive: entry.isDirectory(), force: true })));
   }
   return {
     initialize, report,
+    prepareExisting,
+    discardExistingPreparation,
     create: (payload) => queueMutation(() => create(payload)),
     update: (id, payload) => queueMutation(() => update(id, payload)),
     replaceMedia: (id, payload) => queueMutation(() => replaceAsset(id, "media", payload)),

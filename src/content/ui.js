@@ -61,6 +61,17 @@ export const uiText = {
       eyebrow: "Sequential art",
       title: "Manga",
       introduction: "Original manga projects. Select a title to read every page.",
+      sections: {
+        completed: {
+          title: "Completed Manga",
+          description: "Fully inked and finalized manga projects.",
+        },
+        storyboard: {
+          title: "Storyboards & Manga Concepts",
+          description: "Storyboards, sketches and original manga concepts currently in development.",
+        },
+      },
+      emptySection: "No projects are currently available in this section.",
       read: "Read Manga",
       coverAlt: (title) => `${title} manga cover`,
     },

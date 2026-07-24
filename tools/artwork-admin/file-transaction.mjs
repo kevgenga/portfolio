@@ -1,15 +1,33 @@
-import { mkdir, open, rename, rm } from "node:fs/promises";
+import { lstat, mkdir, open, rename, rm } from "node:fs/promises";
 import path from "node:path";
+
+async function ensureDestinationDoesNotExist(destination) {
+  try {
+    await lstat(destination);
+    const error = new Error(`La destination existe déjà : ${destination}`);
+    error.code = "EEXIST";
+    throw error;
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+}
 
 export class FileTransaction {
   #rollbacks = [];
+  #rename;
+
+  constructor({ renameImpl = rename } = {}) {
+    this.#rename = renameImpl;
+  }
 
   async move(source, destination) {
     await mkdir(path.dirname(destination), { recursive: true });
-    await rename(source, destination);
+    await ensureDestinationDoesNotExist(destination);
+    await this.#rename(source, destination);
     this.#rollbacks.push(async () => {
       await mkdir(path.dirname(source), { recursive: true });
-      await rename(destination, source);
+      await ensureDestinationDoesNotExist(source);
+      await this.#rename(destination, source);
     });
   }
 

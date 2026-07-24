@@ -156,5 +156,18 @@ export const animations = [
     "alt": "Intro after effect",
     "featured": false,
     "type": "video"
+  },
+  {
+    "id": "ghost-walk-animation",
+    "title": "Ghost Walk Animation",
+    "video": assetPath("assets/animation/truc-200x200.gif"),
+    "poster": "",
+    "category": "animation 2d",
+    "duration": null,
+    "date": "2016-07-07",
+    "year": 2016,
+    "alt": "Ghost Walk Animation",
+    "featured": false,
+    "type": "image"
   }
 ];

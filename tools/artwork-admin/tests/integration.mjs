@@ -56,7 +56,7 @@ async function request(port, pathname, options = {}) {
   return body;
 }
 
-async function startServer(port, { failAt = 0, replaceFailAt = "", optimizeFailAt = "" } = {}) {
+async function startServer(port, { failAt = 0, replaceFailAt = "", optimizeFailAt = "", referenceFailAt = "" } = {}) {
   const output = [];
   const child = spawn(process.execPath, ["tools/artwork-admin/server.mjs"], {
     cwd: PROJECT_DIR,
@@ -69,6 +69,7 @@ async function startServer(port, { failAt = 0, replaceFailAt = "", optimizeFailA
       ARTWORK_ADMIN_TEST_FAIL_AT: String(failAt),
       ARTWORK_ADMIN_TEST_REPLACE_FAIL_AT: replaceFailAt,
       ARTWORK_ADMIN_TEST_OPTIMIZE_FAIL_AT: optimizeFailAt,
+      ARTWORK_ADMIN_TEST_REFERENCE_FAIL_AT: referenceFailAt,
       ARTWORK_ADMIN_DISABLE_REVEAL: "1",
     },
     stdio: ["ignore", "pipe", "pipe"],
@@ -92,10 +93,17 @@ async function startServer(port, { failAt = 0, replaceFailAt = "", optimizeFailA
 async function stopServer(child) {
   if (!child || child.exitCode !== null) return;
   child.kill();
-  await Promise.race([
-    new Promise((resolve) => child.once("exit", resolve)),
-    new Promise((resolve) => setTimeout(resolve, 1500)),
+  const exited = await Promise.race([
+    new Promise((resolve) => child.once("exit", () => resolve(true))),
+    new Promise((resolve) => setTimeout(() => resolve(false), 1500)),
   ]);
+  if (!exited && child.exitCode === null) {
+    child.kill("SIGKILL");
+    await Promise.race([
+      new Promise((resolve) => child.once("exit", resolve)),
+      new Promise((resolve) => setTimeout(resolve, 1500)),
+    ]);
+  }
 }
 
 async function createSession(port) {
@@ -106,6 +114,13 @@ async function stage(port, sessionId, name, buffer, lastModified = Date.now()) {
   return request(port, `/api/import/sessions/${sessionId}/files`, {
     method: "POST",
     body: JSON.stringify({ fileName: name, lastModified, dataBase64: buffer.toString("base64") }),
+  });
+}
+
+async function stageExisting(port, sessionId, assetPath) {
+  return request(port, `/api/import/sessions/${sessionId}/existing`, {
+    method: "POST",
+    body: JSON.stringify({ path: assetPath, source: "media-audit", mode: "reference-existing" }),
   });
 }
 
@@ -176,6 +191,10 @@ try {
   const optimizeJpegBuffer = await sharp({ create: { width: 2400, height: 1800, channels: 3, background: "#384f72" } }).jpeg({ quality: 96 }).toBuffer();
   const optimizePngBuffer = await sharp({ create: { width: 1200, height: 900, channels: 4, background: { r: 80, g: 30, b: 130, alpha: 0.55 } } }).png().toBuffer();
   const optimizeSmallBuffer = await sharp({ create: { width: 400, height: 300, channels: 3, background: "#806040" } }).jpeg().toBuffer();
+  const auditExistingBuffer = await sharp({ create: { width: 96, height: 128, channels: 3, background: "#604080" } }).jpeg().toBuffer();
+  const auditCancelBuffer = await sharp({ create: { width: 97, height: 129, channels: 3, background: "#406080" } }).jpeg().toBuffer();
+  const auditRollbackBuffer = await sharp({ create: { width: 98, height: 130, channels: 3, background: "#806040" } }).jpeg().toBuffer();
+  const auditCompressBuffer = await sharp({ create: { width: 1200, height: 900, channels: 3, background: "#805060" } }).jpeg({ quality: 96 }).toBuffer();
   await writeFile(path.join(fixtureRoot, "public/assets/illustration/illustrations/existing.jpg"), existingBuffer);
   await writeFile(path.join(fixtureRoot, "public/assets/illustration/illustrations/other.jpg"), otherBuffer);
   await writeFile(path.join(fixtureRoot, "public/assets/illustration/illustrations/distinct.jpg"), distinctBuffer);
@@ -183,6 +202,10 @@ try {
   await writeFile(path.join(fixtureRoot, "public/assets/illustration/illustrations/optimize-jpeg.jpg"), optimizeJpegBuffer);
   await writeFile(path.join(fixtureRoot, "public/assets/illustration/illustrations/optimize-png.png"), optimizePngBuffer);
   await writeFile(path.join(fixtureRoot, "public/assets/illustration/illustrations/optimize-small.jpg"), optimizeSmallBuffer);
+  await writeFile(path.join(fixtureRoot, "public/assets/illustration/sketches/audit-existing.jpg"), auditExistingBuffer);
+  await writeFile(path.join(fixtureRoot, "public/assets/illustration/sketches/audit-cancel.jpg"), auditCancelBuffer);
+  await writeFile(path.join(fixtureRoot, "public/assets/illustration/paintings/audit-rollback.jpg"), auditRollbackBuffer);
+  await writeFile(path.join(fixtureRoot, "public/assets/illustration/paintings/audit-compress.jpg"), auditCompressBuffer);
   const fixtureEntries = [{
     id: "existing",
     image: "assets/illustration/illustrations/existing.jpg",
@@ -669,11 +692,104 @@ try {
     enabled: true, maxDimension: 800, quality: 92, format: "webp", preserveMetadata: false,
   }), 422);
 
+  const auditExistingPath = "assets/illustration/sketches/audit-existing.jpg";
+  const auditCancelPath = "assets/illustration/sketches/audit-cancel.jpg";
+  const auditExistingFile = path.join(fixtureRoot, "public", ...auditExistingPath.split("/"));
+  const auditCancelFile = path.join(fixtureRoot, "public", ...auditCancelPath.split("/"));
+  const auditExistingHash = hash(await readFile(auditExistingFile));
+  const auditCancelHash = hash(await readFile(auditCancelFile));
+  const auditBefore = await request(port, "/api/media-audit/artwork?refresh=1");
+  assert.equal(auditBefore.unreferenced.some((item) => item.path === auditExistingPath && item.category === "Sketches"), true);
+
+  const cancelSession = await createSession(port);
+  const cancelPrepared = (await stageExisting(port, cancelSession.id, auditCancelPath)).file;
+  assert.equal(cancelPrepared.mode, "reference-existing");
+  await request(port, `/api/import/sessions/${cancelSession.id}`, { method: "DELETE" });
+  assert.equal(hash(await readFile(auditCancelFile)), auditCancelHash);
+  assert.equal((await request(port, "/api/media-audit/artwork?refresh=1")).unreferenced.some((item) => item.path === auditCancelPath), true);
+
+  const existingSession = await createSession(port);
+  const existingPrepared = (await stageExisting(port, existingSession.id, auditExistingPath)).file;
+  assert.equal(existingPrepared.mode, "reference-existing");
+  assert.equal(existingPrepared.source, "media-audit");
+  assert.equal(existingPrepared.existingAssetPath, auditExistingPath);
+  assert.equal(existingPrepared.originalName, "audit-existing.jpg");
+  const existingCommit = await request(port, `/api/import/sessions/${existingSession.id}/commit`, {
+    method: "POST",
+    body: JSON.stringify({ items: [{
+      token: existingPrepared.token,
+      categories: ["sketches"],
+      date: "23-07-2026",
+      alt: "Audit existing",
+      finalName: "ce-nom-ne-doit-pas-renommer.jpg",
+      compression: { enabled: false },
+    }] }),
+  });
+  assert.equal(existingCommit.results[0].mode, "reference-existing");
+  assert.equal(existingCommit.results[0].entry.image, auditExistingPath);
+  assert.equal(hash(await readFile(auditExistingFile)), auditExistingHash);
+  await assert.rejects(stat(path.join(fixtureRoot, "public/assets/illustration/sketches/ce-nom-ne-doit-pas-renommer.jpg")), { code: "ENOENT" });
+  const afterExistingReference = await request(port, "/api/artworks");
+  assert.equal(afterExistingReference.artworks.some((entry) => entry.image === auditExistingPath && entry.category[0] === "sketches"), true);
+  assert.equal((await request(port, "/api/media-audit/artwork?refresh=1")).unreferenced.some((item) => item.path === auditExistingPath), false);
+  const alreadyIntegratedSession = await createSession(port);
+  await expectHttpError(() => stageExisting(port, alreadyIntegratedSession.id, auditExistingPath), 409);
+  await expectHttpError(() => stageExisting(port, alreadyIntegratedSession.id, "../outside.jpg"), 403);
+  await expectHttpError(() => stageExisting(port, alreadyIntegratedSession.id, "assets/illustration/../outside.jpg"), 403);
+
+  const compressExistingPath = "assets/illustration/paintings/audit-compress.jpg";
+  const compressExistingOriginal = path.join(fixtureRoot, "public", ...compressExistingPath.split("/"));
+  const compressExistingSession = await createSession(port);
+  const compressExistingPrepared = (await stageExisting(port, compressExistingSession.id, compressExistingPath)).file;
+  const compressExistingCommit = await request(port, `/api/import/sessions/${compressExistingSession.id}/commit`, {
+    method: "POST",
+    body: JSON.stringify({ items: [{
+      token: compressExistingPrepared.token,
+      categories: ["paintings"],
+      date: "23-07-2026",
+      alt: "Compressed existing reference",
+      finalName: compressExistingPrepared.originalName,
+      compression: { enabled: true, maxDimension: 800, quality: 92, format: "webp", preserveMetadata: false },
+    }] }),
+  });
+  assert.equal(compressExistingCommit.results[0].mode, "reference-existing");
+  assert.equal(compressExistingCommit.results[0].entry.image, "assets/illustration/paintings/audit-compress.webp");
+  await assert.rejects(stat(compressExistingOriginal), { code: "ENOENT" });
+  const compressedExistingFile = path.join(fixtureRoot, "public/assets/illustration/paintings/audit-compress.webp");
+  const compressedExistingMetadata = await sharp(await readFile(compressedExistingFile)).metadata();
+  assert.deepEqual([compressedExistingMetadata.width, compressedExistingMetadata.height], [800, 600]);
+
   await stopServer(server);
   server = null;
 
   const catalogPath = path.join(fixtureRoot, "src/content/artworks.js");
   const beforeRollback = hash(await readFile(catalogPath));
+  const referenceRollbackPath = "assets/illustration/paintings/audit-rollback.jpg";
+  const referenceRollbackFile = path.join(fixtureRoot, "public", ...referenceRollbackPath.split("/"));
+  const referenceRollbackHash = hash(await readFile(referenceRollbackFile));
+  const referenceTrashBefore = (await readdir(path.join(runtimeRoot, "trash"))).sort();
+  server = await startServer(4198, { referenceFailAt: "after-catalog" });
+  const referenceRollbackSession = await createSession(4198);
+  const referenceRollbackPrepared = (await stageExisting(4198, referenceRollbackSession.id, referenceRollbackPath)).file;
+  await expectHttpError(() => request(4198, `/api/import/sessions/${referenceRollbackSession.id}/commit`, {
+    method: "POST",
+    body: JSON.stringify({ items: [{
+      token: referenceRollbackPrepared.token,
+      categories: ["paintings"],
+      date: "23-07-2026",
+      alt: "Rollback existing reference",
+      finalName: referenceRollbackPrepared.originalName,
+      compression: { enabled: true, maxDimension: 800, quality: 92, format: "webp", preserveMetadata: false },
+    }] }),
+  }), 500);
+  assert.equal(hash(await readFile(catalogPath)), beforeRollback);
+  assert.equal(hash(await readFile(referenceRollbackFile)), referenceRollbackHash);
+  await assert.rejects(stat(path.join(fixtureRoot, "public/assets/illustration/paintings/audit-rollback.webp")), { code: "ENOENT" });
+  assert.deepEqual((await readdir(path.join(runtimeRoot, "trash"))).sort(), referenceTrashBefore);
+  assert.equal((await request(4198, "/api/media-audit/artwork?refresh=1")).unreferenced.some((item) => item.path === referenceRollbackPath), true);
+  await stopServer(server);
+  server = null;
+
   server = await startServer(4193, { failAt: 2 });
   const rollbackSession = await createSession(4193);
   const rollbackA = (await stage(4193, rollbackSession.id, "rollback-a.jpg", await sharp({ create: { width: 70, height: 70, channels: 3, background: "#101020" } }).jpeg().toBuffer())).file;
@@ -758,6 +874,11 @@ try {
   assert.match(html, /value="heaviest"/);
   assert.match(html, /value="lightest"/);
   assert.match(app, /formatFileSize\(artwork\.sizeBytes\)/);
+  assert.match(app, /mode:\s*"reference-existing"/);
+  assert.match(app, /Fichier existant à référencer/);
+  assert.match(app, /categories:\s*\[detectedCategory\]/);
+  assert.match(app, /compressionEnabled:\s*false/);
+  assert.doesNotMatch(app, /auditItemAsFile\(item\)/);
   assert.match(html, /id="reveal-file-button"/);
   assert.match(app, /\/api\/artworks\/reveal-file/);
 

@@ -1,13 +1,15 @@
 .portfolio-module-nav { display:flex; gap:8px; margin-bottom:24px; border-bottom:1px solid var(--line); }
 .portfolio-module-nav a { padding:12px 18px; color:var(--muted); text-decoration:none; font-weight:700; }
 .portfolio-module-nav a.is-active { border-bottom:2px solid #c45972; color:#fff; }
-.manga-toolbar { grid-template-columns:minmax(260px,1fr) repeat(3,minmax(140px,200px)) auto; }
+.manga-toolbar { grid-template-columns:minmax(240px,1fr) repeat(4,minmax(130px,185px)) auto; }
 .manga-admin-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:20px; }
 .manga-card { overflow:hidden; border:1px solid var(--line); border-radius:8px; background:var(--surface); }
 .manga-card img { width:100%; aspect-ratio:16/9; object-fit:cover; background:#0b090a; }
 .manga-card-body { display:grid; gap:10px; padding:16px; }
 .manga-card h2 { margin:0; font-size:1.35rem; }
 .manga-card-meta,.language-counts { color:var(--muted); font-size:.76rem; }
+.manga-section-meta { display:flex; flex-wrap:wrap; gap:6px; color:#e6b7c2; font-size:.72rem; font-weight:700; }
+.temporary-example { border:1px solid #795161; border-radius:999px; padding:2px 7px; color:#f2c3cf; }
 .manga-card-actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
 .manga-card-actions .button { text-align:center; text-decoration:none; }
 .manga-dialog { width:min(1760px,calc(100vw - 24px)); height:94vh; max-height:94vh; overflow:hidden; }

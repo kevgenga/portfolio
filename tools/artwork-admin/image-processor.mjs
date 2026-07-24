@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import sharp from "sharp";
+import sharp from "./sharp-runtime.mjs";
 
 const OUTPUT_EXTENSIONS = {
   jpeg: ".jpg",

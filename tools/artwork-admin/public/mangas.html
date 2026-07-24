@@ -6,6 +6,7 @@
     <meta name="robots" content="noindex, nofollow" />
     <title>Manga Admin — KEVGENGA</title>
     <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/media-audit.css" />
     <link rel="stylesheet" href="/modules/mangas/manga-admin.css" />
   </head>
   <body>
@@ -16,8 +17,10 @@
     <main>
       <nav class="portfolio-module-nav" aria-label="Modules"><a href="/">Illustrations</a><a class="is-active" href="/mangas.html" aria-current="page">Mangas</a><a href="/animations.html">Animations</a></nav>
       <aside id="manga-report" class="category-report" hidden></aside>
+      <section id="manga-media-audit" aria-label="Audit des médias Manga"></section>
       <section class="toolbar manga-toolbar">
         <label class="field search-field"><span>Rechercher</span><input id="manga-search" type="search" placeholder="Titre ou slug…" /></label>
+        <label class="field"><span>Section</span><select id="manga-section"><option value="">Toutes les sections</option><option value="completed">Completed Manga</option><option value="storyboard">Complete Storyboards</option></select></label>
         <label class="field"><span>Statut</span><select id="manga-status"><option value="">Tous</option></select></label>
         <label class="field"><span>Langue</span><select id="manga-language"><option value="">Toutes</option></select></label>
         <label class="field"><span>Tri</span><select id="manga-sort"><option value="title">Titre A → Z</option><option value="date">Date récente</option></select></label>
@@ -46,6 +49,7 @@
               <label class="field"><span>Statut</span><select name="status"><option>published</option><option>draft</option><option>archived</option></select></label>
               <label class="field"><span>Visibilité</span><select name="visibility"><option>public</option><option>private</option></select></label>
               <label class="field"><span>Sens de lecture</span><select name="readingDirection"><option value="rtl">Japonais — RTL</option><option value="ltr">Occidental — LTR</option></select></label>
+              <label class="field"><span>Section de présentation</span><select name="presentationSection" required><option value="completed">Completed Manga</option><option value="storyboard">Complete Storyboards</option></select></label>
               <label class="field"><span>Genre</span><input name="genre" /></label>
               <label class="field"><span>Rôle</span><input name="role" /></label>
               <label class="field"><span>Tags (séparés par des virgules)</span><input name="tags" /></label>
@@ -82,6 +86,7 @@
         <div class="dialog-heading"><div><p class="eyebrow">NOUVEAU MANGA</p><h2>Ajouter un manga</h2></div><button class="icon-button" type="button" data-close-create aria-label="Fermer">×</button></div>
         <label class="field"><span>Titre *</span><input name="title" required /></label>
         <label class="field"><span>Slug facultatif</span><input name="slug" /></label>
+        <label class="field"><span>Section de présentation</span><select name="presentationSection" required><option value="completed">Completed Manga</option><option value="storyboard">Complete Storyboards</option></select></label>
         <label class="field"><span>Type linguistique</span><select name="languageType"><option value="multilingual">Manga avec texte et langues</option><option value="original">Version originale uniquement</option><option value="silent">Manga silencieux</option></select></label>
         <label class="field" id="initial-language-field"><span>Langue initiale</span><select name="languageCode"><option value="en">English</option><option value="fr">French</option><option value="ja">Japanese</option></select></label>
         <label class="field"><span>Image principale du manga *</span><input name="primaryImage" type="file" required accept="image/*" /><small>Utilisée dans la liste publique. Taille Photoshop idéale : 1280 × 720 px.</small></label>

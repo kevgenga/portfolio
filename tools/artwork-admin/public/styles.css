@@ -148,6 +148,8 @@ input:focus, select:focus, textarea:focus, button:focus-visible { border-color: 
 .queue-file small { margin-top: 5px; color: var(--muted); font-size: .68rem; }
 .queue-status { display: inline-block; margin-top: 8px; border-radius: 999px; padding: 3px 7px; background: #223426; color: #9fd0aa; font-size: .63rem; }
 .queue-status.warning { background: #382e1b; color: #e2c17a; }
+.queue-status.existing { border: 1px solid rgba(242, 200, 121, .45); background: rgba(109, 76, 25, .2); color: #f2c879; }
+.queue-file .existing-reference-note { margin-top: 7px; color: #cbbdc3; line-height: 1.4; white-space: normal; }
 .queue-fields { display: grid; gap: 9px; }
 .queue-fields .field > span { font-size: .67rem; }
 .queue-fields input, .queue-fields select, .queue-fields textarea { min-height: 36px; padding: 7px 9px; font-size: .75rem; }

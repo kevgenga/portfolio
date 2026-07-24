@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { once } from "node:events";
 import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -38,11 +37,22 @@ try {
   await mkdir(path.join(root, "src/content"), { recursive: true });
   await mkdir(path.join(root, "public/assets/animation/miniature"), { recursive: true });
   const baseVideo = videoBuffer("isom", "base-video"); const basePoster = await imageBuffer("jpeg", "#223344");
+  const existingGif = await imageBuffer("gif", "#884466");
+  const existingVideo = videoBuffer("mp42", "existing-video");
+  const existingPoster = await imageBuffer("jpeg", "#664488");
+  const rollbackGif = await imageBuffer("gif", "#446688");
+  const raceGif = await imageBuffer("gif", "#668844");
   await writeFile(path.join(root, "public/assets/animation/base.mp4"), baseVideo);
   await writeFile(path.join(root, "public/assets/animation/miniature/base.jpg"), basePoster);
+  await writeFile(path.join(root, "public/assets/animation/existing-audit.gif"), existingGif);
+  await writeFile(path.join(root, "public/assets/animation/existing-video.mp4"), existingVideo);
+  await writeFile(path.join(root, "public/assets/animation/miniature/existing-video.jpg"), existingPoster);
+  await writeFile(path.join(root, "public/assets/animation/rollback-audit.gif"), rollbackGif);
+  await writeFile(path.join(root, "public/assets/animation/race-audit.gif"), raceGif);
   const initial = [{ id: "base", title: "Base Animation", video: "assets/animation/base.mp4", poster: "assets/animation/miniature/base.jpg", category: "animation 2d", duration: null, date: "2024-01-02", year: 2024, alt: "Base animation", featured: false, type: "video" }];
   await writeFile(catalogFile, serializeAnimationCatalog(initial));
-  const service = createAnimationService({ projectRoot: root, runtimeRoot: runtime, disableReveal: true, maxMediaBytes: 5 * 1024 * 1024 });
+  let auditInvalidations = 0;
+  const service = createAnimationService({ projectRoot: root, runtimeRoot: runtime, disableReveal: true, maxMediaBytes: 5 * 1024 * 1024, onMutation: () => { auditInvalidations += 1; } });
   await service.initialize();
 
   const firstReport = await service.report();
@@ -55,7 +65,7 @@ try {
   rangeResponse.writeHead = (status, headers) => { rangeStatus = status; rangeHeaders = headers; return rangeResponse; };
   rangeResponse.on("data", (chunk) => rangeChunks.push(chunk));
   assert.equal(await handleAnimationRoute({ method: "GET", headers: { range: "bytes=0-7" } }, rangeResponse, new URL(`http://local/api/animation-asset/${encodeURIComponent(initial[0].video)}`), { service, readJson: async () => ({}), sendJson: () => undefined }), true);
-  await once(rangeResponse, "finish");
+  assert.equal(rangeResponse.writableFinished, true);
   assert.equal(rangeStatus, 206); assert.equal(rangeHeaders["Content-Range"], `bytes 0-7/${baseVideo.length}`); assert.deepEqual(Buffer.concat(rangeChunks), baseVideo.subarray(0, 8));
   assert.deepEqual(normalizeAnimationDate("03/02/2025"), { date: "2025-02-03", year: 2025 });
   assert.deepEqual(normalizeAnimationDate("04-03-2025"), { date: "2025-03-04", year: 2025 });
@@ -69,6 +79,89 @@ try {
   assert.equal(usesCustomAlternativeText("Character Study", " character study! "), false);
   assert.equal(usesCustomAlternativeText("Character Study", "A character turning in space"), true);
   assert.equal(usesCustomAlternativeText("", "Historical alternative text"), true);
+
+  const existingGifPath = "assets/animation/existing-audit.gif";
+  const existingGifFile = path.join(root, "public/assets/animation/existing-audit.gif");
+  const existingGifHash = hash(await readFile(existingGifFile));
+  const preparedGif = await service.prepareExisting({ path: existingGifPath, source: "media-audit", mode: "reference-existing" });
+  assert.equal(preparedGif.mode, "reference-existing");
+  assert.equal(preparedGif.source, "media-audit");
+  assert.equal(preparedGif.role, "media");
+  assert.equal(preparedGif.kind, "gif");
+  assert.equal(preparedGif.path, existingGifPath);
+  assert.equal(preparedGif.hash, existingGifHash);
+  assert.equal(await directoryFiles(service.paths.stagingRoot).then((files) => files.length), 0);
+  await assert.rejects(service.prepareExisting({ path: "../outside.gif", source: "media-audit", mode: "reference-existing" }), /traversée/i);
+  await assert.rejects(service.prepareExisting({ path: "C:\\outside.gif", source: "media-audit", mode: "reference-existing" }), /absolus/i);
+  await assert.rejects(service.prepareExisting({ path: "assets/illustration/outside.gif", source: "media-audit", mode: "reference-existing" }), /assets Animation/i);
+
+  let preparedRouteBody;
+  const routePreparationPath = "assets/animation/rollback-audit.gif";
+  assert.equal(await handleAnimationRoute(
+    { method: "POST" },
+    {},
+    new URL("http://local/api/animations/existing-references"),
+    {
+      service,
+      readJson: async () => ({ path: routePreparationPath, source: "media-audit", mode: "reference-existing" }),
+      sendJson: (response, status, body) => { preparedRouteBody = { status, body }; },
+    },
+  ), true);
+  assert.equal(preparedRouteBody.status, 201);
+  assert.equal(preparedRouteBody.body.preparation.path, routePreparationPath);
+  service.discardExistingPreparation(preparedRouteBody.body.preparation.token);
+
+  const existingGifCreated = await service.create({
+    title: "Existing Audit GIF",
+    date: "08-05-2025",
+    category: "animation 2d",
+    alt: "Existing audit GIF",
+    mediaReference: { token: preparedGif.token, source: "media-audit", mode: "reference-existing" },
+  });
+  assert.equal(existingGifCreated.result.video, existingGifPath);
+  assert.equal(existingGifCreated.result.poster, "");
+  assert.equal(existingGifCreated.result.type, "image");
+  assert.equal(hash(await readFile(existingGifFile)), existingGifHash);
+  assert.equal(auditInvalidations > 0, true);
+  await assert.rejects(service.prepareExisting({ path: existingGifPath, source: "media-audit", mode: "reference-existing" }), /déjà intégré/i);
+
+  const existingVideoPath = "assets/animation/existing-video.mp4";
+  const existingPosterPath = "assets/animation/miniature/existing-video.jpg";
+  const existingVideoFile = path.join(root, "public/assets/animation/existing-video.mp4");
+  const existingPosterFile = path.join(root, "public/assets/animation/miniature/existing-video.jpg");
+  const existingVideoHash = hash(await readFile(existingVideoFile));
+  const existingPosterHash = hash(await readFile(existingPosterFile));
+  const preparedVideo = await service.prepareExisting({ path: existingVideoPath, source: "media-audit", mode: "reference-existing" });
+  await assert.rejects(service.create({
+    title: "Existing Video Without Poster", date: "09-05-2025", category: "animation 2d", alt: "Video",
+    mediaReference: { token: preparedVideo.token, source: "media-audit", mode: "reference-existing" },
+  }), /poster/i);
+  const preparedVideoWithPoster = await service.prepareExisting({ path: existingVideoPath, source: "media-audit", mode: "reference-existing" });
+  const preparedPoster = await service.prepareExisting({ path: existingPosterPath, source: "media-audit", mode: "reference-existing" });
+  assert.equal(preparedPoster.role, "poster");
+  const existingVideoCreated = await service.create({
+    title: "Existing Video", date: "09-05-2025", category: "court-métrage", alt: "Existing video",
+    mediaReference: { token: preparedVideoWithPoster.token, source: "media-audit", mode: "reference-existing" },
+    posterReference: { token: preparedPoster.token, source: "media-audit", mode: "reference-existing" },
+  });
+  assert.equal(existingVideoCreated.result.video, existingVideoPath);
+  assert.equal(existingVideoCreated.result.poster, existingPosterPath);
+  assert.equal(hash(await readFile(existingVideoFile)), existingVideoHash);
+  assert.equal(hash(await readFile(existingPosterFile)), existingPosterHash);
+  await assertStagingEmpty(service);
+
+  const racePath = "assets/animation/race-audit.gif";
+  const racePrepared = await service.prepareExisting({ path: racePath, source: "media-audit", mode: "reference-existing" });
+  const beforeRaceCatalog = await service.readCatalog();
+  await writeFile(catalogFile, serializeAnimationCatalog([...beforeRaceCatalog, {
+    id: "race-external", title: "Race External", video: racePath, poster: "", category: "animation 2d",
+    duration: null, date: "2025-05-10", year: 2025, alt: "Race", featured: false, type: "image",
+  }]));
+  await assert.rejects(service.create({
+    title: "Race Duplicate", date: "10-05-2025", category: "animation 2d", alt: "Race",
+    mediaReference: { token: racePrepared.token, source: "media-audit", mode: "reference-existing" },
+  }), /déjà intégré/i);
+  await writeFile(catalogFile, serializeAnimationCatalog(beforeRaceCatalog));
 
   const videoCreated = await service.create({ title: "New Film", date: "03/02/2025", category: "court-métrage", alt: "New film", media: upload("film.mp4", videoBuffer("mp42", "film-one")), poster: upload("film-poster.jpg", await imageBuffer("jpeg", "#334455")), position: 1 });
   assert.equal(videoCreated.result.date, "2025-02-03"); assert.equal(videoCreated.result.year, 2025); assert.equal(videoCreated.result.type, "video");
@@ -122,6 +215,21 @@ try {
   const failAfterCatalog = createAnimationService({ projectRoot: root, runtimeRoot: runtime, disableReveal: true, failurePoint: "after-catalog" }); await failAfterCatalog.initialize();
   await assert.rejects(failAfterCatalog.update("base", { title: "Never Saved", date: "2024-01-02", category: "animation 2d", alt: "Base animation" }), /simulé/);
   assert.equal(hash(await readFile(catalogFile)), catalogBeforeFailure); await assertStagingEmpty(failAfterCatalog);
+  const rollbackExistingPath = "assets/animation/rollback-audit.gif";
+  const rollbackExistingFile = path.join(root, "public/assets/animation/rollback-audit.gif");
+  const rollbackExistingHash = hash(await readFile(rollbackExistingFile));
+  const rollbackPreparation = await failAfterCatalog.prepareExisting({ path: rollbackExistingPath, source: "media-audit", mode: "reference-existing" });
+  await assert.rejects(failAfterCatalog.create({
+    title: "Rollback Existing Reference", date: "11-05-2025", category: "animation 2d", alt: "Rollback existing",
+    mediaReference: { token: rollbackPreparation.token, source: "media-audit", mode: "reference-existing" },
+  }), /simul/);
+  assert.equal(hash(await readFile(catalogFile)), catalogBeforeFailure);
+  assert.equal(hash(await readFile(rollbackExistingFile)), rollbackExistingHash);
+  await assert.rejects(failAfterCatalog.create({
+    title: "Expired Preparation", date: "11-05-2025", category: "animation 2d", alt: "Expired",
+    mediaReference: { token: rollbackPreparation.token, source: "media-audit", mode: "reference-existing" },
+  }), /introuvable ou expir/i);
+  await assertStagingEmpty(failAfterCatalog);
   const failAfterCopy = createAnimationService({ projectRoot: root, runtimeRoot: runtime, disableReveal: true, failurePoint: "after-copy" }); await failAfterCopy.initialize();
   await assert.rejects(failAfterCopy.create({ title: "Rollback Copy", date: "2025-01-01", category: "animation 2d", alt: "Rollback", media: upload("rollback-copy.png", await imageBuffer("png", "#778899")) }), /simulé/);
   await assert.rejects(stat(path.join(root, "public/assets/animation/rollback-copy.png")), /ENOENT/); assert.equal(hash(await readFile(catalogFile)), catalogBeforeFailure); await assertStagingEmpty(failAfterCopy);
@@ -141,7 +249,9 @@ try {
   const adminJs = await readFile(path.join(PROJECT_DIR, "tools/artwork-admin/public/modules/animations/animation-admin.js"), "utf8");
   assert.match(adminHtml, /Ajouter une animation/); assert.match(adminHtml, /Informations/); assert.match(adminHtml, /Média/); assert.match(adminHtml, /Poster/);
   assert.match(adminHtml, /Date \(JJ-MM-AAAA\)/); assert.match(adminHtml, /Ordre interne du catalogue/); assert.match(adminHtml, /position 1 fournit actuellement le visuel Animation/); assert.match(adminHtml, /Personnaliser le texte alternatif/);
+  assert.match(adminHtml, /create-existing-media-review/); assert.match(adminHtml, /create-existing-poster-select/);
   assert.match(adminJs, /dataTransfer/); assert.match(adminJs, /nameMode/); assert.match(adminJs, /portfolio\/animation/); assert.match(adminJs, /useTitleAsAlt/); assert.match(adminJs, /animation 3d/);
+  assert.match(adminJs, /reference-existing/); assert.doesNotMatch(adminJs, /auditItemAsFile/);
   assert.match(await readFile(path.join(PROJECT_DIR, "tools/artwork-admin/public/index.html"), "utf8"), /animations\.html/);
   assert.match(await readFile(path.join(PROJECT_DIR, "tools/artwork-admin/public/mangas.html"), "utf8"), /animations\.html/);
   const publicAnimationPage = await readFile(path.join(PROJECT_DIR, "src/pages/Animation.jsx"), "utf8");
