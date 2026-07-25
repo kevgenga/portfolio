@@ -1,45 +1,36 @@
-# 🎨 KEVGENGA – Manga Artist Portfolio
+# KEVGENGA – Manga Artist Portfolio
 
-An online portfolio showcasing my manga, illustrations, sketches and 2D animation projects.
+A modern portfolio showcasing my work as a self-taught Manga Artist, Illustrator and 2D Animator.
 
-🌐 **Live Website:**  
+**Live Website**  
 https://kevgenga.github.io/portfolio/
 
 ---
 
-## ✨ Features
+## Features
 
-- 📖 Interactive manga reader
-- 🎨 Illustration gallery
-- ✏️ Sketch gallery
-- 🎬 2D animation showcase
-- 🌙 Light & Dark mode
-- 📱 Fully responsive design
-- ⚡ Smooth page transitions and animations
-- 📷 Instagram gallery integration
-
----
-
-## 🚀 Built With
-
-- **React** – User interface library
-- **Vite** – Fast development and build tool
-- **React Router** – Client-side routing
-- **Framer Motion** – Page and UI animations
-- **GSAP** – Advanced animations
-- **Tailwind CSS** – Utility-first CSS framework
+- Interactive manga reader
+- Manga, Storyboard and Illustration galleries
+- 2D animation showcase
+- English and French support
+- Light & Dark mode
+- Responsive design
+- Smooth page transitions
 
 ---
 
-## 📋 About
+## Built With
 
-This portfolio was designed to present my artistic work as a self-taught manga artist, illustrator and 2D animator.
-
-It features a modern, responsive interface with dedicated galleries for manga, illustrations, sketches and animations while providing an immersive reading experience.
+- React
+- Vite
+- React Router
+- Tailwind CSS
+- Framer Motion
+- GSAP
 
 ---
 
-## 🛠️ Installation
+## Installation
 
 ```bash
 git clone https://github.com/kevgenga/portfolio.git
@@ -53,7 +44,7 @@ npm run dev
 
 ---
 
-## 📦 Build
+## Build
 
 ```bash
 npm run build
@@ -61,17 +52,21 @@ npm run build
 
 ---
 
-## 🌍 Live Demo
+## About
 
-👉 https://kevgenga.github.io/portfolio/
+This portfolio was created to showcase my manga, illustrations, storyboards and animation projects through a clean and responsive interface with an immersive manga reading experience.
+
+The project is continuously updated with new artwork and features.
 
 ---
 
-## 👤 Author
+## Author
 
 **KEVGENGA**
 
-Manga Artist • Illustrator • 2D Animator
+Self-Taught Manga Artist  
+Illustrator  
+2D Animator
 
-Instagram:
+Instagram  
 https://www.instagram.com/kevgenga/
