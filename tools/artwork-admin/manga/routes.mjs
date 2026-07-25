@@ -1,6 +1,13 @@
 const IMAGE_TYPES = { ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".avif": "image/avif", ".gif": "image/gif" };
 
 export async function handleMangaRoute(request, response, url, { service, readJson, sendJson }) {
+  if (request.method === "GET" && url.pathname === "/api/manga-presentation-settings") {
+    sendJson(response, 200, await service.readPresentationSettings()); return true;
+  }
+  if (request.method === "PUT" && url.pathname === "/api/manga-presentation-settings") {
+    const settings = await service.updatePresentationSettings(await readJson(request));
+    sendJson(response, 200, { ...settings, message: settings.showStoryboardSection ? "La section Storyboards est maintenant visible sur le portfolio." : "La section Storyboards est maintenant masquée sur le portfolio." }); return true;
+  }
   if (request.method === "GET" && url.pathname === "/api/mangas") {
     sendJson(response, 200, await service.report()); return true;
   }

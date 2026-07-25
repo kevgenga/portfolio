@@ -37,6 +37,7 @@ export function createMangaService({
   renameImpl = rename,
 }) {
   const catalogPath = path.join(projectRoot, "src/content/mangas.js");
+  const presentationSettingsPath = path.join(projectRoot, "src/content/mangaPresentation.js");
   const assetRoot = path.join(projectRoot, "public/assets/mangaka");
   const backupRoot = path.join(runtimeRoot, "backups/mangas");
   const runtimeTrashRoot = path.join(runtimeRoot, "trash");
@@ -89,16 +90,50 @@ export function createMangaService({
   }
 
   async function readCatalog() { return parseMangaCatalog(await readFile(catalogPath, "utf8")); }
-  async function writeAtomic(content) {
-    const temporary = `${catalogPath}.${randomUUID()}.tmp`;
+  async function writeFileAtomic(file, content) {
+    const temporary = `${file}.${randomUUID()}.tmp`;
     await writeFile(temporary, content, { flag: "wx" });
-    try { await rename(temporary, catalogPath); } catch (error) { await rm(temporary, { force: true }); throw error; }
+    try { await rename(temporary, file); } catch (error) { await rm(temporary, { force: true }); throw error; }
   }
+  async function writeAtomic(content) { await writeFileAtomic(catalogPath, content); }
   async function backup(operation, slug = "catalog") {
     await mkdir(backupRoot, { recursive: true });
     const destination = path.join(backupRoot, `${operationTimestamp()}-${safeSegment(operation)}-${safeSegment(slug)}.js`);
     await copyFile(catalogPath, destination);
     return destination;
+  }
+  function parsePresentationSettings(source) {
+    const matches = [...source.matchAll(/showStoryboardSection\s*:\s*(true|false)/g)];
+    ensure(matches.length === 1, "Configuration de présentation Manga invalide.", 500);
+    return { showStoryboardSection: matches[0][1] === "true" };
+  }
+  async function readPresentationSettings() {
+    return parsePresentationSettings(await readFile(presentationSettingsPath, "utf8"));
+  }
+  async function updatePresentationSettings(payload) {
+    ensure(typeof payload?.showStoryboardSection === "boolean", "Valeur de visibilité Storyboards invalide.");
+    const original = await readFile(presentationSettingsPath, "utf8");
+    const current = parsePresentationSettings(original);
+    if (current.showStoryboardSection === payload.showStoryboardSection) return current;
+    const next = original.replace(
+      /(showStoryboardSection\s*:\s*)(true|false)/,
+      `$1${payload.showStoryboardSection}`,
+    );
+    ensure(parsePresentationSettings(next).showStoryboardSection === payload.showStoryboardSection, "Impossible de préparer la configuration Manga.", 500);
+    await mkdir(backupRoot, { recursive: true });
+    const backupPath = path.join(backupRoot, `${operationTimestamp()}-presentation-settings-${randomUUID()}.js`);
+    await copyFile(presentationSettingsPath, backupPath);
+    let written = false;
+    try {
+      await writeFileAtomic(presentationSettingsPath, next);
+      written = true;
+      const saved = await readPresentationSettings();
+      ensure(saved.showStoryboardSection === payload.showStoryboardSection, "La configuration Manga enregistrée est incohérente.", 500);
+      return saved;
+    } catch (error) {
+      if (written) await writeFileAtomic(presentationSettingsPath, original);
+      throw error;
+    }
   }
   function findManga(catalog, id) {
     const manga = catalog.find((entry) => String(entry.id) === String(id));
@@ -504,5 +539,5 @@ export function createMangaService({
   }
   async function initialize() { await Promise.all([mkdir(backupRoot, { recursive: true }), mkdir(trashRoot, { recursive: true }), mkdir(stagingRoot, { recursive: true })]); }
   async function readAsset(relative) { return { content: await readFile(assetFile(relative)), extension: path.extname(relative).toLowerCase() }; }
-  return { initialize, report, create, update, addLanguage, deleteLanguage, addPages, reorderPages, deletePage, replacePage, replaceMedia, replacePrimaryMedia, removeManga, reveal, readAsset, readCatalog, validateFiles, paths: { catalogPath, assetRoot, backupRoot, trashRoot, stagingRoot } };
+  return { initialize, report, create, update, addLanguage, deleteLanguage, addPages, reorderPages, deletePage, replacePage, replaceMedia, replacePrimaryMedia, removeManga, reveal, readAsset, readCatalog, readPresentationSettings, updatePresentationSettings, validateFiles, paths: { catalogPath, presentationSettingsPath, assetRoot, backupRoot, trashRoot, stagingRoot } };
 }

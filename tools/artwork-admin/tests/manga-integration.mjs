@@ -9,19 +9,29 @@ import sharp from "sharp";
 import { naturalPageSort, parseMangaCatalog, serializeMangaCatalog } from "../manga/catalog.mjs";
 import { analyzeMangaCardMedia, primaryMangaMedia } from "../manga/media-policy.mjs";
 import { createMangaService } from "../manga/service.mjs";
-import { getMangaPresentationSection } from "../../../src/content/mangaPresentation.js";
+import {
+  getMangaPresentationSection,
+  isMangaPresentationSectionVisible,
+  mangaPresentationSettings,
+} from "../../../src/content/mangaPresentation.js";
 
 const PROJECT_DIR = path.resolve(import.meta.dirname, "../../..");
 const realMangaPath = path.join(PROJECT_DIR, "src/content/mangas.js");
+const realPresentationPath = path.join(PROJECT_DIR, "src/content/mangaPresentation.js");
 const realArtworkPath = path.join(PROJECT_DIR, "src/content/artworks.js");
 const realAnimationPath = path.join(PROJECT_DIR, "src/content/animations.js");
 const realMangaHash = hash(await readFile(realMangaPath));
+const realPresentationHash = hash(await readFile(realPresentationPath));
 const realArtworkHash = hash(await readFile(realArtworkPath));
 const realAnimationHash = hash(await readFile(realAnimationPath));
 const temp = await mkdtemp(path.join(tmpdir(), "manga-admin-"));
 const root = path.join(temp, "portfolio");
 const runtime = path.join(temp, "runtime");
 function hash(value) { return createHash("sha256").update(value).digest("hex"); }
+const presentationSettingsFixture = (showStoryboardSection = false) => `export const mangaPresentationSettings = Object.freeze({
+  showStoryboardSection: ${showStoryboardSection},
+});
+`;
 async function image(name, color, width = 20, height = 30) {
   const pipeline = sharp({ create: { width, height, channels: 3, background: color } });
   const extension = path.extname(name).toLowerCase();
@@ -119,6 +129,7 @@ async function removalFixture(name, { section = "completed", slug = "delete-me",
   };
   const catalogPath = path.join(fixtureRoot, "src/content/mangas.js");
   await writeFile(catalogPath, serializeMangaCatalog([manga]));
+  await writeFile(path.join(fixtureRoot, "src/content/mangaPresentation.js"), presentationSettingsFixture());
   return { fixtureRoot, fixtureRuntime, sourceDirectory, sourcePage, manga, catalogPath };
 }
 
@@ -129,10 +140,28 @@ try {
   await writeFile(path.join(root, "public/assets/mangaka/completed-manga/base/orig/001.jpg"), Buffer.from(basePage.dataBase64, "base64"));
   const initial = [{ id: "base", slug: "base", route: "/mangas/base", title: "Base", edition: "", presentationSection: "completed", cover: "assets/mangaka/completed-manga/base/orig/001.jpg", banner: "", summary: "", genre: "", role: "", year: "", readingDirection: "rtl", defaultLanguage: "orig", languages: { orig: { label: "Original", shortLabel: "ORIG", pages: ["assets/mangaka/completed-manga/base/orig/001.jpg"] } }, featured: false }];
   await writeFile(path.join(root, "src/content/mangas.js"), serializeMangaCatalog(initial));
-  const service = createMangaService({ projectRoot: root, runtimeRoot: runtime, disableReveal: true }); await service.initialize();
+  await writeFile(path.join(root, "src/content/mangaPresentation.js"), presentationSettingsFixture());
+  let mutationNotifications = 0;
+  const service = createMangaService({ projectRoot: root, runtimeRoot: runtime, disableReveal: true, onMutation: () => { mutationNotifications += 1; } }); await service.initialize();
   if (process.platform === "win32") assert.equal(sharp.cache().files.max, 0);
   assert.equal((await service.report()).count, 1);
+  const settingsCatalogHash = hash(await readFile(path.join(root, "src/content/mangas.js")));
+  const settingsPageHash = hash(await readFile(path.join(root, "public/assets/mangaka/completed-manga/base/orig/001.jpg")));
+  assert.deepEqual(await service.readPresentationSettings(), { showStoryboardSection: false });
+  assert.deepEqual(await service.updatePresentationSettings({ showStoryboardSection: true }), { showStoryboardSection: true });
+  assert.deepEqual(await service.readPresentationSettings(), { showStoryboardSection: true });
+  assert.equal(hash(await readFile(path.join(root, "src/content/mangas.js"))), settingsCatalogHash);
+  assert.equal(hash(await readFile(path.join(root, "public/assets/mangaka/completed-manga/base/orig/001.jpg"))), settingsPageHash);
+  assert.equal(mutationNotifications, 0);
+  await assert.rejects(service.updatePresentationSettings({ showStoryboardSection: "false" }), /visibilit/i);
+  await service.updatePresentationSettings({ showStoryboardSection: false });
+  assert.deepEqual(await service.readPresentationSettings(), { showStoryboardSection: false });
+  assert.ok((await readdir(path.join(runtime, "backups/mangas"))).some((entry) => entry.includes("presentation-settings")));
   assert.equal(getMangaPresentationSection({}), "completed");
+  assert.equal(mangaPresentationSettings.showStoryboardSection, false);
+  assert.equal(isMangaPresentationSectionVisible({ presentationSection: "completed" }), true);
+  assert.equal(isMangaPresentationSectionVisible({ presentationSection: "storyboard" }), false);
+  assert.equal(isMangaPresentationSectionVisible({ presentationSection: "storyboard" }, { showStoryboardSection: true }), true);
   assert.equal(primaryMangaMedia(initial[0]).field, "cover");
   assert.deepEqual(primaryMangaMedia({ banner: "", cover: "" }), { field: "banner", path: "", fallback: false });
   assert.equal(analyzeMangaCardMedia(null).level, "error");
@@ -367,6 +396,18 @@ try {
     const reportResponse = await fetch(`${runningAdmin.origin}/api/mangas`);
     assert.equal(reportResponse.status, 200);
     const activeReport = await reportResponse.json();
+    const settingsResponse = await fetch(`${runningAdmin.origin}/api/manga-presentation-settings`);
+    assert.equal(settingsResponse.status, 200);
+    assert.deepEqual(await settingsResponse.json(), { showStoryboardSection: false });
+    const toggleResponse = await fetch(`${runningAdmin.origin}/api/manga-presentation-settings`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ showStoryboardSection: true }),
+    });
+    assert.equal(toggleResponse.status, 200);
+    assert.equal((await toggleResponse.json()).showStoryboardSection, true);
+    assert.equal((await (await fetch(`${runningAdmin.origin}/api/manga-presentation-settings`)).json()).showStoryboardSection, true);
+    assert.equal((await (await fetch(`${runningAdmin.origin}/api/mangas`)).json()).count, 2);
     const serverStoryboard = activeReport.mangas.find((manga) => manga.slug === activeServer.manga.slug);
     assert.ok(serverStoryboard);
     for (const relative of [serverStoryboard.cover, serverStoryboard.languages.orig.pages[0]]) {
@@ -408,6 +449,7 @@ try {
   assert.deepEqual(naturalPageSort(["page10.jpg", "page2.jpg", "page1.jpg"]), ["page1.jpg", "page2.jpg", "page10.jpg"]);
 
   assert.equal(hash(await readFile(realMangaPath)), realMangaHash);
+  assert.equal(hash(await readFile(realPresentationPath)), realPresentationHash);
   assert.equal(hash(await readFile(realArtworkPath)), realArtworkHash);
   assert.equal(hash(await readFile(realAnimationPath)), realAnimationHash);
   assert.equal((await service.readCatalog()).some((manga) => JSON.stringify(manga).includes(root)), false);
@@ -416,12 +458,19 @@ try {
   const adminCss = await readFile(path.join(PROJECT_DIR, "tools/artwork-admin/public/modules/mangas/manga-admin.css"), "utf8");
   const readerSource = await readFile(path.join(PROJECT_DIR, "src/components/manga/MangaReader.jsx"), "utf8");
   assert.match(adminHtml, /Ajouter un manga/); assert.match(adminHtml, /name="presentationSection"/); assert.match(adminHtml, /id="manga-section"/); assert.match(adminApp, /ondragstart/); assert.match(adminApp, /workingPages/);
+  assert.match(adminHtml, /Visibilité publique de la section Storyboards/);
+  assert.match(adminApp, /api\/manga-presentation-settings/);
+  assert.match(adminApp, /adminPreview=1/);
+  assert.match(adminApp, /Masquer toute la section Storyboards & Manga Concepts/);
   assert.match(adminApp, /Copie temporaire de test/); assert.match(adminApp, /sectionLabels/);
   assert.match(adminHtml, /Image principale du manga/); assert.doesNotMatch(adminHtml, /name="cover"/);
   assert.match(adminApp, /Taille idéale Photoshop/); assert.match(adminApp, /analysis\.resolution/); assert.match(adminApp, /analysis\.ratioStatus/);
   assert.match(adminCss, /aspect-ratio:16\/9/); assert.match(adminCss, /object-fit:cover/); assert.match(adminCss, /object-position:center/);
   assert.match(await readFile(path.join(PROJECT_DIR, "src/pages/Mangaka.jsx"), "utf8"), /manga\.banner \|\| manga\.cover/);
   assert.match(await readFile(path.join(PROJECT_DIR, "src/pages/Mangaka.jsx"), "utf8"), /Completed|sections\.completed/);
+  assert.match(await readFile(path.join(PROJECT_DIR, "src/pages/Mangaka.jsx"), "utf8"), /mangaPresentationSettings\.showStoryboardSection/);
+  assert.match(await readFile(path.join(PROJECT_DIR, "src/pages/MangaReaderPage.jsx"), "utf8"), /isMangaPresentationSectionVisible/);
+  assert.match(await readFile(path.join(PROJECT_DIR, "src/pages/MangaReaderPage.jsx"), "utf8"), /<Navigate to="\/mangaka" replace/);
   assert.match(await readFile(path.join(PROJECT_DIR, "src/pages/HomePage.jsx"), "utf8"), /mangas\[0\]\.banner \|\| mangas\[0\]\.cover/);
   assert.match(readerSource, /languages\.length === 1/);
   console.log("Manga Admin — tests d’intégration réussis");

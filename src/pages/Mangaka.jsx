@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { mangas } from "../content/mangas";
 import {
   getMangaPresentationSection,
+  mangaPresentationSettings,
   MANGA_PRESENTATION_SECTIONS,
 } from "../content/mangaPresentation";
 import { t } from "../content/ui";
@@ -117,7 +118,9 @@ const Mangaka = () => {
 
       <div className="space-y-16 sm:space-y-20">
         <MangaSection mangas={completedMangas} text={t.manga.sections.completed} />
-        <MangaSection mangas={storyboardMangas} text={t.manga.sections.storyboard} />
+        {mangaPresentationSettings.showStoryboardSection && (
+          <MangaSection mangas={storyboardMangas} text={t.manga.sections.storyboard} />
+        )}
       </div>
     </main>
   );

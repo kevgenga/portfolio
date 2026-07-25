@@ -1,7 +1,7 @@
 import { analyzeMangaCardMedia } from "./media-policy.js";
 import { auditItemAsFile, mountMediaAudit } from "../../media-audit-ui.js";
 
-const state = { mangas: [], report: null, currentId: null, language: null, workingPages: [], savedPages: [], dirty: false, toastTimer: null, createMediaReview: null };
+const state = { mangas: [], report: null, presentationSettings: null, currentId: null, language: null, workingPages: [], savedPages: [], dirty: false, toastTimer: null, createMediaReview: null };
 const $ = (selector) => document.querySelector(selector);
 const dialog = $("#manga-dialog");
 const form = $("#manga-form");
@@ -23,7 +23,10 @@ function message(text, type = "success") {
   state.toastTimer = setTimeout(() => { toast.hidden = true; }, 5500);
 }
 function imageUrl(relative) { return relative ? `/api/manga-image/${encodeURIComponent(relative)}` : ""; }
-function previewUrl(manga) { return `http://127.0.0.1:5173/portfolio${manga.route}`; }
+function previewUrl(manga) {
+  const adminPreview = manga.presentationSection === "storyboard" ? "?adminPreview=1" : "";
+  return `http://127.0.0.1:5173/portfolio${manga.route}${adminPreview}`;
+}
 function formatBytes(value) { return value ? `${(value / 1024 / 1024).toFixed(2)} Mo` : "—"; }
 function currentManga() { return state.mangas.find((manga) => String(manga.id) === String(state.currentId)); }
 function setDirty(value = true) { state.dirty = value; $("#manga-dialog-title").textContent = `${value ? "• " : ""}Modifier le manga`; }
@@ -83,6 +86,44 @@ async function load() {
   renderList();
   if (mediaAuditController) mediaAuditController.refresh();
 }
+
+function renderPresentationSettings() {
+  const visible = Boolean(state.presentationSettings?.showStoryboardSection);
+  $("#storyboard-visibility-state").textContent = visible
+    ? "Visible sur le portfolio"
+    : "Masquée sur le portfolio";
+  const button = $("#toggle-storyboard-visibility");
+  button.textContent = visible
+    ? "Masquer la catégorie Storyboards"
+    : "Afficher la catégorie Storyboards";
+  button.disabled = false;
+}
+
+async function loadPresentationSettings() {
+  state.presentationSettings = await api("/api/manga-presentation-settings");
+  renderPresentationSettings();
+}
+
+$("#toggle-storyboard-visibility").onclick = async () => {
+  const currentlyVisible = Boolean(state.presentationSettings?.showStoryboardSection);
+  const confirmed = confirm(currentlyVisible
+    ? "Masquer toute la section Storyboards & Manga Concepts du portfolio public ? Les mangas, pages et fichiers seront conservés dans Manga Admin."
+    : "Afficher de nouveau la section Storyboards & Manga Concepts sur le portfolio public ?");
+  if (!confirmed) return;
+  const button = $("#toggle-storyboard-visibility");
+  button.disabled = true;
+  try {
+    state.presentationSettings = await api("/api/manga-presentation-settings", {
+      method: "PUT",
+      body: JSON.stringify({ showStoryboardSection: !currentlyVisible }),
+    });
+    renderPresentationSettings();
+    message(state.presentationSettings.message);
+  } catch (error) {
+    renderPresentationSettings();
+    message(error.message, "error");
+  }
+};
 
 function openEditor(id) {
   const manga = state.mangas.find((item) => String(item.id) === String(id)); state.currentId = manga.id; state.language = manga.defaultLanguage; setDirty(false);
@@ -214,4 +255,4 @@ mediaAuditController = mountMediaAudit({
     await reloadEditor("Image principale intégrée après validation.");
   },
 });
-load().catch((error) => message(error.message, "error"));
+Promise.all([load(), loadPresentationSettings()]).catch((error) => message(error.message, "error"));
