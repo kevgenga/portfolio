@@ -13,7 +13,7 @@ export const MANGA_PRESENTATION_DIRECTORIES = Object.freeze({
 });
 
 export const mangaPresentationSettings = Object.freeze({
-  showStoryboardSection: false,
+  showStoryboardSection: true,
 });
 
 export const getMangaPresentationSection = (manga) =>
