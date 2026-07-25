@@ -7,6 +7,7 @@ import {
   useLocation,
 } from "react-router-dom";
 import { MotionConfig } from "framer-motion";
+import Analytics from "./components/Analytics";
 import Navbar from "./components/Navbar";
 import Footer from "./Footer";
 import { t } from "./content/ui";
@@ -71,6 +72,7 @@ const AppRoutes = () => {
   return (
     <>
       <DocumentMetadata />
+      <Analytics />
       <ScrollToTop />
       {!isMangaReader && <Navbar />}
       <Suspense fallback={<PageFallback immersive={isMangaReader} />}>
