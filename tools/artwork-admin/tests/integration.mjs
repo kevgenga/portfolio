@@ -13,7 +13,15 @@ import {
 } from "../public/sort-utils.js";
 import { formatFileSize } from "../public/file-size-utils.js";
 import { DEFAULT_CATEGORY, resolveCategoryPreference } from "../public/filter-preference.js";
+import {
+  matchesArtworkVisibility,
+  summarizeArtworkVisibility,
+} from "../public/artwork-visibility.js";
 import { buildRevealCommand, buildRevealFallbackCommand, launchReveal, resolveArtworkFile } from "../reveal-file.mjs";
+import {
+  getArtworkVisibility,
+  isArtworkPubliclyVisible,
+} from "../../../src/content/artworkPresentation.js";
 
 const PROJECT_DIR = path.resolve(import.meta.dirname, "../../..");
 const tempRoot = await mkdtemp(path.join(tmpdir(), "artwork-admin-v2-"));
@@ -37,7 +45,7 @@ function catalogSource(entries) {
     year: ${entry.year},
     alt: ${JSON.stringify(entry.alt)},
     featured: false,
-    orientation: "",
+${entry.hidden === true ? "    hidden: true,\n" : ""}    orientation: "",
   }`).join(",\n");
   return `import { assetPath } from "../utils/assetPath";\n\nexport const artworks = [\n${objects},\n];\n\n`;
 }
@@ -266,6 +274,12 @@ try {
   }
   const historicalBefore = fixtureEntries.filter((entry) => entry.id.startsWith("historical-")).map((entry) => ({ id: entry.id, category: entry.category }));
   await writeFile(path.join(fixtureRoot, "src/content/artworks.js"), catalogSource(fixtureEntries));
+  await writeFile(path.join(fixtureRoot, "src/content/artworkPresentation.js"), `export const artworkPresentationSettings = Object.freeze({
+  hiddenCategories: Object.freeze([]),
+});
+
+export const fixturePresentationHelper = () => true;
+`);
 
   const port = 4192;
   server = await startServer(port);
@@ -277,6 +291,72 @@ try {
   assert.equal(initial.categoryReport.primaryFolderMismatch.length, 0);
   assert.equal(initial.limits.maxBatchFiles, 100);
   assert.equal(initial.artworks.find((entry) => entry.id === "existing").sizeBytes, existingBuffer.length);
+  const legacyArtwork = initial.artworks.find((entry) => entry.id === "existing");
+  assert.equal(legacyArtwork.hidden, undefined);
+  assert.equal(legacyArtwork.visibility.public, true);
+  assert.equal(isArtworkPubliclyVisible(legacyArtwork, { hiddenCategories: [] }), true);
+  assert.equal(getArtworkVisibility({ ...legacyArtwork, hidden: true }, { hiddenCategories: [] }).public, false);
+  assert.equal(matchesArtworkVisibility(legacyArtwork, "displayed"), true);
+  assert.equal(matchesArtworkVisibility(legacyArtwork, "hidden"), false);
+  assert.deepEqual(summarizeArtworkVisibility([legacyArtwork]), {
+    total: 1,
+    displayed: 1,
+    individuallyHidden: 0,
+    hiddenByCategory: 0,
+  });
+
+  const existingVisibilityHash = hash(await readFile(path.join(fixtureRoot, "public/assets/illustration/illustrations/existing.jpg")));
+  const otherVisibilityHash = hash(await readFile(path.join(fixtureRoot, "public/assets/illustration/illustrations/other.jpg")));
+  const hiddenResponse = await request(port, "/api/artworks/existing/visibility", {
+    method: "PUT",
+    body: JSON.stringify({ hidden: true }),
+  });
+  assert.equal(hiddenResponse.artwork.hidden, true);
+  let visibilityCatalog = await request(port, "/api/artworks");
+  let hiddenArtwork = visibilityCatalog.artworks.find((entry) => entry.id === "existing");
+  assert.ok(hiddenArtwork, "L’œuvre masquée reste présente dans Artwork Admin");
+  assert.equal(hiddenArtwork.visibility.public, false);
+  assert.equal(hiddenArtwork.visibility.individuallyHidden, true);
+  assert.equal(matchesArtworkVisibility(hiddenArtwork, "hidden"), true);
+
+  const hiddenCategoryResponse = await request(port, "/api/artwork-presentation/categories/illustrations", {
+    method: "PUT",
+    body: JSON.stringify({ hidden: true }),
+  });
+  assert.deepEqual(hiddenCategoryResponse.presentationSettings.hiddenCategories, ["illustrations"]);
+  visibilityCatalog = await request(port, "/api/artworks");
+  assert.ok(visibilityCatalog.categories.includes("illustrations"), "La catégorie masquée reste disponible dans Artwork Admin");
+  const categoryHiddenArtwork = visibilityCatalog.artworks.find((entry) => entry.id === "other");
+  assert.equal(categoryHiddenArtwork.hidden, undefined);
+  assert.equal(categoryHiddenArtwork.visibility.hiddenByCategory, true);
+  assert.equal(categoryHiddenArtwork.visibility.public, false);
+  assert.equal(isArtworkPubliclyVisible(categoryHiddenArtwork, { hiddenCategories: ["illustrations"] }), false);
+
+  await request(port, "/api/artwork-presentation/categories/illustrations", {
+    method: "PUT",
+    body: JSON.stringify({ hidden: false }),
+  });
+  visibilityCatalog = await request(port, "/api/artworks");
+  assert.equal(visibilityCatalog.artworks.find((entry) => entry.id === "other").visibility.public, true);
+  assert.equal(visibilityCatalog.artworks.find((entry) => entry.id === "existing").visibility.public, false);
+
+  const shownResponse = await request(port, "/api/artworks/existing/visibility", {
+    method: "PUT",
+    body: JSON.stringify({ hidden: false }),
+  });
+  assert.equal(shownResponse.artwork.hidden, undefined);
+  visibilityCatalog = await request(port, "/api/artworks");
+  assert.equal(visibilityCatalog.artworks.find((entry) => entry.id === "existing").visibility.public, true);
+  assert.equal(hash(await readFile(path.join(fixtureRoot, "public/assets/illustration/illustrations/existing.jpg"))), existingVisibilityHash);
+  assert.equal(hash(await readFile(path.join(fixtureRoot, "public/assets/illustration/illustrations/other.jpg"))), otherVisibilityHash);
+  assert.ok((await readdir(path.join(runtimeRoot, "backups"))).some((name) => name.startsWith("artwork-presentation-")));
+  assert.match(
+    await readFile(path.join(fixtureRoot, "src/content/artworkPresentation.js"), "utf8"),
+    /export const fixturePresentationHelper = \(\) => true;/,
+    "La mise à jour de visibilité conserve les autres exports ESM du fichier de présentation",
+  );
+  await rm(path.join(runtimeRoot, "backups"), { recursive: true, force: true });
+  await mkdir(path.join(runtimeRoot, "backups"), { recursive: true });
   assert.equal(DEFAULT_CATEGORY, "illustrations");
   assert.equal(resolveCategoryPreference(null, initial.categories), "illustrations");
   assert.equal(resolveCategoryPreference("", initial.categories), "");
@@ -881,6 +961,19 @@ try {
   assert.doesNotMatch(app, /auditItemAsFile\(item\)/);
   assert.match(html, /id="reveal-file-button"/);
   assert.match(app, /\/api\/artworks\/reveal-file/);
+  assert.match(html, /Visibilité des catégories/);
+  assert.match(html, /id="visibility-filter"/);
+  assert.match(html, /Œuvres masquées/);
+  assert.match(app, /Masquer du portfolio/);
+  assert.match(app, /Réafficher dans le portfolio/);
+  assert.match(app, /matchesArtworkVisibility/);
+  assert.match(app, /artwork-presentation\/categories/);
+  const publicGallery = await readFile(path.join(PROJECT_DIR, "src/pages/Illustration.jsx"), "utf8");
+  assert.match(publicGallery, /isArtworkPubliclyVisible/);
+  assert.match(publicGallery, /visibleIllustrationCategories/);
+  const presentationSource = await readFile(path.join(PROJECT_DIR, "src/content/artworkPresentation.js"), "utf8");
+  assert.match(presentationSource, /hiddenCategories/);
+  assert.match(presentationSource, /artwork\?\.hidden === true/);
 
   console.log("Artwork Admin V2.1 — tests d’intégration réussis");
   console.log("Filtre initial, multcatégories, optimisation actuelle, remplacement, compression, GIF animé, corbeille et rollbacks vérifiés");

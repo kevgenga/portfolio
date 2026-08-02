@@ -33,6 +33,16 @@
       </nav>
 
       <section id="gallery-panel" class="admin-panel">
+        <section class="category-visibility-panel" aria-labelledby="category-visibility-title">
+          <div class="category-visibility-heading">
+            <div>
+              <p class="eyebrow">PORTFOLIO PUBLIC</p>
+              <h2 id="category-visibility-title">Visibilité des catégories</h2>
+            </div>
+            <p class="muted-copy">Une catégorie masquée reste entièrement disponible dans Artwork Admin.</p>
+          </div>
+          <div id="category-visibility-list" class="category-visibility-list"></div>
+        </section>
         <aside id="category-report" class="category-report" hidden></aside>
         <section id="artwork-media-audit" aria-label="Audit des médias Illustration"></section>
         <section class="toolbar" aria-label="Recherche et filtres">
@@ -46,6 +56,14 @@
               <option value="">Toutes les catégories</option>
             </select>
           </label>
+          <label class="field visibility-filter">
+            <span>Visibilité</span>
+            <select id="visibility-filter">
+              <option value="">Toutes les œuvres</option>
+              <option value="displayed">Œuvres affichées</option>
+              <option value="hidden">Œuvres masquées</option>
+            </select>
+          </label>
           <label class="field sort-filter">
             <span>Trier par</span>
             <select id="date-sort">
@@ -57,6 +75,8 @@
           </label>
           <p id="result-count" class="result-count" aria-live="polite"></p>
         </section>
+
+        <section id="visibility-summary" class="visibility-summary" aria-label="Résumé de visibilité"></section>
 
         <section id="gallery" class="gallery" aria-label="Œuvres"></section>
         <p id="empty-state" class="empty-state" hidden>Aucune œuvre ne correspond à cette recherche.</p>

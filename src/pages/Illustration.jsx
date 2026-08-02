@@ -6,6 +6,10 @@ import EmptyState from "../components/gallery/EmptyState";
 import FilterBar from "../components/gallery/FilterBar";
 import Lightbox from "../components/gallery/Lightbox";
 import PortfolioGrid from "../components/gallery/PortfolioGrid";
+import {
+  isArtworkCategoryVisible,
+  isArtworkPubliclyVisible,
+} from "../content/artworkPresentation";
 import { artworks } from "../content/artworks";
 import { t } from "../content/ui";
 import { formatPortfolioDate } from "../utils/formatPortfolioDate";
@@ -25,25 +29,37 @@ const parseArtworkDate = (date) => {
   return new Date(year, month - 1, day).getTime();
 };
 
+const publicArtworks = artworks.filter((artwork) =>
+  isArtworkPubliclyVisible(artwork),
+);
+
+const visibleIllustrationCategories = illustrationCategories.filter((category) =>
+  isArtworkCategoryVisible(category),
+);
+
+const initialFilter = visibleIllustrationCategories.includes("illustrations")
+  ? "illustrations"
+  : "all";
+
 const countArtworksForFilter = (filter) =>
-  artworks.reduce((count, artwork) => {
+  publicArtworks.reduce((count, artwork) => {
     if (filter === "all") return count + 1;
     if (filter === "featured") return count + (artwork.featured ? 1 : 0);
     return count + (artwork.category.includes(filter) ? 1 : 0);
   }, 0);
 
 const Illustration = () => {
-  const [filter, setFilter] = useState("illustrations");
+  const [filter, setFilter] = useState(initialFilter);
   const [sortOrder, setSortOrder] = useState("recent");
   const [visibleCount, setVisibleCount] = useState(ILLUSTRATION_PAGE_SIZE);
   const loadSentinelRef = useRef(null);
   const loadingNextBatchRef = useRef(false);
 
-  const hasFeaturedArtwork = artworks.some((artwork) => artwork.featured);
+  const hasFeaturedArtwork = publicArtworks.some((artwork) => artwork.featured);
   const filters = useMemo(
     () => [
       { value: "all", label: t.common.all },
-      ...illustrationCategories.map((category) => ({
+      ...visibleIllustrationCategories.map((category) => ({
         value: category,
         label: t.illustration.categories[category],
       })),
@@ -58,7 +74,7 @@ const Illustration = () => {
   );
 
   const filteredArtworks = useMemo(() => {
-    const filtered = artworks.filter((artwork) => {
+    const filtered = publicArtworks.filter((artwork) => {
       if (filter === "all") return true;
       if (filter === "featured") return artwork.featured;
       return artwork.category.includes(filter);

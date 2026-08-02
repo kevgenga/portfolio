@@ -8,12 +8,18 @@ import { CATEGORY_LABELS as labels, createCategoryPicker, normalizeCategorySelec
 import { createReplacementController } from "./replacement-ui.js";
 import { CATEGORY_STORAGE_KEY, resolveCategoryPreference } from "./filter-preference.js";
 import { mountMediaAudit } from "./media-audit-ui.js";
+import {
+  matchesArtworkVisibility,
+  summarizeArtworkVisibility,
+} from "./artwork-visibility.js";
 const ACCEPTED_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp", "avif", "gif"]);
 const SORT_STORAGE_KEY = "artwork-admin-sort";
 const invalidDateWarnings = new Set();
 const state = {
   artworks: [],
   categories: [],
+  presentationSettings: { hiddenCategories: [] },
+  visibilitySummary: { total: 0, displayed: 0, individuallyHidden: 0, hiddenByCategory: 0 },
   editingId: null,
   toastTimer: null,
   queue: [],
@@ -32,6 +38,7 @@ const $ = (selector) => document.querySelector(selector);
 const gallery = $("#gallery");
 const searchInput = $("#search");
 const categoryFilter = $("#category-filter");
+const visibilityFilter = $("#visibility-filter");
 const dateSort = $("#date-sort");
 const resultCount = $("#result-count");
 const emptyState = $("#empty-state");
@@ -114,10 +121,13 @@ function today() {
 function filteredArtworks() {
   const query = searchInput.value.trim().toLocaleLowerCase("fr");
   const category = categoryFilter.value;
+  const visibility = visibilityFilter.value;
   const filtered = state.artworks.filter((artwork) => {
     const matchesCategory = !category || artwork.category.includes(category);
     const haystack = [artwork.id, artwork.image, artwork.alt, artwork.title].join(" ").toLocaleLowerCase("fr");
-    return matchesCategory && (!query || haystack.includes(query));
+    return matchesCategory
+      && matchesArtworkVisibility(artwork, visibility)
+      && (!query || haystack.includes(query));
   });
 
   return sortArtworks(filtered, dateSort.value, (artwork) => {
@@ -135,17 +145,80 @@ function renderGallery() {
   for (const artwork of artworks) fragment.append(createArtworkCard(artwork));
   gallery.append(fragment);
   resultCount.textContent = `${artworks.length} œuvre${artworks.length > 1 ? "s" : ""} affichée${artworks.length > 1 ? "s" : ""} sur ${state.artworks.length}`;
+  renderVisibilitySummary(artworks);
   emptyState.hidden = artworks.length !== 0;
 }
 
+function renderVisibilitySummary(filtered) {
+  const filteredSummary = summarizeArtworkVisibility(filtered);
+  const globalSummary = state.visibilitySummary;
+  const metrics = [
+    ["Total", globalSummary.total, filteredSummary.total],
+    ["Affichées", globalSummary.displayed, filteredSummary.displayed],
+    ["Masquées individuellement", globalSummary.individuallyHidden, filteredSummary.individuallyHidden],
+    ["Masquées par catégorie", globalSummary.hiddenByCategory, filteredSummary.hiddenByCategory],
+  ];
+  $("#visibility-summary").replaceChildren(...metrics.map(([label, global, current]) => {
+    const item = element("div", "visibility-summary-item");
+    item.append(
+      element("span", "", label),
+      element("strong", "", String(global)),
+      element("small", "", `${current} dans la liste filtrée`),
+    );
+    return item;
+  }));
+}
+
+function renderCategoryVisibility() {
+  const hiddenCategories = new Set(state.presentationSettings.hiddenCategories);
+  const items = state.categories.map((category) => {
+    const categoryArtworks = state.artworks.filter((artwork) => artwork.category.includes(category));
+    const individuallyHidden = categoryArtworks.filter((artwork) => artwork.hidden === true).length;
+    const hidden = hiddenCategories.has(category);
+    const item = element("article", `category-visibility-item${hidden ? " is-hidden" : ""}`);
+    const details = element("div", "category-visibility-details");
+    details.append(
+      element("strong", "", labels[category] || category),
+      element("span", `category-visibility-state${hidden ? " is-hidden" : ""}`, hidden ? "Masquée" : "Affichée"),
+      element("small", "", `${categoryArtworks.length} œuvres · ${individuallyHidden} masquée${individuallyHidden > 1 ? "s" : ""} individuellement`),
+    );
+    const button = element("button", "button button-secondary", hidden ? "Réafficher" : "Masquer");
+    button.type = "button";
+    button.addEventListener("click", async () => {
+      const action = hidden ? "réafficher" : "masquer";
+      if (!window.confirm(`${action[0].toUpperCase()}${action.slice(1)} la catégorie « ${labels[category] || category} » sur le portfolio public ? Les œuvres et fichiers resteront disponibles dans Artwork Admin.`)) return;
+      button.disabled = true;
+      try {
+        const response = await api(`/api/artwork-presentation/categories/${encodeURIComponent(category)}`, {
+          method: "PUT",
+          body: JSON.stringify({ hidden: !hidden }),
+        });
+        await loadArtworks({ refreshAudit: false });
+        showMessage(response.message);
+      } catch (error) {
+        button.disabled = false;
+        showMessage(error.message, true);
+      }
+    });
+    item.append(details, button);
+    return item;
+  });
+  $("#category-visibility-list").replaceChildren(...items);
+}
+
 function createArtworkCard(artwork) {
-  const card = element("article", "art-card");
+  const individuallyHidden = artwork.hidden === true;
+  const card = element("article", `art-card${individuallyHidden ? " is-individually-hidden" : ""}`);
   const image = element("img", "art-thumb");
   image.src = imageUrl(artwork.image);
   image.alt = artwork.alt || "Aperçu sans texte alternatif";
   image.loading = "lazy";
   image.decoding = "async";
   const info = element("div", "art-info");
+  const visibilityBadges = element("div", "art-visibility-badges");
+  if (individuallyHidden) visibilityBadges.append(element("span", "visibility-badge is-hidden", "Masquée"));
+  if (artwork.visibility.hiddenByCategory) visibilityBadges.append(element("span", "visibility-badge is-category-hidden", "Catégorie masquée"));
+  if (visibilityBadges.children.length) info.append(visibilityBadges);
   info.append(element("p", "art-file", artwork.image.split("/").at(-1)));
   const pathLine = element("p", "art-path", artwork.image);
   pathLine.title = artwork.image;
@@ -179,7 +252,25 @@ function createArtworkCard(artwork) {
   const advancedButton = element("button", "button button-secondary card-button", "Modifier / renommer / supprimer");
   advancedButton.type = "button";
   advancedButton.addEventListener("click", () => openEdit(artwork.id));
-  info.append(quickButton, quickEditor, advancedButton);
+  const visibilityButton = element("button", "button button-secondary card-button visibility-button", individuallyHidden ? "Réafficher dans le portfolio" : "Masquer du portfolio");
+  visibilityButton.type = "button";
+  visibilityButton.addEventListener("click", async () => {
+    const action = individuallyHidden ? "réafficher" : "masquer";
+    if (!window.confirm(`${action[0].toUpperCase()}${action.slice(1)} « ${artwork.image.split("/").at(-1)} » sur le portfolio public ? Le fichier ne sera ni déplacé ni modifié.`)) return;
+    visibilityButton.disabled = true;
+    try {
+      const response = await api(`/api/artworks/${encodeURIComponent(artwork.id)}/visibility`, {
+        method: "PUT",
+        body: JSON.stringify({ hidden: !individuallyHidden }),
+      });
+      await loadArtworks({ refreshAudit: false });
+      showMessage(response.message);
+    } catch (error) {
+      visibilityButton.disabled = false;
+      showMessage(error.message, true);
+    }
+  });
+  info.append(quickButton, quickEditor, advancedButton, visibilityButton);
   card.append(image, info);
   return card;
 }
@@ -278,9 +369,11 @@ function populateCategoryControls() {
   $("#edit-categories-v21").append(editCategoryPicker.element);
 }
 
-async function loadArtworks() {
+async function loadArtworks({ refreshAudit = true } = {}) {
   const data = await api("/api/artworks");
   state.artworks = data.artworks;
+  state.presentationSettings = data.presentationSettings;
+  state.visibilitySummary = data.visibilitySummary;
   state.limits = data.limits || state.limits;
   if (state.categories.length === 0) {
     state.categories = data.categories;
@@ -295,8 +388,9 @@ async function loadArtworks() {
   report.classList.toggle("has-errors", inconsistencies > 0);
   report.textContent = `Rapport catégories — ${categoryReport.singleCategory.length} œuvres avec une catégorie, ${categoryReport.multipleCategories.length} avec plusieurs catégories, ${categoryReport.withoutCategory.length} sans catégorie, ${categoryReport.unknownCategories.length} avec une catégorie inconnue, ${categoryReport.primaryFolderMismatch.length} avec un dossier différent de la catégorie principale. Aucune correction automatique.`;
   $("#import-limits").textContent = `Maximum ${state.limits.maxBatchFiles} images par lot et ${Math.round(state.limits.maxFileBytes / 1024 / 1024)} Mo par fichier.`;
+  renderCategoryVisibility();
   renderGallery();
-  if (mediaAuditController) mediaAuditController.refresh();
+  if (refreshAudit && mediaAuditController) mediaAuditController.refresh();
 }
 
 async function openEdit(id) {
@@ -867,6 +961,7 @@ $("#compression-size").addEventListener("change", (event) => { $("#custom-size-f
 $("#compression-quality").addEventListener("input", (event) => { $("#quality-output").value = event.target.value; });
 
 searchInput.addEventListener("input", renderGallery);
+visibilityFilter.addEventListener("change", renderGallery);
 categoryFilter.addEventListener("change", () => {
   try { window.localStorage.setItem(CATEGORY_STORAGE_KEY, categoryFilter.value); } catch { /* stockage indisponible */ }
   renderGallery();

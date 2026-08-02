@@ -19,11 +19,13 @@ import { handleMangaRoute } from "./manga/routes.mjs";
 import { createAnimationService } from "./animation/service.mjs";
 import { handleAnimationRoute } from "./animation/routes.mjs";
 import { createMediaAuditService, handleMediaAuditRoute } from "./media-audit.mjs";
+import { getArtworkVisibility } from "../../src/content/artworkPresentation.js";
 
 const ADMIN_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(process.env.ARTWORK_ADMIN_TEST_ROOT || path.resolve(ADMIN_DIR, "../.."));
 const RUNTIME_DIR = path.resolve(process.env.ARTWORK_ADMIN_TEST_RUNTIME || ADMIN_DIR);
 const CATALOG_PATH = path.join(PROJECT_ROOT, "src/content/artworks.js");
+const ARTWORK_PRESENTATION_PATH = path.join(PROJECT_ROOT, "src/content/artworkPresentation.js");
 const PUBLIC_DIR = path.join(ADMIN_DIR, "public");
 const BACKUP_DIR = path.join(RUNTIME_DIR, "backups");
 const TRASH_DIR = path.join(RUNTIME_DIR, "trash");
@@ -92,13 +94,13 @@ function assetPathToFile(assetPath) {
   return target;
 }
 
-async function addFileSizes(artworks) {
+async function addFileSizes(artworks, presentationSettings) {
   return Promise.all(artworks.map(async (artwork) => {
     try {
       const fileStats = await stat(assetPathToFile(artwork.image));
-      return { ...artwork, sizeBytes: fileStats.isFile() ? fileStats.size : null };
+      return { ...artwork, visibility: getArtworkVisibility(artwork, presentationSettings), sizeBytes: fileStats.isFile() ? fileStats.size : null };
     } catch {
-      return { ...artwork, sizeBytes: null };
+      return { ...artwork, visibility: getArtworkVisibility(artwork, presentationSettings), sizeBytes: null };
     }
   }));
 }
@@ -136,9 +138,45 @@ function serializeCatalog(entries) {
     year: ${entry.year},
     alt: ${quote(entry.alt)},
     featured: ${Boolean(entry.featured)},
-    orientation: ${quote(entry.orientation)},
+${entry.hidden === true ? "    hidden: true,\n" : ""}    orientation: ${quote(entry.orientation)},
   }`).join(",\n");
   return `import { assetPath } from "../utils/assetPath";\n\nexport const artworks = [\n${items},\n];\n\n`;
+}
+
+function normalizeArtworkPresentationSettings(value) {
+  assert(value && typeof value === "object", "Configuration de présentation Illustration invalide.", 500);
+  assert(Array.isArray(value.hiddenCategories), "Liste des catégories masquées invalide.", 500);
+  const hiddenCategories = [];
+  for (const category of value.hiddenCategories) {
+    assert(typeof category === "string" && Object.hasOwn(CATEGORIES, category), `Catégorie masquée inconnue : ${category}.`, 500);
+    assert(!hiddenCategories.includes(category), `Catégorie masquée dupliquée : ${category}.`, 500);
+    hiddenCategories.push(category);
+  }
+  return { hiddenCategories };
+}
+
+const ARTWORK_PRESENTATION_SETTINGS_PATTERN = /export\s+const\s+artworkPresentationSettings\s*=\s*Object\.freeze\((\{[\s\S]*?\})\);/;
+
+function parseArtworkPresentationSettings(source) {
+  const match = source.match(ARTWORK_PRESENTATION_SETTINGS_PATTERN);
+  assert(match, "Impossible de lire la configuration de présentation Illustration.", 500);
+  try {
+    return normalizeArtworkPresentationSettings(
+      vm.runInNewContext(`(${match[1]})`, Object.create(null), { timeout: 1000 }),
+    );
+  } catch (error) {
+    if (error instanceof HttpError) throw error;
+    throw new HttpError(500, `Configuration de présentation Illustration invalide : ${error.message}`);
+  }
+}
+
+function serializeArtworkPresentationSettings(settings) {
+  const normalized = normalizeArtworkPresentationSettings(settings);
+  return `export const artworkPresentationSettings = Object.freeze({\n  hiddenCategories: Object.freeze([${normalized.hiddenCategories.map(quote).join(", ")}]),\n});\n`;
+}
+
+async function readArtworkPresentationSettings() {
+  return parseArtworkPresentationSettings(await readFile(ARTWORK_PRESENTATION_PATH, "utf8"));
 }
 
 function validateDate(value) {
@@ -214,6 +252,7 @@ function validateEntries(entries) {
     const year = validateDate(entry.date);
     assert(entry.year === year, `Année incohérente pour ${entry.id}.`);
     assert(typeof entry.alt === "string", `Alt invalide pour ${entry.id}.`);
+    assert(entry.hidden === undefined || typeof entry.hidden === "boolean", `Visibilité invalide pour ${entry.id}.`);
   }
 }
 
@@ -666,12 +705,12 @@ function timestamp() {
   return new Date().toISOString().replace(/[:.]/g, "-");
 }
 
-async function createBackup() {
+async function createSourceBackup(sourcePath, prefix) {
   await mkdir(BACKUP_DIR, { recursive: true });
-  const destination = path.join(BACKUP_DIR, `artworks-${timestamp()}.js`);
-  await copyFile(CATALOG_PATH, destination);
+  const destination = path.join(BACKUP_DIR, `${prefix}-${timestamp()}.js`);
+  await copyFile(sourcePath, destination);
   const backups = (await readdir(BACKUP_DIR, { withFileTypes: true }))
-    .filter((entry) => entry.isFile() && /^artworks-.+\.js$/.test(entry.name))
+    .filter((entry) => entry.isFile() && entry.name.startsWith(`${prefix}-`) && entry.name.endsWith(".js"))
     .map((entry) => entry.name)
     .sort()
     .reverse();
@@ -679,17 +718,27 @@ async function createBackup() {
   return destination;
 }
 
-async function writeCatalogSourceAtomic(source) {
-  const tempPath = `${CATALOG_PATH}.${process.pid}.${Date.now()}.tmp.js`;
+async function createBackup() {
+  return createSourceBackup(CATALOG_PATH, "artworks");
+}
+
+async function writeJavaScriptSourceAtomic(targetPath, source, validateSource) {
+  const tempPath = `${targetPath}.${process.pid}.${Date.now()}.${randomUUID()}.tmp.js`;
   await writeFile(tempPath, source, { encoding: "utf8", flag: "wx" });
   try {
     const check = spawnSync(process.execPath, ["--check", tempPath], { encoding: "utf8" });
     assert(check.status === 0, `JavaScript généré invalide : ${check.stderr}`, 500);
-    validateEntries(parseCatalog(source));
-    await rename(tempPath, CATALOG_PATH);
+    validateSource(source);
+    await rename(tempPath, targetPath);
   } finally {
     await rm(tempPath, { force: true });
   }
+}
+
+async function writeCatalogSourceAtomic(source) {
+  await writeJavaScriptSourceAtomic(CATALOG_PATH, source, (candidate) => {
+    validateEntries(parseCatalog(candidate));
+  });
 }
 
 async function writeCatalogAtomic(entries) {
@@ -699,6 +748,55 @@ async function writeCatalogAtomic(entries) {
 
 async function restoreCatalogBackup(backupPath) {
   await writeCatalogSourceAtomic(await readFile(backupPath, "utf8"));
+}
+
+async function writeArtworkPresentationSettingsAtomic(settings) {
+  const currentSource = await readFile(ARTWORK_PRESENTATION_PATH, "utf8");
+  assert(
+    ARTWORK_PRESENTATION_SETTINGS_PATTERN.test(currentSource),
+    "Impossible de lire la configuration de présentation Illustration.",
+    500,
+  );
+  const source = currentSource.replace(
+    ARTWORK_PRESENTATION_SETTINGS_PATTERN,
+    serializeArtworkPresentationSettings(settings).trimEnd(),
+  );
+  await writeJavaScriptSourceAtomic(
+    ARTWORK_PRESENTATION_PATH,
+    source,
+    parseArtworkPresentationSettings,
+  );
+}
+
+async function setArtworkVisibility(id, payload) {
+  assert(typeof payload?.hidden === "boolean", "Valeur de visibilité invalide.");
+  const entries = await readCatalog();
+  const index = entries.findIndex((entry) => entry.id === id);
+  assert(index >= 0, "Œuvre introuvable.", 404);
+  const nextEntry = { ...entries[index] };
+  if (payload.hidden) nextEntry.hidden = true;
+  else delete nextEntry.hidden;
+  const nextEntries = [...entries];
+  nextEntries[index] = nextEntry;
+  validateEntries(nextEntries);
+  await createBackup();
+  await writeCatalogAtomic(nextEntries);
+  return nextEntry;
+}
+
+async function setArtworkCategoryVisibility(category, payload) {
+  validateCategory(category);
+  assert(typeof payload?.hidden === "boolean", "Valeur de visibilité de catégorie invalide.");
+  const current = await readArtworkPresentationSettings();
+  const hiddenCategories = new Set(current.hiddenCategories);
+  if (payload.hidden) hiddenCategories.add(category);
+  else hiddenCategories.delete(category);
+  const settings = {
+    hiddenCategories: CATEGORY_VALUES.filter((value) => hiddenCategories.has(value)),
+  };
+  await createSourceBackup(ARTWORK_PRESENTATION_PATH, "artwork-presentation");
+  await writeArtworkPresentationSettingsAtomic(settings);
+  return settings;
 }
 
 async function writeFileExclusive(filePath, buffer) {
@@ -1256,10 +1354,10 @@ async function deleteArtwork(id) {
   }
 }
 
-function queueMutation(operation) {
+function queueMutation(operation, { invalidateMedia = true } = {}) {
   const run = async () => {
     const result = await operation();
-    mediaAuditService.invalidate("artwork");
+    if (invalidateMedia) mediaAuditService.invalidate("artwork");
     return result;
   };
   const result = mutationQueue.then(run, run);
@@ -1392,12 +1490,21 @@ async function handleRequest(request, response) {
   if (await handleAnimationRoute(request, response, url, { service: animationService, readJson, sendJson })) return;
   if (request.method === "GET" && url.pathname === "/api/artworks") {
     const catalogArtworks = await readCatalog();
+    const presentationSettings = await readArtworkPresentationSettings();
     const categoryReport = createCategoryReport(catalogArtworks);
-    const artworks = await addFileSizes(catalogArtworks);
+    const artworks = await addFileSizes(catalogArtworks, presentationSettings);
+    const visibilitySummary = {
+      total: artworks.length,
+      displayed: artworks.filter((artwork) => artwork.visibility.public).length,
+      individuallyHidden: artworks.filter((artwork) => artwork.visibility.individuallyHidden).length,
+      hiddenByCategory: artworks.filter((artwork) => artwork.visibility.hiddenByCategory).length,
+    };
     sendJson(response, 200, {
       artworks,
       categories: Object.keys(CATEGORIES),
       count: artworks.length,
+      presentationSettings,
+      visibilitySummary,
       limits: { maxFileBytes: MAX_FILE_BYTES, maxBatchFiles: MAX_BATCH_FILES },
       categoryReport,
     });
@@ -1448,6 +1555,39 @@ async function handleRequest(request, response) {
   if (artworkDetailsMatch && request.method === "GET") {
     const details = await artworkFileDetails(decodeURIComponent(artworkDetailsMatch[1]));
     sendJson(response, 200, details);
+    return;
+  }
+  const artworkVisibilityMatch = url.pathname.match(/^\/api\/artworks\/([^/]+)\/visibility$/);
+  if (artworkVisibilityMatch && request.method === "PUT") {
+    const id = decodeURIComponent(artworkVisibilityMatch[1]);
+    const payload = await readJson(request);
+    const artwork = await queueMutation(
+      () => setArtworkVisibility(id, payload),
+      { invalidateMedia: false },
+    );
+    sendJson(response, 200, {
+      artwork,
+      message: artwork.hidden === true
+        ? "Œuvre masquée du portfolio."
+        : "Œuvre réaffichée dans le portfolio.",
+    });
+    return;
+  }
+  const categoryVisibilityMatch = url.pathname.match(/^\/api\/artwork-presentation\/categories\/([^/]+)$/);
+  if (categoryVisibilityMatch && request.method === "PUT") {
+    const category = decodeURIComponent(categoryVisibilityMatch[1]);
+    const payload = await readJson(request);
+    const settings = await queueMutation(
+      () => setArtworkCategoryVisibility(category, payload),
+      { invalidateMedia: false },
+    );
+    const hidden = settings.hiddenCategories.includes(category);
+    sendJson(response, 200, {
+      presentationSettings: settings,
+      message: hidden
+        ? `Catégorie ${category} masquée du portfolio.`
+        : `Catégorie ${category} réaffichée dans le portfolio.`,
+    });
     return;
   }
   const artworkOptimizationMatch = url.pathname.match(/^\/api\/artworks\/([^/]+)\/optimize(?:\/(estimate))?$/);
