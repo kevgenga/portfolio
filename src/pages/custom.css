@@ -1,5 +1,0 @@
-/* Désactiver l'effet de survol pour les vidéos */
-.fancybox__content video {
-    transition: none !important; /* Supprime la transition de survol */
-  }
-  

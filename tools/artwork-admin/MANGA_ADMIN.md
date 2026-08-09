@@ -4,22 +4,22 @@ Lancer l’outil local avec `npm run artwork-admin`, puis ouvrir `http://127.0.0
 
 Le catalogue reste `src/content/mangas.js`. Les médias restent sous `public/assets/mangaka/`. Les écritures sont explicites, sauvegardées et atomiques. Les anciennes images et les mangas supprimés sont déplacés sous `tools/artwork-admin/trash/mangas/`.
 
-## Image principale de la carte manga
+## Image de la carte Manga
 
-Le champ canonique est `banner`. Il est affiché dans les cartes de `/portfolio/mangaka` avec un cadre CSS `16:9`, `object-fit: cover` et une position centrée. `cover` reste un fallback compatible pour les anciens mangas et pour les données historiques. `thumbnail` et `presentation` n’ont aucun consommateur public manga : ils sont dépréciés et masqués dans Manga Admin, sans être supprimés des anciennes entrées.
+Le champ canonique est `banner`. Le site public et Manga Admin résolvent tous deux cette image avec l’utilitaire partagé `getMangaCardMedia` : `banner` est prioritaire et `cover` reste un fallback compatible pour les anciens mangas. Elle est affichée dans les cartes de `/portfolio/mangaka` avec un cadre CSS vertical `3:4`, `object-fit: cover` et une position centrée. `thumbnail` et `presentation` n’ont aucun consommateur public manga : ils sont dépréciés et masqués dans Manga Admin, sans être supprimés des anciennes entrées.
 
-Politique Photoshop, toujours au ratio **16:9** :
+Politique Photoshop, au ratio vertical **3:4** :
 
-- taille idéale : **1280 × 720 px** ;
-- haute qualité : **1600 × 900 px** ou davantage ;
-- qualité correcte : **960 × 540 px** ou davantage ;
-- minimum acceptable : **800 × 450 px**.
+- taille idéale : **900 × 1200 px** ;
+- haute qualité : **1200 × 1600 px** ou davantage ;
+- qualité correcte : **750 × 1000 px** ou davantage ;
+- minimum acceptable : **600 × 800 px**.
 
 Le ratio est conforme jusqu’à 2 % d’écart, déclenche un avertissement de recadrage entre plus de 2 % et 8 %, puis devient incorrect au-delà de 8 %. La résolution et le ratio sont toujours évalués séparément.
 
 Gardez les visages, textes et éléments importants dans la zone centrale : `object-fit: cover` avec une position centrale peut rogner les bords. Le chemin conseillé est `public/assets/mangaka/<slug>/`.
 
-Exemple — Legend of Animiste : son fichier actuel de 894 × 400 px reste conservé. Manga Admin indique séparément sa résolution sous le minimum en hauteur et son ratio différent de 16:9, sans modifier le média.
+Exemple — Legend of Animiste : sa `banner` actuelle de 800 × 1131 px reste conservée. Manga Admin indique séparément la résolution et le léger écart avec le ratio 3:4, sans modifier le média.
 
 Le remplacement crée une sauvegarde de `mangas.js`, installe la nouvelle `banner`, déplace l’ancienne bannière dans la corbeille si elle n’est pas partagée, met à jour le chemin et restaure l’ensemble en cas d’erreur. Les anciennes valeurs `cover`, `thumbnail` et `presentation` ne sont pas migrées automatiquement ; leur suppression éventuelle devra faire l’objet d’une migration séparée.
 

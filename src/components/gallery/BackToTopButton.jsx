@@ -58,7 +58,7 @@ const BackToTopButton = () => {
       aria-label="Back to top"
       title="Back to top"
       onClick={scrollToTop}
-      className="fixed bottom-4 right-4 z-40 grid h-11 w-11 place-items-center rounded-full border border-white/15 bg-[#1d1d1b]/90 text-[#f4f1eb] shadow-lg backdrop-blur-sm transition hover:bg-[#9b4035] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b4035] sm:bottom-6 sm:right-6"
+      className="fixed bottom-4 right-4 z-40 grid h-11 w-11 place-items-center border border-paper/30 bg-ink text-paper transition-colors duration-150 hover:bg-[#252525] hover:border-paper/60 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-primary sm:bottom-6 sm:right-6"
     >
       <svg
         aria-hidden="true"

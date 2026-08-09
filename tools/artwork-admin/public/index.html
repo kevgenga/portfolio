@@ -27,12 +27,12 @@
         <a href="/mangas.html">Mangas</a>
         <a href="/animations.html">Animations</a>
       </nav>
-      <nav class="admin-tabs" aria-label="Sections Artwork Admin">
-        <button class="admin-tab is-active" type="button" data-panel="gallery-panel" aria-selected="true">Galerie</button>
-        <button class="admin-tab" type="button" data-panel="import-panel" aria-selected="false">Importer <span id="tab-queue-count" class="tab-count" hidden></span></button>
+      <nav class="admin-tabs" role="tablist" aria-label="Sections Artwork Admin">
+        <button id="gallery-tab" class="admin-tab is-active" type="button" role="tab" data-panel="gallery-panel" aria-controls="gallery-panel" aria-selected="true">Galerie</button>
+        <button id="import-tab" class="admin-tab" type="button" role="tab" data-panel="import-panel" aria-controls="import-panel" aria-selected="false">Importer <span id="tab-queue-count" class="tab-count" hidden></span></button>
       </nav>
 
-      <section id="gallery-panel" class="admin-panel">
+      <section id="gallery-panel" class="admin-panel" role="tabpanel" aria-labelledby="gallery-tab">
         <section class="category-visibility-panel" aria-labelledby="category-visibility-title">
           <div class="category-visibility-heading">
             <div>
@@ -82,7 +82,7 @@
         <p id="empty-state" class="empty-state" hidden>Aucune œuvre ne correspond à cette recherche.</p>
       </section>
 
-      <section id="import-panel" class="admin-panel" hidden>
+      <section id="import-panel" class="admin-panel" role="tabpanel" aria-labelledby="import-tab" hidden>
         <div class="import-heading">
           <div>
             <p class="eyebrow">IMPORT PAR LOT</p>

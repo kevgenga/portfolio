@@ -9,7 +9,7 @@
 .manga-toolbar { grid-template-columns:minmax(240px,1fr) repeat(4,minmax(130px,185px)) auto; }
 .manga-admin-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:20px; }
 .manga-card { overflow:hidden; border:1px solid var(--line); border-radius:8px; background:var(--surface); }
-.manga-card img { width:100%; aspect-ratio:16/9; object-fit:cover; background:#0b090a; }
+.manga-card img { width:100%; aspect-ratio:3/4; object-fit:cover; object-position:center; background:#0b090a; }
 .manga-card-body { display:grid; gap:10px; padding:16px; }
 .manga-card h2 { margin:0; font-size:1.35rem; }
 .manga-card-meta,.language-counts { color:var(--muted); font-size:.76rem; }
@@ -53,14 +53,14 @@
 .page-actions button { border:1px solid var(--line); padding:4px 2px; background:#1c181a; color:#eee; cursor:pointer; }
 #manga-media { display:grid; gap:8px; }
 #manga-media > h3 { margin:0; }
-.primary-media-panel { display:grid; grid-template-columns:minmax(320px,620px) minmax(340px,1fr); align-items:start; gap:clamp(18px,2.5vw,36px); border:1px solid var(--line); border-radius:8px; padding:14px; background:#121012; }
+.primary-media-panel { display:grid; grid-template-columns:minmax(280px,420px) minmax(340px,1fr); align-items:start; gap:clamp(18px,2.5vw,36px); border:1px solid var(--line); border-radius:8px; padding:14px; background:#121012; }
 .primary-media-preview-column,.primary-media-details { min-width:0; }
 .primary-media-preview-column .eyebrow { margin-top:0; }
-.primary-media-panel .manga-card-preview { max-width:620px; margin:10px 0 0; }
+.primary-media-panel .manga-card-preview { max-width:420px; margin:10px 0 0; }
 .primary-media-details { display:grid; align-content:start; gap:7px; }
 .primary-media-details > .muted-copy,.primary-media-details > .media-help,.primary-media-details > .media-warning { margin:0; }
 .manga-card-preview { margin:14px 0; }
-.manga-card-preview img { display:block; width:100%; aspect-ratio:16/9; object-fit:cover; object-position:center; background:#080708; }
+.manga-card-preview img { display:block; width:100%; aspect-ratio:3/4; object-fit:cover; object-position:center; background:#080708; }
 .manga-card-preview figcaption { padding-top:6px; color:var(--muted); font-size:.72rem; }
 .media-facts { display:grid; gap:7px; margin:0; }
 .media-facts div { display:grid; grid-template-columns:145px minmax(0,1fr); gap:8px; }

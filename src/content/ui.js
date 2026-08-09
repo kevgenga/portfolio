@@ -12,7 +12,6 @@ export const uiText = {
       oldest: "Oldest",
     },
     navigation: {
-      home: "Home",
       manga: "Manga",
       illustration: "Illustration",
       animation: "Animation",
@@ -30,7 +29,7 @@ export const uiText = {
     notFound: {
       title: "Page not found",
       message: "The page you are looking for does not exist.",
-      back: "Back to home",
+      back: "Back to About",
     },
     illustration: {
       eyebrow: "Portfolio",
@@ -87,8 +86,11 @@ export const uiText = {
     contact: {
       eyebrow: "Start a conversation",
       title: "Contact",
+      ctaTitle: "Let's work together.",
       introduction:
         "For project enquiries and professional opportunities, use the form or contact me directly by email.",
+      servicesLabel: "Available creative services",
+      services: ["Manga", "Illustration", "2D Animation"],
       directEmail: "Email directly",
       name: "Name",
       email: "Email",

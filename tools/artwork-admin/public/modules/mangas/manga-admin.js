@@ -1,4 +1,4 @@
-import { analyzeMangaCardMedia } from "./media-policy.js";
+import { analyzeMangaCardMedia, MANGA_CARD_MEDIA } from "./media-policy.js";
 import { auditItemAsFile, mountMediaAudit } from "../../media-audit-ui.js";
 
 const state = { mangas: [], report: null, presentationSettings: null, currentId: null, language: null, workingPages: [], savedPages: [], dirty: false, toastTimer: null, createMediaReview: null };
@@ -11,6 +11,8 @@ const sectionLabels = {
   completed: "Completed Manga",
   storyboard: "Complete Storyboards",
 };
+const cardMediaRatio = `${MANGA_CARD_MEDIA.ratioWidth}:${MANGA_CARD_MEDIA.ratioHeight}`;
+const mediaDimensions = (width, height) => `${width} × ${height} px`;
 
 async function api(url, options = {}) {
   const response = await fetch(url, { ...options, headers: options.body ? { "Content-Type": "application/json" } : undefined });
@@ -55,13 +57,13 @@ function renderList() {
     const card = document.createElement("article"); card.className = "manga-card";
     const counts = Object.entries(manga.languages).map(([code, item]) => `${code.toUpperCase()} ${item.pageCount}`).join(" · ");
     const temporary = manga.isTemporaryExample ? '<span class="temporary-example">Copie temporaire de test</span>' : "";
-    card.innerHTML = `<img src="${imageUrl(manga.banner || manga.cover)}" alt="" /><div class="manga-card-body"><div><h2>${escapeHtml(manga.title)}</h2><span class="manga-card-meta">${escapeHtml(manga.slug)} · ${escapeHtml(manga.status || "published")}</span></div><div class="manga-section-meta"><span>${escapeHtml(sectionLabels[manga.presentationSection] || sectionLabels.completed)}</span>${temporary}</div><div class="language-counts">Défaut : ${escapeHtml(manga.defaultLanguage)}<br>${escapeHtml(counts)}</div><div class="manga-card-actions"><button class="button button-primary" data-edit>Modifier</button><a class="button button-secondary" href="${previewUrl(manga)}" target="_blank" rel="noopener">Prévisualiser</a></div></div>`;
+    card.innerHTML = `<img src="${imageUrl(manga.primaryMedia.path)}" alt="" /><div class="manga-card-body"><div><h2>${escapeHtml(manga.title)}</h2><span class="manga-card-meta">${escapeHtml(manga.slug)} · ${escapeHtml(manga.status || "published")}</span></div><div class="manga-section-meta"><span>${escapeHtml(sectionLabels[manga.presentationSection] || sectionLabels.completed)}</span>${temporary}</div><div class="language-counts">Défaut : ${escapeHtml(manga.defaultLanguage)}<br>${escapeHtml(counts)}</div><div class="manga-card-actions"><button class="button button-primary" data-edit>Modifier</button><a class="button button-secondary" href="${previewUrl(manga)}" target="_blank" rel="noopener">Prévisualiser</a></div></div>`;
     card.querySelector("[data-edit]").onclick = () => openEditor(manga.id); return card;
   }));
 }
 function escapeHtml(value) { const node = document.createElement("span"); node.textContent = String(value ?? ""); return node.innerHTML; }
 function mediaReviewMarkup({ url, name, size, width, height, analysis }) {
-  return `<figure class="manga-card-preview"><img src="${url}" alt="Aperçu 16:9 de ${escapeHtml(name)}" /><figcaption>Aperçu réel 16:9 avec object-fit: cover</figcaption></figure><dl class="media-facts"><div><dt>Dimensions actuelles</dt><dd>${width} × ${height} px</dd></div><div><dt>Ratio actuel</dt><dd>${(width / height).toFixed(2)}:1</dd></div><div><dt>Poids</dt><dd>${formatBytes(size)}</dd></div><div><dt>Résolution</dt><dd><span class="media-status ${analysis.resolution.level}">${escapeHtml(analysis.resolution.label)}</span></dd></div><div><dt>Ratio</dt><dd><span class="media-status ${analysis.ratioStatus.level}">${escapeHtml(analysis.ratioStatus.label)}</span></dd></div><div><dt>Statut général</dt><dd><span class="media-status ${analysis.level}">${escapeHtml(analysis.label)}</span></dd></div></dl>${analysis.resolution.warning ? `<p class="media-warning">${escapeHtml(analysis.resolution.warning)}</p>` : ""}${analysis.ratioStatus.warning ? `<p class="media-warning">${escapeHtml(analysis.ratioStatus.warning)}</p>` : ""}`;
+  return `<figure class="manga-card-preview"><img src="${url}" alt="Aperçu ${cardMediaRatio} de ${escapeHtml(name)}" /><figcaption>Aperçu réel ${cardMediaRatio} avec object-fit: cover</figcaption></figure><dl class="media-facts"><div><dt>Dimensions actuelles</dt><dd>${width} × ${height} px</dd></div><div><dt>Ratio actuel</dt><dd>${(width / height).toFixed(2)}:1</dd></div><div><dt>Poids</dt><dd>${formatBytes(size)}</dd></div><div><dt>Résolution</dt><dd><span class="media-status ${analysis.resolution.level}">${escapeHtml(analysis.resolution.label)}</span></dd></div><div><dt>Ratio</dt><dd><span class="media-status ${analysis.ratioStatus.level}">${escapeHtml(analysis.ratioStatus.label)}</span></dd></div><div><dt>Statut général</dt><dd><span class="media-status ${analysis.level}">${escapeHtml(analysis.label)}</span></dd></div></dl>${analysis.resolution.warning ? `<p class="media-warning">${escapeHtml(analysis.resolution.warning)}</p>` : ""}${analysis.ratioStatus.warning ? `<p class="media-warning">${escapeHtml(analysis.ratioStatus.warning)}</p>` : ""}`;
 }
 async function inspectLocalMedia(file) {
   const url = URL.createObjectURL(file); const image = new Image(); image.src = url;
@@ -135,9 +137,49 @@ function openEditor(id) {
 function renderMedia() {
   const manga = currentManga(); const media = manga.primaryMedia; const info = media.details; const analysis = media.analysis;
   const ratio = info?.width && info?.height ? (info.width / info.height).toFixed(2) : "—";
-  $("#manga-media").innerHTML = `<h3>Bannière du manga</h3><section class="primary-media-panel"><div class="primary-media-preview-column"><p class="eyebrow">IMAGE PRINCIPALE DE LA CARTE MANGA</p><figure class="manga-card-preview"><img src="${imageUrl(media.path)}" alt="Aperçu de la carte manga" /><figcaption>Aperçu du rendu dans /portfolio/mangaka</figcaption></figure><div class="media-buttons"><a class="button button-secondary" href="${imageUrl(media.path)}" target="_blank" rel="noopener">Aperçu</a><button class="button button-secondary" type="button" data-primary-reveal ${media.path ? "" : "disabled"}>Ouvrir dans l’Explorateur</button><button class="button button-primary" type="button" data-primary-replace>Remplacer</button></div></div><div class="primary-media-details"><p class="muted-copy">Utilisée dans la liste publique, les cartes manga et les aperçus du Manga Admin.${media.fallback ? " Champ historique cover utilisé en fallback : il sera remplacé par une banner canonique lors du prochain remplacement." : ""}</p><dl class="media-facts"><div><dt>Chemin</dt><dd>${escapeHtml(media.path || "Média absent")}</dd></div><div><dt>Dimensions actuelles</dt><dd>${info ? `${info.width} × ${info.height} px` : "—"}</dd></div><div><dt>Ratio actuel</dt><dd>${ratio}:1</dd></div><div><dt>Poids / format</dt><dd>${info ? `${formatBytes(info.size)} · ${escapeHtml(info.extension)}` : "—"}</dd></div><div><dt>Ratio cible</dt><dd>16:9</dd></div><div><dt>Taille idéale Photoshop</dt><dd>1280 × 720 px</dd></div><div><dt>Haute qualité</dt><dd>1600 × 900 px</dd></div><div><dt>Taille acceptable</dt><dd>960 × 540 px ou plus</dd></div><div><dt>Minimum recommandé</dt><dd>800 × 450 px</dd></div><div><dt>Résolution</dt><dd><span class="media-status ${analysis.resolution.level}">${escapeHtml(analysis.resolution.label)}</span></dd></div><div><dt>Ratio</dt><dd><span class="media-status ${analysis.ratioStatus.level}">${escapeHtml(analysis.ratioStatus.label)}</span></dd></div><div><dt>Statut général</dt><dd><span class="media-status ${analysis.level}">${escapeHtml(analysis.label)}</span></dd></div></dl>${analysis.resolution.warning ? `<p class="media-warning">${escapeHtml(analysis.resolution.warning)}</p>` : ""}${analysis.ratioStatus.warning ? `<p class="media-warning">${escapeHtml(analysis.ratioStatus.warning)}</p>` : ""}<p class="media-help">Pour créer une nouvelle bannière dans Photoshop, utilisez idéalement 1280 × 720 px en ratio 16:9. Vous pouvez utiliser 1600 × 900 px pour une qualité supérieure. Évitez de descendre sous 800 × 450 px.</p><p class="media-help">L’image utilise <code>object-fit: cover</code>. Les bords peuvent être légèrement recadrés selon la largeur de l’écran. Gardez les visages, textes et éléments importants dans la zone centrale.</p></div></section>`;
+  const fallbackNote = media.fallback
+    ? " Le champ historique cover est utilisé en fallback. Le prochain remplacement créera la banner canonique sans supprimer ce cover."
+    : "";
+  $("#manga-media").innerHTML = `
+    <h3>Image de la carte Manga</h3>
+    <section class="primary-media-panel">
+      <div class="primary-media-preview-column">
+        <p class="eyebrow">IMAGE DE LA CARTE MANGA</p>
+        <figure class="manga-card-preview">
+          <img src="${imageUrl(media.path)}" alt="Aperçu de la carte manga" />
+          <figcaption>Aperçu ${cardMediaRatio} du rendu dans /portfolio/mangaka</figcaption>
+        </figure>
+        <div class="media-buttons">
+          <a class="button button-secondary" href="${imageUrl(media.path)}" target="_blank" rel="noopener">Aperçu</a>
+          <button class="button button-secondary" type="button" data-primary-reveal ${media.path ? "" : "disabled"}>Ouvrir dans l’Explorateur</button>
+          <button class="button button-primary" type="button" data-primary-replace>Remplacer</button>
+        </div>
+      </div>
+      <div class="primary-media-details">
+        <p class="muted-copy">Source exacte utilisée dans la carte publique et les aperçus Manga Admin.${fallbackNote}</p>
+        <dl class="media-facts">
+          <div><dt>Champ actuel</dt><dd><code>${escapeHtml(media.field)}</code></dd></div>
+          <div><dt>Chemin</dt><dd>${escapeHtml(media.path || "Média absent")}</dd></div>
+          <div><dt>Dimensions actuelles</dt><dd>${info ? mediaDimensions(info.width, info.height) : "—"}</dd></div>
+          <div><dt>Ratio actuel</dt><dd>${ratio}:1</dd></div>
+          <div><dt>Poids / format</dt><dd>${info ? `${formatBytes(info.size)} · ${escapeHtml(info.extension)}` : "—"}</dd></div>
+          <div><dt>Ratio cible</dt><dd>${cardMediaRatio}</dd></div>
+          <div><dt>Taille idéale Photoshop</dt><dd>${mediaDimensions(MANGA_CARD_MEDIA.idealWidth, MANGA_CARD_MEDIA.idealHeight)}</dd></div>
+          <div><dt>Haute qualité</dt><dd>${mediaDimensions(MANGA_CARD_MEDIA.highQualityWidth, MANGA_CARD_MEDIA.highQualityHeight)}</dd></div>
+          <div><dt>Taille acceptable</dt><dd>${mediaDimensions(MANGA_CARD_MEDIA.acceptableWidth, MANGA_CARD_MEDIA.acceptableHeight)} ou plus</dd></div>
+          <div><dt>Minimum recommandé</dt><dd>${mediaDimensions(MANGA_CARD_MEDIA.minimumWidth, MANGA_CARD_MEDIA.minimumHeight)}</dd></div>
+          <div><dt>Résolution</dt><dd><span class="media-status ${analysis.resolution.level}">${escapeHtml(analysis.resolution.label)}</span></dd></div>
+          <div><dt>Ratio</dt><dd><span class="media-status ${analysis.ratioStatus.level}">${escapeHtml(analysis.ratioStatus.label)}</span></dd></div>
+          <div><dt>Statut général</dt><dd><span class="media-status ${analysis.level}">${escapeHtml(analysis.label)}</span></dd></div>
+        </dl>
+        ${analysis.resolution.warning ? `<p class="media-warning">${escapeHtml(analysis.resolution.warning)}</p>` : ""}
+        ${analysis.ratioStatus.warning ? `<p class="media-warning">${escapeHtml(analysis.ratioStatus.warning)}</p>` : ""}
+        <p class="media-help">Pour Photoshop, utilisez idéalement ${mediaDimensions(MANGA_CARD_MEDIA.idealWidth, MANGA_CARD_MEDIA.idealHeight)} au ratio ${cardMediaRatio}. La haute qualité correspond à ${mediaDimensions(MANGA_CARD_MEDIA.highQualityWidth, MANGA_CARD_MEDIA.highQualityHeight)}.</p>
+        <p class="media-help">L’image utilise <code>object-fit: cover</code>. Gardez les visages, textes et éléments importants dans la zone centrale.</p>
+      </div>
+    </section>`;
   $("[data-primary-reveal]").onclick = () => reveal({ type: "primary" });
-  $("[data-primary-replace]").onclick = () => chooseFile(async (file) => { if (!await reviewReplacementMedia(file)) return; await api(`/api/mangas/${encodeURIComponent(state.currentId)}/media/primary`, { method: "PUT", body: JSON.stringify({ file: await filePayload(file) }) }); await reloadEditor("Image principale remplacée."); });
+  $("[data-primary-replace]").onclick = () => chooseFile(async (file) => { if (!await reviewReplacementMedia(file)) return; await api(`/api/mangas/${encodeURIComponent(state.currentId)}/media/primary`, { method: "PUT", body: JSON.stringify({ file: await filePayload(file) }) }); await reloadEditor("Image de la carte Manga remplacée."); });
 }
 function renderLanguages() {
   const manga = currentManga(); $("#language-tabs").replaceChildren(...Object.entries(manga.languages).map(([code, language]) => {
@@ -250,9 +292,9 @@ mediaAuditController = mountMediaAudit({
     }
     switchEditorTab("media");
     if (!await reviewReplacementMedia(file)) return;
-    if (!confirm("Utiliser ce fichier comme image principale du manga ? L’ancien média sera déplacé dans la corbeille.")) return;
+    if (!confirm("Utiliser ce fichier comme image de la carte Manga ? L’ancien média sera déplacé dans la corbeille.")) return;
     await api(`/api/mangas/${encodeURIComponent(manga.id)}/media/primary`, { method: "PUT", body: JSON.stringify({ file: await filePayload(file) }) });
-    await reloadEditor("Image principale intégrée après validation.");
+    await reloadEditor("Image de la carte Manga intégrée après validation.");
   },
 });
 Promise.all([load(), loadPresentationSettings()]).catch((error) => message(error.message, "error"));

@@ -1,5 +1,5 @@
 export const artworkPresentationSettings = Object.freeze({
-  hiddenCategories: Object.freeze(["sketches"]),
+  hiddenCategories: Object.freeze([]),
 });
 
 export const isArtworkCategoryVisible = (

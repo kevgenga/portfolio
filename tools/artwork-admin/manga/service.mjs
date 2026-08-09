@@ -10,12 +10,17 @@ import {
   MANGA_PRESENTATION_SECTION_VALUES,
   naturalPageSort,
   normalizeLanguageCode,
+  normalizeStorageFolder,
   parseMangaCatalog,
   serializeMangaCatalog,
   slugify,
   validateMangaCatalog,
 } from "./catalog.mjs";
-import { analyzeMangaCardMedia, primaryMangaMedia } from "./media-policy.mjs";
+import {
+  analyzeMangaCardMedia,
+  MANGA_CARD_IMAGE_FIELDS,
+  primaryMangaMedia,
+} from "./media-policy.mjs";
 
 const EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".avif", ".gif"]);
 const LANGUAGE_PRESETS = { orig: ["Original", "ORIG"], fr: ["French", "FR"], en: ["English", "ENG"], ja: ["Japanese", "JA"], es: ["Spanish", "ES"], de: ["German", "DE"], it: ["Italian", "IT"], ko: ["Korean", "KO"], zh: ["Chinese", "ZH"] };
@@ -66,6 +71,56 @@ export function createMangaService({
 
   function projectDirectory(manga) {
     return path.join(projectRoot, "public", ...projectPrefix(manga).split("/"));
+  }
+
+  function pageStorageFolder(manga, page) {
+    const prefix = `${projectPrefix(manga)}/`;
+    ensure(page.startsWith(prefix), `Page hors du dossier du manga : ${page}.`);
+    const directory = path.posix.dirname(page.slice(prefix.length));
+    return directory === "." ? "" : normalizeStorageFolder(directory);
+  }
+
+  function analyzeLanguageStorage(manga, code) {
+    const language = manga.languages[code];
+    ensure(language, "Langue introuvable.", 404);
+    const configured = language.storageFolder === undefined
+      ? null
+      : normalizeStorageFolder(language.storageFolder);
+    const counts = new Map();
+    for (const page of language.pages) {
+      const folder = pageStorageFolder(manga, page);
+      counts.set(folder, (counts.get(folder) || 0) + 1);
+    }
+    if (!counts.size) {
+      return {
+        folder: configured ?? normalizeStorageFolder(code),
+        source: configured === null ? "language-code" : "configuration",
+        ambiguous: false,
+        candidates: [],
+      };
+    }
+    const maximum = Math.max(...counts.values());
+    const candidates = [...counts.entries()]
+      .filter(([, count]) => count === maximum)
+      .map(([folder]) => folder);
+    const firstPageFolder = pageStorageFolder(manga, language.pages[0]);
+    const configurationResolvesTie = configured !== null && candidates.includes(configured);
+    const folder = configurationResolvesTie
+      ? configured
+      : candidates.includes(firstPageFolder)
+        ? firstPageFolder
+        : candidates[0];
+    return { folder, source: "existing-pages", ambiguous: candidates.length > 1 && !configurationResolvesTie, candidates };
+  }
+
+  function languageDirectory(manga, folder) {
+    return folder
+      ? path.join(projectDirectory(manga), ...folder.split("/"))
+      : projectDirectory(manga);
+  }
+
+  function languagePagePath(manga, folder, name) {
+    return `${projectPrefix(manga)}/${folder ? `${folder}/` : ""}${name}`;
   }
 
   function rewriteProjectPaths(manga, previousPrefix, nextPrefix) {
@@ -323,6 +378,26 @@ export function createMangaService({
     }
   }
   async function fileHash(file) { return createHash("sha256").update(await readFile(file)).digest("hex"); }
+  function normalizedFileIdentity(fileName) {
+    const extension = path.extname(fileName).toLowerCase();
+    return `${safeSegment(path.basename(fileName, path.extname(fileName)))}${extension}`;
+  }
+  async function registeredPageFingerprints(language) {
+    const fingerprints = new Map();
+    for (const page of language.pages) {
+      const identity = normalizedFileIdentity(path.basename(page));
+      const hashes = fingerprints.get(identity) || new Set();
+      hashes.add(await fileHash(assetFile(page)));
+      fingerprints.set(identity, hashes);
+    }
+    return fingerprints;
+  }
+  function ensureNewPage(fingerprints, image, originalName) {
+    const hashes = fingerprints.get(image.name) || new Set();
+    ensure(!hashes.has(image.hash), `Page dupliquée : ${originalName}.`, 409);
+    hashes.add(image.hash);
+    fingerprints.set(image.name, hashes);
+  }
   async function create(payload) {
     const title = String(payload.title || "").trim(); ensure(title, "Titre obligatoire.");
     const presentationSection = payload.presentationSection || "completed";
@@ -340,16 +415,16 @@ export function createMangaService({
     return mutate("create", slug, async (catalog, tx) => {
       const projectRootDirectory = path.join(assetRoot, presentationDirectory, slug);
       const directory = path.join(projectRootDirectory, initialCode);
-      const pagePaths = []; const hashes = new Set();
+      const pagePaths = []; const fingerprints = new Map();
       for (const upload of uploads) {
         const image = await decodeImage(upload);
-        ensure(!hashes.has(image.hash), `Page dupliquée : ${upload.fileName}.`, 409); hashes.add(image.hash);
+        ensureNewPage(fingerprints, image, upload.fileName);
         const name = await uniqueDestination(directory, image.name);
         const destination = path.join(directory, name);
         await tx.writeExclusive(destination, image.buffer);
         pagePaths.push(`assets/mangaka/${presentationDirectory}/${slug}/${initialCode}/${name}`);
       }
-      ensure(payload.primaryImage, "L’image principale du manga est obligatoire.");
+      ensure(payload.primaryImage, "L’image de la carte Manga est obligatoire.");
       let banner = "";
       if (payload.primaryImage) {
         const image = await decodeImage(payload.primaryImage, `banner${path.extname(payload.primaryImage.fileName)}`);
@@ -362,7 +437,7 @@ export function createMangaService({
         presentationSection,
         summary: String(payload.summary || ""), genre: "", role: "", year: payload.year || "",
         readingDirection: payload.readingDirection === "ltr" ? "ltr" : "rtl", defaultLanguage: initialCode,
-        languages: { [initialCode]: { label: languageType === "silent" ? "Original / Silent manga" : preset[0], shortLabel: preset[1], pages: pagePaths } },
+        languages: { [initialCode]: { label: languageType === "silent" ? "Original / Silent manga" : preset[0], shortLabel: preset[1], storageFolder: initialCode, pages: pagePaths } },
         featured: false, status: payload.status || "draft", visibility: payload.visibility || "private",
       };
       catalog.push(manga); return manga;
@@ -409,7 +484,7 @@ export function createMangaService({
     return mutate("add-language", id, async (catalog) => {
       const manga = findManga(catalog, id); ensure(!manga.languages[code], "Cette langue existe déjà.", 409);
       const preset = LANGUAGE_PRESETS[code] || [payload.label || code.toUpperCase(), payload.shortLabel || code.toUpperCase()];
-      manga.languages[code] = { label: payload.label || preset[0], shortLabel: payload.shortLabel || preset[1], pages: [] };
+      manga.languages[code] = { label: payload.label || preset[0], shortLabel: payload.shortLabel || preset[1], storageFolder: code, pages: [] };
       return manga;
     });
   }
@@ -429,15 +504,43 @@ export function createMangaService({
     return mutate("add-pages", id, async (catalog, tx) => {
       const manga = findManga(catalog, id); const language = manga.languages[code]; ensure(language, "Langue introuvable.", 404);
       const uploads = naturalPageSort(payload.files || []); ensure(uploads.length, "Aucune page fournie.");
-      const directory = path.join(projectDirectory(manga), code); const additions = [];
-      const hashes = new Set(await Promise.all(language.pages.map((page) => fileHash(assetFile(page)))));
+      const storage = analyzeLanguageStorage(manga, code);
+      ensure(!storage.ambiguous, `Dossier physique ambigu pour ${manga.title}/${code} : ${storage.candidates.join(", ")}.`, 409);
+      const directory = languageDirectory(manga, storage.folder); const additions = [];
+      const fingerprints = await registeredPageFingerprints(language);
       for (const upload of uploads) {
-        const image = await decodeImage(upload); ensure(!hashes.has(image.hash), `Page dupliquée : ${upload.fileName}.`, 409); hashes.add(image.hash);
+        const image = await decodeImage(upload); ensureNewPage(fingerprints, image, upload.fileName);
         const name = await uniqueDestination(directory, image.name); const destination = path.join(directory, name);
-        await tx.writeExclusive(destination, image.buffer); additions.push(`${projectPrefix(manga)}/${code}/${name}`);
+        await tx.writeExclusive(destination, image.buffer); additions.push(languagePagePath(manga, storage.folder, name));
       }
       const position = Math.min(Math.max(Number(payload.position) || language.pages.length + 1, 1), language.pages.length + 1);
-      language.pages.splice(position - 1, 0, ...additions); return manga;
+      language.pages.splice(position - 1, 0, ...additions);
+      language.storageFolder = storage.folder;
+      return manga;
+    });
+  }
+  async function repairLanguageStorage(id, code) {
+    return mutate("repair-language-storage", id, async (catalog, tx) => {
+      const manga = findManga(catalog, id);
+      const language = manga.languages[code];
+      ensure(language, "Langue introuvable.", 404);
+      const storage = analyzeLanguageStorage(manga, code);
+      ensure(!storage.ambiguous, `Dossier physique ambigu pour ${manga.title}/${code} : ${storage.candidates.join(", ")}.`, 409);
+      const directory = languageDirectory(manga, storage.folder);
+      const moved = [];
+      for (let index = 0; index < language.pages.length; index += 1) {
+        const currentPath = language.pages[index];
+        if (pageStorageFolder(manga, currentPath) === storage.folder) continue;
+        const source = assetFile(currentPath);
+        const name = await uniqueDestination(directory, path.basename(source));
+        const destination = path.join(directory, name);
+        await tx.move(source, destination);
+        const nextPath = languagePagePath(manga, storage.folder, name);
+        language.pages[index] = nextPath;
+        moved.push({ index, from: currentPath, to: nextPath });
+      }
+      language.storageFolder = storage.folder;
+      return { manga, storageFolder: storage.folder, moved };
     });
   }
   async function reorderPages(id, code, pages) {
@@ -480,7 +583,9 @@ export function createMangaService({
       await tx.writeExclusive(destination, image.buffer); manga[field] = `${projectPrefix(manga)}/${name}`; return manga;
     });
   }
-  async function replacePrimaryMedia(id, payload) { return replaceMedia(id, "banner", payload); }
+  async function replacePrimaryMedia(id, payload) {
+    return replaceMedia(id, MANGA_CARD_IMAGE_FIELDS.canonical, payload);
+  }
   async function inspectMangaRemoval(catalog, id, confirmation) {
     const index = catalog.findIndex((manga) => String(manga.id) === String(id));
     ensure(index >= 0, "Manga introuvable.", 404);
@@ -539,5 +644,5 @@ export function createMangaService({
   }
   async function initialize() { await Promise.all([mkdir(backupRoot, { recursive: true }), mkdir(trashRoot, { recursive: true }), mkdir(stagingRoot, { recursive: true })]); }
   async function readAsset(relative) { return { content: await readFile(assetFile(relative)), extension: path.extname(relative).toLowerCase() }; }
-  return { initialize, report, create, update, addLanguage, deleteLanguage, addPages, reorderPages, deletePage, replacePage, replaceMedia, replacePrimaryMedia, removeManga, reveal, readAsset, readCatalog, readPresentationSettings, updatePresentationSettings, validateFiles, paths: { catalogPath, presentationSettingsPath, assetRoot, backupRoot, trashRoot, stagingRoot } };
+  return { initialize, report, create, update, addLanguage, deleteLanguage, addPages, repairLanguageStorage, reorderPages, deletePage, replacePage, replaceMedia, replacePrimaryMedia, removeManga, reveal, readAsset, readCatalog, readPresentationSettings, updatePresentationSettings, validateFiles, paths: { catalogPath, presentationSettingsPath, assetRoot, backupRoot, trashRoot, stagingRoot } };
 }

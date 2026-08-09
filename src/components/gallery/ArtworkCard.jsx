@@ -8,22 +8,19 @@ const ArtworkCard = ({
   caption = item.alt || item.title,
   metadata,
   lightboxId,
-  rounded = false,
   className = "",
   mediaClassName = "aspect-[4/5]",
+  variant = "wall",
+  showPlayIndicator = false,
 }) => {
   const imageDimensions = {};
-
   if (item.width) imageDimensions.width = item.width;
   if (item.height) imageDimensions.height = item.height;
 
   return (
     <motion.article
-      className={`overflow-hidden border border-black/10 bg-[#faf8f4] dark:border-white/10 dark:bg-[#1d1d1b] ${className}`}
-      variants={{
-        hidden: { opacity: 0, y: 10 },
-        visible: { opacity: 1, y: 0 },
-      }}
+      className={`artwork-card artwork-card--${variant} ${className}`}
+      variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }}
       transition={{ duration: 0.2 }}
     >
       <a
@@ -31,28 +28,27 @@ const ArtworkCard = ({
         data-fancybox={galleryName}
         data-lightbox-id={lightboxId || undefined}
         data-caption={caption || undefined}
-        className="group block overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#9b4035]"
+        className="artwork-card__link"
       >
         <img
           src={image}
           alt={item.alt || item.title || ""}
-          className={`w-full bg-[#e8e3da] object-cover transition-opacity duration-300 group-hover:opacity-90 dark:bg-[#262522] ${mediaClassName} ${
-            rounded ? "rounded-none" : ""
-          }`}
+          className={`artwork-card__image ${mediaClassName}`}
           loading="lazy"
           decoding="async"
           {...imageDimensions}
         />
+        {showPlayIndicator && (
+          <span className="artwork-card__play" aria-hidden="true">
+            <span className="ml-0.5 text-lg">▶</span>
+          </span>
+        )}
       </a>
 
       {(item.title || metadata || (metadata === undefined && item.category)) && (
-        <div className="border-t border-black/10 px-3 py-3 text-sm text-[#716c64] dark:border-white/10 dark:text-[#aaa49b]">
-          {item.title && (
-            <h2 className="font-semibold text-[#1d1d1b] dark:text-[#f4f1eb]">
-              {item.title}
-            </h2>
-          )}
-          {metadata && <p className="text-xs tracking-[0.12em]">{metadata}</p>}
+        <div className="artwork-card__metadata">
+          {item.title && <h2 className="font-display text-xl uppercase leading-none text-foreground">{item.title}</h2>}
+          {metadata && <p className="mt-1 text-[0.68rem] font-bold uppercase tracking-[0.12em]">{metadata}</p>}
           {metadata === undefined && item.category && <p>{item.category}</p>}
         </div>
       )}

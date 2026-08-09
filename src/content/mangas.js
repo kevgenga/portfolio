@@ -8,8 +8,8 @@ const mangaDefinitions = [
     "title": "Legend of Animiste",
     "edition": "",
     "cover": assetPath("assets/mangaka/completed-manga/legend-of-animiste/300x300-v2.jpg"),
-    "banner": assetPath("assets/mangaka/completed-manga/legend-of-animiste/447x200.jpg"),
-    "summary": "Legend of Animiste follows a young fighter drawn into a world shaped by spirits, ancient powers, and dangerous conflicts.\n\nDiscover the story of Legend of Animiste.",
+    "banner": assetPath("assets/mangaka/completed-manga/legend-of-animiste/banner.jpg"),
+    "summary": "Kin and Luo are young Animists who deal with the spirits that inhabit their world. When a seemingly violent spirit goes berserk, their opposing views collide: should it be driven away... or understood?",
     "genre": "",
     "role": "",
     "year": "",
@@ -21,6 +21,7 @@ const mangaDefinitions = [
         "shortLabel": "ENG",
         "pages": [
           assetPath("assets/mangaka/completed-manga/legend-of-animiste/english/Legend of animiste_Kevgenga_Page_01_Image_0001.jpg"),
+          assetPath("assets/mangaka/completed-manga/legend-of-animiste/english/0000.jpg"),
           assetPath("assets/mangaka/completed-manga/legend-of-animiste/english/Legend of animiste_Kevgenga_Page_02_Image_0001.jpg"),
           assetPath("assets/mangaka/completed-manga/legend-of-animiste/english/Legend of animiste_Kevgenga_Page_03_Image_0001.jpg"),
           assetPath("assets/mangaka/completed-manga/legend-of-animiste/english/Legend of animiste_Kevgenga_Page_04_Image_0001.jpg"),
@@ -39,13 +40,15 @@ const mangaDefinitions = [
           assetPath("assets/mangaka/completed-manga/legend-of-animiste/english/Legend of animiste_Kevgenga_Page_17_Image_0001.jpg"),
           assetPath("assets/mangaka/completed-manga/legend-of-animiste/english/Legend of animiste_Kevgenga_Page_18_Image_0001.jpg"),
           assetPath("assets/mangaka/completed-manga/legend-of-animiste/english/Legend of animiste_Kevgenga_Page_19_Image_0001.jpg")
-        ]
+        ],
+        "storageFolder": "english"
       },
       "fr": {
         "label": "French",
         "shortLabel": "FR",
         "pages": [
           assetPath("assets/mangaka/completed-manga/legend-of-animiste/french/Legend of animiste_Kevgenga_Page_01_Image_0001.jpg"),
+          assetPath("assets/mangaka/completed-manga/legend-of-animiste/french/0000.jpg"),
           assetPath("assets/mangaka/completed-manga/legend-of-animiste/french/Legend of animiste_Kevgenga_Page_02_Image_0001.jpg"),
           assetPath("assets/mangaka/completed-manga/legend-of-animiste/french/Legend of animiste_Kevgenga_Page_03_Image_0001.jpg"),
           assetPath("assets/mangaka/completed-manga/legend-of-animiste/french/Legend of animiste_Kevgenga_Page_04_Image_0001.jpg"),
@@ -64,14 +67,15 @@ const mangaDefinitions = [
           assetPath("assets/mangaka/completed-manga/legend-of-animiste/french/Legend of animiste_Kevgenga_Page_17_Image_0001.jpg"),
           assetPath("assets/mangaka/completed-manga/legend-of-animiste/french/Legend of animiste_Kevgenga_Page_18_Image_0001.jpg"),
           assetPath("assets/mangaka/completed-manga/legend-of-animiste/french/Legend of animiste_Kevgenga_Page_19_Image_0001.jpg")
-        ]
+        ],
+        "storageFolder": "french"
       }
     },
     "featured": false,
     "description": "",
     "author": "",
     "date": "",
-    "status": "published",
+    "status": "",
     "visibility": "public",
     "defaultReadingMode": "",
     "tags": [],
@@ -85,7 +89,7 @@ const mangaDefinitions = [
     "title": "Stubborn love",
     "edition": "",
     "cover": assetPath("assets/mangaka/completed-manga/stubborn-love/300x300.jpg"),
-    "banner": assetPath("assets/mangaka/completed-manga/stubborn-love/bandeau.jpg"),
+    "banner": assetPath("assets/mangaka/completed-manga/stubborn-love/banner.jpg"),
     "summary": "Two childhood friends, Stubborn and Love, are brought to death's door after a fatal accident. Will they survive? The truth about their feelings reaches its climax. Discover the story of Stubborn Love.",
     "genre": "",
     "role": "",
@@ -98,6 +102,7 @@ const mangaDefinitions = [
         "shortLabel": "ENG",
         "pages": [
           assetPath("assets/mangaka/completed-manga/stubborn-love/english/01.jpg"),
+          assetPath("assets/mangaka/completed-manga/stubborn-love/english/0000.jpg"),
           assetPath("assets/mangaka/completed-manga/stubborn-love/english/02.jpg"),
           assetPath("assets/mangaka/completed-manga/stubborn-love/english/03.jpg"),
           assetPath("assets/mangaka/completed-manga/stubborn-love/english/04.jpg"),
@@ -110,13 +115,15 @@ const mangaDefinitions = [
           assetPath("assets/mangaka/completed-manga/stubborn-love/english/11.jpg"),
           assetPath("assets/mangaka/completed-manga/stubborn-love/english/12.jpg"),
           assetPath("assets/mangaka/completed-manga/stubborn-love/english/13.jpg")
-        ]
+        ],
+        "storageFolder": "english"
       },
       "fr": {
         "label": "French",
         "shortLabel": "FR",
         "pages": [
           assetPath("assets/mangaka/completed-manga/stubborn-love/french/01.webp"),
+          assetPath("assets/mangaka/completed-manga/stubborn-love/french/0000.jpg"),
           assetPath("assets/mangaka/completed-manga/stubborn-love/french/02.webp"),
           assetPath("assets/mangaka/completed-manga/stubborn-love/french/03.webp"),
           assetPath("assets/mangaka/completed-manga/stubborn-love/french/04.webp"),
@@ -129,11 +136,20 @@ const mangaDefinitions = [
           assetPath("assets/mangaka/completed-manga/stubborn-love/french/11.webp"),
           assetPath("assets/mangaka/completed-manga/stubborn-love/french/12.webp"),
           assetPath("assets/mangaka/completed-manga/stubborn-love/french/13.webp")
-        ]
+        ],
+        "storageFolder": "french"
       }
     },
     "featured": false,
-    "presentationSection": "completed"
+    "presentationSection": "completed",
+    "description": "",
+    "author": "",
+    "date": "",
+    "status": "published",
+    "visibility": "public",
+    "defaultReadingMode": "",
+    "tags": [],
+    "order": 0
   },
   {
     "id": 3,

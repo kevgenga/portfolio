@@ -4,37 +4,87 @@ export const profile = {
   name: "KEVGENGA",
   role: "Manga Artist, Illustrator & 2D Animator",
   image: assetPath("assets/illustration/profil 150921.jpg"),
-  introduction: {
-    greeting: "Hello World! My name is",
-    profession: "manga artist, illustrator and 2D animator.",
-  },
-  highlights: {
-    award: {
-      icon: "🎉",
-      label: "First prize winner",
-      connector: "in the",
-      linkLabel: "Mangadraft × XP-Pen 2022 competition",
-      link: "https://www.mangadraft.com/contests/mangadraft-x-xp-pen-2022.fr",
-    },
-    selfTaught: {
-      icon: "📖",
-      label: "Self-taught since",
-      value: "2010",
-    },
-    education: {
-      icon: "🎨",
-      label: "Training in",
-      value: "drawing and graphic communication",
-    },
-    experience: {
-      icon: "💼",
-      label: "Experience in",
-      value: "freelance work",
+  about: {
+    location: "Lyon, France",
+    headline: ["Drawing stories", "into life."],
+    roles: ["Manga Artist", "Illustrator", "2D Animator"],
+    experienceLabel: "15+ years drawing experience",
+    summary:
+      "Self-taught manga artist based in Lyon, France, working across manga, illustration and 2D animation. 15+ years of drawing practice, with a focus on expressive characters, dynamic action and visual storytelling.",
+    availability: {
+      label: "Available for work",
+      details: ["Freelance", "Remote", "International"],
     },
   },
-  software:
-    "Clip Studio Paint EX, After Effects, Photoshop, Illustrator, InDesign, Flash Animate, OpenToonz, Toon Boom Harmony, Cinema 4D, Blender, Jump Paint, Visual Studio Code, Git, FileZilla, XAMPP, Android Studio and Microsoft Office.",
+  recognition: [
+    {
+      id: "mangadraft-first-prize-2022",
+      award: "First Prize",
+      distinction: "Winner",
+      year: "2022",
+      organization: "MangaDraft × Manga-io × XP-PEN",
+      event: "Illustration Contest",
+      tone: "yellow",
+    },
+    {
+      id: "kadokawa-finalist-2026",
+      award: "Finalist",
+      distinction: "Selected",
+      year: "2026",
+      organization: "KADOKAWA WORLD MANGA CONTEST",
+      event: "悟空の世!",
+      eventLanguage: "ja",
+      tone: "blue",
+    },
+  ],
+  experience: {
+    role: "Independent Manga Artist",
+    period: "2010 — Present",
+  },
+  capabilities: [
+    {
+      label: "Manga Production",
+      items: [
+        "Storyboarding",
+        "Visual Storytelling",
+        "Action Choreography",
+        "Composition",
+        "Rough-to-Clean Workflow",
+      ],
+    },
+    {
+      label: "Illustration",
+      items: [
+        "Manga Illustration",
+        "Character Design",
+        "Action Sketching",
+        "Dynamic Poses",
+        "Anatomy & Expressions",
+        "Perspective",
+      ],
+    },
+    {
+      label: "2D / Motion",
+      items: ["2D Animation", "Motion"],
+    },
+  ],
+  tools: [
+    {
+      label: "Digital",
+      items: ["Clip Studio Paint", "Adobe Photoshop", "Adobe After Effects"],
+    },
+    {
+      label: "Traditional",
+      items: [
+        "Ink — G-Pen, Maru-Pen",
+        "Painting & Color — Poster Color, Copic Sketch",
+      ],
+    },
+  ],
   contact: {
     email: "kevin.lao@hotmail.fr",
+  },
+  social: {
+    instagram: "https://www.instagram.com/kevgenga/",
   },
 };

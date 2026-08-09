@@ -2,15 +2,20 @@ export default {
   theme: {
     extend: {
       colors: {
-        light: {
-          background: '#ffffff',
-          text: '#333333',
-        },
-        dark: {
-          background: '#1a1a1a',
-          text: '#f5f5f5',
-        },
-        customWhite: '#ffffff',
+        ink: 'var(--color-ink)',
+        paper: 'var(--color-paper)',
+        primary: 'var(--color-primary)',
+        secondary: 'var(--color-secondary)',
+        positive: 'var(--color-positive)',
+        page: 'var(--color-page)',
+        surface: 'var(--color-surface)',
+        foreground: 'var(--color-text)',
+        muted: 'var(--color-muted)',
+        line: 'var(--color-line)',
+      },
+      fontFamily: {
+        display: 'var(--font-display)',
+        body: 'var(--font-body)',
       },
     },
   },

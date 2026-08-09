@@ -7,16 +7,15 @@ import { t } from "../content/ui";
 import { useTheme } from "../context/ThemeContext";
 
 const navItems = [
-  { to: "/", label: t.navigation.home, end: true },
+  { to: "/", label: t.navigation.about, end: true },
   { to: "/mangaka", label: t.navigation.manga },
   { to: "/illustration", label: t.navigation.illustration },
   { to: "/animation", label: t.navigation.animation },
-  { to: "/#about", label: t.navigation.about, hash: true },
   { to: "/contact", label: t.navigation.contact },
 ];
 
 const focusClass =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9b4035] focus-visible:ring-offset-2 dark:focus-visible:ring-offset-[#171716]";
+  "focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-page";
 
 const Navbar = () => {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -50,48 +49,39 @@ const Navbar = () => {
     };
   }, [menuOpen]);
 
-  const handleHomeClick = () => {
+  const handleAboutClick = () => {
     setMenuOpen(false);
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   };
 
   const handleNavigationClick = (item) => {
     setMenuOpen(false);
-
-    if (item.to === "/") {
-      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-    } else if (item.hash && location.pathname === "/") {
-      requestAnimationFrame(() => {
-        document.getElementById("about")?.scrollIntoView({ block: "start" });
-      });
-    }
+    if (item.to === "/") window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   };
 
-  const navClass = ({ isActive }, item) => {
-    const active = item.hash
-      ? location.pathname === "/" && location.hash === "#about"
-      : isActive && !location.hash;
-
-    return `relative py-2 text-xs font-semibold uppercase tracking-[0.14em] transition-colors hover:text-[#9b4035] ${focusClass} ${
-      active ? "text-[#9b4035] after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-[#9b4035]" : ""
-    }`;
-  };
+  const navClass = ({ isActive }) =>
+    `nav-link ${isActive ? "nav-link--active" : ""} ${focusClass}`;
 
   return (
-    <nav className="fixed inset-x-0 top-0 z-50 border-b border-black/10 bg-[#f4f1eb]/95 text-[#1d1d1b] backdrop-blur-md dark:border-white/10 dark:bg-[#171716]/95 dark:text-[#f4f1eb]">
-      <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between px-5 sm:px-8 lg:px-10">
-        <Link to="/" onClick={handleHomeClick} className={`text-lg font-bold tracking-[0.18em] ${focusClass}`}>
+    <nav className="fixed inset-x-0 top-0 z-50 border-b-[3px] border-ink bg-page text-foreground dark:border-paper">
+      <div className="mx-auto flex h-[68px] max-w-[100rem] items-center justify-between px-5 sm:px-8 lg:px-10">
+        <Link
+          to="/"
+          onClick={handleAboutClick}
+          className={`brand-link ${focusClass}`}
+          aria-label={`${profile.name} — ${t.navigation.about}`}
+        >
           {profile.name}
         </Link>
 
-        <div className="hidden items-center gap-6 lg:flex">
+        <div className="hidden items-center gap-5 lg:flex">
           {navItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               end={item.end}
               onClick={() => handleNavigationClick(item)}
-              className={(state) => navClass(state, item)}
+              className={navClass}
             >
               {item.label}
             </NavLink>
@@ -99,7 +89,7 @@ const Navbar = () => {
           <button
             type="button"
             onClick={toggleTheme}
-            className={`rounded-full border border-black/15 p-2 text-sm transition-colors hover:border-[#9b4035] hover:text-[#9b4035] dark:border-white/20 ${focusClass}`}
+            className={`grid h-10 w-10 place-items-center border-2 border-current text-sm transition-colors duration-150 hover:bg-surface ${focusClass}`}
             aria-label={theme === "dark" ? t.navigation.lightMode : t.navigation.darkMode}
           >
             {theme === "dark" ? <FaSun aria-hidden="true" /> : <FaMoon aria-hidden="true" />}
@@ -109,7 +99,7 @@ const Navbar = () => {
         <button
           ref={menuButtonRef}
           type="button"
-          className={`text-xl lg:hidden ${focusClass}`}
+          className={`grid h-10 w-10 place-items-center border-2 border-current text-xl lg:hidden ${focusClass}`}
           onClick={() => setMenuOpen((current) => !current)}
           aria-label={menuOpen ? t.navigation.closeMenu : t.navigation.openMenu}
           aria-expanded={menuOpen}
@@ -122,18 +112,24 @@ const Navbar = () => {
           {menuOpen && (
             <motion.div
               id="mobile-navigation"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 flex h-dvh flex-col bg-[#f4f1eb] px-6 py-6 text-[#1d1d1b] dark:bg-[#171716] dark:text-[#f4f1eb] lg:hidden"
+              initial={{ opacity: 0, x: 18 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 18 }}
+              transition={{ duration: 0.18 }}
+              className="fixed inset-0 flex h-dvh flex-col bg-page px-6 py-6 text-foreground dark:bg-ink dark:text-paper lg:hidden"
             >
-              <div className="flex items-center justify-between">
-                <span className="text-lg font-bold tracking-[0.18em]">{profile.name}</span>
-                <button type="button" onClick={() => setMenuOpen(false)} className={`text-2xl ${focusClass}`} aria-label={t.navigation.closeMenu}>
+              <div className="flex items-center justify-between border-b-2 border-foreground/30 pb-5 dark:border-paper/30">
+                <span className="border-b-[3px] border-primary pb-1 font-display text-3xl uppercase tracking-tight text-foreground dark:text-paper">{profile.name}</span>
+                <button
+                  type="button"
+                  onClick={() => setMenuOpen(false)}
+                  className={`grid h-11 w-11 place-items-center border-2 border-foreground bg-page text-2xl text-foreground dark:border-paper dark:bg-transparent dark:text-paper ${focusClass}`}
+                  aria-label={t.navigation.closeMenu}
+                >
                   <FaTimes aria-hidden="true" />
                 </button>
               </div>
-              <div className="my-auto flex flex-col items-start gap-5">
+              <div className="my-auto flex flex-col items-start gap-3">
                 {navItems.map((item, index) => (
                   <NavLink
                     key={item.to}
@@ -141,7 +137,11 @@ const Navbar = () => {
                     to={item.to}
                     end={item.end}
                     onClick={() => handleNavigationClick(item)}
-                    className="text-3xl font-medium tracking-tight hover:text-[#9b4035] focus-visible:outline-none focus-visible:text-[#9b4035]"
+                    className={({ isActive }) =>
+                      `border-l-4 font-display text-[clamp(2.8rem,12vw,5rem)] uppercase leading-[0.9] tracking-tight transition-colors duration-150 focus-visible:outline-none focus-visible:text-foreground dark:focus-visible:text-paper ${
+                        isActive ? "border-primary pl-3 text-foreground dark:text-paper" : "border-transparent text-foreground/70 hover:text-foreground dark:text-paper/75 dark:hover:text-paper"
+                      }`
+                    }
                   >
                     {item.label}
                   </NavLink>
@@ -150,7 +150,7 @@ const Navbar = () => {
               <button
                 type="button"
                 onClick={toggleTheme}
-                className={`flex w-fit items-center gap-2 text-sm font-semibold uppercase tracking-[0.14em] ${focusClass}`}
+                className={`flex w-fit items-center gap-2 border-2 border-foreground px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-foreground dark:border-paper dark:text-paper ${focusClass}`}
               >
                 {theme === "dark" ? <FaSun aria-hidden="true" /> : <FaMoon aria-hidden="true" />}
                 {theme === "dark" ? t.navigation.lightMode : t.navigation.darkMode}

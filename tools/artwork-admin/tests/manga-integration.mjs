@@ -14,6 +14,10 @@ import {
   isMangaPresentationSectionVisible,
   mangaPresentationSettings,
 } from "../../../src/content/mangaPresentation.js";
+import {
+  getMangaCardImage,
+  getMangaCardMedia,
+} from "../../../src/utils/mangaCardMedia.js";
 
 const PROJECT_DIR = path.resolve(import.meta.dirname, "../../..");
 const realMangaPath = path.join(PROJECT_DIR, "src/content/mangas.js");
@@ -136,15 +140,36 @@ async function removalFixture(name, { section = "completed", slug = "delete-me",
 try {
   await mkdir(path.join(root, "src/content"), { recursive: true });
   await mkdir(path.join(root, "public/assets/mangaka/completed-manga/base/orig"), { recursive: true });
+  for (const folder of ["english", "french", "en", "fr"]) {
+    await mkdir(path.join(root, "public/assets/mangaka/completed-manga/legacy-translated", folder), { recursive: true });
+  }
   const basePage = await image("001.jpg", "#551122");
   await writeFile(path.join(root, "public/assets/mangaka/completed-manga/base/orig/001.jpg"), Buffer.from(basePage.dataBase64, "base64"));
-  const initial = [{ id: "base", slug: "base", route: "/mangas/base", title: "Base", edition: "", presentationSection: "completed", cover: "assets/mangaka/completed-manga/base/orig/001.jpg", banner: "", summary: "", genre: "", role: "", year: "", readingDirection: "rtl", defaultLanguage: "orig", languages: { orig: { label: "Original", shortLabel: "ORIG", pages: ["assets/mangaka/completed-manga/base/orig/001.jpg"] } }, featured: false }];
+  const legacyFiles = {
+    "english/01.jpg": await image("01.jpg", "#102030"),
+    "english/02.jpg": await image("02.jpg", "#203040"),
+    "en/0000.jpg": await image("0000.jpg", "#ffffff"),
+    "french/01.jpg": await image("01.jpg", "#304050"),
+    "french/02.jpg": await image("02.jpg", "#405060"),
+    "fr/0000.jpg": await image("0000.jpg", "#ffffff"),
+  };
+  for (const [relative, upload] of Object.entries(legacyFiles)) {
+    await writeFile(
+      path.join(root, "public/assets/mangaka/completed-manga/legacy-translated", ...relative.split("/")),
+      Buffer.from(upload.dataBase64, "base64"),
+    );
+  }
+  const legacyPrefix = "assets/mangaka/completed-manga/legacy-translated";
+  const initial = [
+    { id: "base", slug: "base", route: "/mangas/base", title: "Base", edition: "", presentationSection: "completed", cover: "assets/mangaka/completed-manga/base/orig/001.jpg", banner: "", summary: "", genre: "", role: "", year: "", readingDirection: "rtl", defaultLanguage: "orig", languages: { orig: { label: "Original", shortLabel: "ORIG", pages: ["assets/mangaka/completed-manga/base/orig/001.jpg"] } }, featured: false },
+    { id: "legacy-translated", slug: "legacy-translated", route: "/mangas/legacy-translated", title: "Legacy translated", edition: "", presentationSection: "completed", cover: `${legacyPrefix}/english/01.jpg`, banner: "", summary: "", genre: "", role: "", year: "", readingDirection: "rtl", defaultLanguage: "en", languages: { en: { label: "English", shortLabel: "ENG", pages: [`${legacyPrefix}/english/01.jpg`, `${legacyPrefix}/en/0000.jpg`, `${legacyPrefix}/english/02.jpg`] }, fr: { label: "French", shortLabel: "FR", pages: [`${legacyPrefix}/french/01.jpg`, `${legacyPrefix}/fr/0000.jpg`, `${legacyPrefix}/french/02.jpg`] } }, featured: false },
+  ];
   await writeFile(path.join(root, "src/content/mangas.js"), serializeMangaCatalog(initial));
   await writeFile(path.join(root, "src/content/mangaPresentation.js"), presentationSettingsFixture());
   let mutationNotifications = 0;
   const service = createMangaService({ projectRoot: root, runtimeRoot: runtime, disableReveal: true, onMutation: () => { mutationNotifications += 1; } }); await service.initialize();
   if (process.platform === "win32") assert.equal(sharp.cache().files.max, 0);
-  assert.equal((await service.report()).count, 1);
+  assert.equal((await service.report()).count, 2);
   const settingsCatalogHash = hash(await readFile(path.join(root, "src/content/mangas.js")));
   const settingsPageHash = hash(await readFile(path.join(root, "public/assets/mangaka/completed-manga/base/orig/001.jpg")));
   assert.deepEqual(await service.readPresentationSettings(), { showStoryboardSection: false });
@@ -157,35 +182,106 @@ try {
   await service.updatePresentationSettings({ showStoryboardSection: false });
   assert.deepEqual(await service.readPresentationSettings(), { showStoryboardSection: false });
   assert.ok((await readdir(path.join(runtime, "backups/mangas"))).some((entry) => entry.includes("presentation-settings")));
+
+  const legacyRoot = path.join(root, "public/assets/mangaka/completed-manga/legacy-translated");
+  const historicalHashes = new Map();
+  for (const relative of ["english/01.jpg", "english/02.jpg", "french/01.jpg", "french/02.jpg"]) {
+    historicalHashes.set(relative, hash(await readFile(path.join(legacyRoot, ...relative.split("/")))));
+  }
+  const externalDirectory = path.join(temp, "external-pages");
+  await mkdir(externalDirectory, { recursive: true });
+  const externalEnglishPath = path.join(externalDirectory, "0000-2.jpg");
+  await writeFile(externalEnglishPath, Buffer.from(legacyFiles["en/0000.jpg"].dataBase64, "base64"));
+  const externalEnglish = { fileName: path.basename(externalEnglishPath), dataBase64: (await readFile(externalEnglishPath)).toString("base64") };
+  await service.addPages("legacy-translated", "en", { files: [externalEnglish], position: 2 });
+  let persistedLegacy = (await service.readCatalog()).find((manga) => manga.id === "legacy-translated");
+  assert.equal(persistedLegacy.languages.en.pages.length, 4);
+  assert.match(persistedLegacy.languages.en.pages[1], /\/english\/0000-2\.jpg$/);
+  assert.equal(persistedLegacy.languages.en.storageFolder, "english");
+  assert.deepEqual(await readdir(path.join(legacyRoot, "en")), ["0000.jpg"]);
+  assert.equal(hash(await readFile(externalEnglishPath)), hash(Buffer.from(externalEnglish.dataBase64, "base64")));
+
+  await assert.rejects(
+    service.addPages("legacy-translated", "en", { files: [externalEnglish], position: 2 }),
+    /dupliquÃ©e|dupliquée/,
+  );
+  await service.addPages("legacy-translated", "en", { files: [await image("0000-2.jpg", "#112233")], position: 3 });
+  persistedLegacy = (await service.readCatalog()).find((manga) => manga.id === "legacy-translated");
+  assert.match(persistedLegacy.languages.en.pages[2], /\/english\/0000-2-2\.jpg$/);
+
+  const externalFrench = await image("nouvelle-page.jpg", "#667788");
+  await service.addPages("legacy-translated", "fr", { files: [externalFrench], position: 2 });
+  persistedLegacy = (await service.readCatalog()).find((manga) => manga.id === "legacy-translated");
+  assert.match(persistedLegacy.languages.fr.pages[1], /\/french\/nouvelle-page\.jpg$/);
+  assert.equal(persistedLegacy.languages.fr.storageFolder, "french");
+  assert.deepEqual(await readdir(path.join(legacyRoot, "fr")), ["0000.jpg"]);
+
+  const repairedEnglish = await service.repairLanguageStorage("legacy-translated", "en");
+  const repairedFrench = await service.repairLanguageStorage("legacy-translated", "fr");
+  assert.equal(repairedEnglish.result.storageFolder, "english");
+  assert.equal(repairedFrench.result.storageFolder, "french");
+  assert.equal(repairedEnglish.result.moved.length, 1);
+  assert.equal(repairedFrench.result.moved.length, 1);
+  assert.deepEqual(await readdir(path.join(legacyRoot, "en")), []);
+  assert.deepEqual(await readdir(path.join(legacyRoot, "fr")), []);
+  persistedLegacy = (await service.readCatalog()).find((manga) => manga.id === "legacy-translated");
+  assert.equal(persistedLegacy.languages.en.storageFolder, "english");
+  assert.equal(persistedLegacy.languages.fr.storageFolder, "french");
+  assert.ok(persistedLegacy.languages.en.pages.every((page) => page.startsWith(`${legacyPrefix}/english/`)));
+  assert.ok(persistedLegacy.languages.fr.pages.every((page) => page.startsWith(`${legacyPrefix}/french/`)));
+  assert.match(persistedLegacy.languages.en.pages[3], /\/english\/0000\.jpg$/);
+  assert.match(persistedLegacy.languages.fr.pages[2], /\/french\/0000\.jpg$/);
+  for (const [relative, expectedHash] of historicalHashes) {
+    assert.equal(hash(await readFile(path.join(legacyRoot, ...relative.split("/")))), expectedHash);
+  }
+  await service.validateFiles(await service.readCatalog());
+
   assert.equal(getMangaPresentationSection({}), "completed");
   assert.equal(mangaPresentationSettings.showStoryboardSection, false);
   assert.equal(isMangaPresentationSectionVisible({ presentationSection: "completed" }), true);
   assert.equal(isMangaPresentationSectionVisible({ presentationSection: "storyboard" }), false);
   assert.equal(isMangaPresentationSectionVisible({ presentationSection: "storyboard" }, { showStoryboardSection: true }), true);
   assert.equal(primaryMangaMedia(initial[0]).field, "cover");
+  assert.deepEqual(primaryMangaMedia(initial[0]), getMangaCardMedia(initial[0]));
+  assert.equal(getMangaCardImage(initial[0]), initial[0].cover);
+  assert.equal(getMangaCardImage({ banner: "canonical.jpg", cover: "legacy.jpg" }), "canonical.jpg");
   assert.deepEqual(primaryMangaMedia({ banner: "", cover: "" }), { field: "banner", path: "", fallback: false });
   assert.equal(analyzeMangaCardMedia(null).level, "error");
-  const highQuality = analyzeMangaCardMedia({ width: 1600, height: 900 }); assert.equal(highQuality.resolution.label, "Haute qualité"); assert.equal(highQuality.ratioStatus.label, "Conforme");
-  const ideal = analyzeMangaCardMedia({ width: 1280, height: 720 }); assert.equal(ideal.resolution.label, "Taille idéale"); assert.equal(ideal.ratioStatus.label, "Conforme");
-  assert.equal(analyzeMangaCardMedia({ width: 960, height: 540 }).resolution.label, "Qualité correcte");
-  assert.equal(analyzeMangaCardMedia({ width: 800, height: 450 }).resolution.label, "Qualité minimale acceptable");
-  assert.equal(analyzeMangaCardMedia({ width: 799, height: 449 }).resolution.label, "Image trop petite");
+  const highQuality = analyzeMangaCardMedia({ width: 1200, height: 1600 }); assert.equal(highQuality.resolution.label, "Haute qualité"); assert.equal(highQuality.ratioStatus.label, "Conforme");
+  const ideal = analyzeMangaCardMedia({ width: 900, height: 1200 }); assert.equal(ideal.resolution.label, "Taille idéale"); assert.equal(ideal.ratioStatus.label, "Conforme");
+  assert.equal(analyzeMangaCardMedia({ width: 750, height: 1000 }).resolution.label, "Qualité correcte");
+  assert.equal(analyzeMangaCardMedia({ width: 600, height: 800 }).resolution.label, "Qualité minimale acceptable");
+  assert.equal(analyzeMangaCardMedia({ width: 599, height: 799 }).resolution.label, "Image trop petite");
   const legendStatus = analyzeMangaCardMedia({ width: 894, height: 400 }); assert.equal(legendStatus.resolution.label, "Image trop petite"); assert.equal(legendStatus.ratioStatus.label, "Ratio fortement incorrect");
-  const stubbornStatus = analyzeMangaCardMedia({ width: 800, height: 696 }); assert.equal(stubbornStatus.resolution.label, "Qualité minimale acceptable"); assert.equal(stubbornStatus.ratioStatus.label, "Ratio fortement incorrect");
-  const ahesStatus = analyzeMangaCardMedia({ width: 1299, height: 1949 }); assert.equal(ahesStatus.resolution.label, "Taille idéale"); assert.equal(ahesStatus.ratioStatus.label, "Ratio fortement incorrect");
-  assert.equal(analyzeMangaCardMedia({ width: 1279, height: 719 }).ratioStatus.label, "Conforme");
-  assert.equal(analyzeMangaCardMedia({ width: 1280, height: 750 }).ratioStatus.level, "warning");
+  const stubbornStatus = analyzeMangaCardMedia({ width: 800, height: 1127 }); assert.equal(stubbornStatus.resolution.label, "Qualité correcte"); assert.equal(stubbornStatus.ratioStatus.level, "warning");
+  const ahesStatus = analyzeMangaCardMedia({ width: 1299, height: 1949 }); assert.equal(ahesStatus.resolution.label, "Haute qualité"); assert.equal(ahesStatus.ratioStatus.level, "error");
+  assert.equal(analyzeMangaCardMedia({ width: 900, height: 1200 }).ratioStatus.label, "Conforme");
+  assert.equal(analyzeMangaCardMedia({ width: 800, height: 1100 }).ratioStatus.level, "warning");
 
-  const orig = await service.create({ title: "Original Manga", languageType: "original", primaryImage: await image("main.jpg", "#111111", 1600, 900), pages: [await image("page10.jpg", "#100010"), await image("page2.jpg", "#200020"), await image("page1.jpg", "#300030")] });
+  const legacyBeforeReplacement = (await service.readCatalog()).find((manga) => manga.id === "base");
+  const { banner: legacyBannerBefore, ...legacyDataBefore } = legacyBeforeReplacement;
+  assert.equal(legacyBannerBefore, "");
+  await service.replacePrimaryMedia("base", { file: await image("card.jpg", "#225577", 900, 1200) });
+  const legacyAfterReplacement = (await service.readCatalog()).find((manga) => manga.id === "base");
+  const { banner: legacyBannerAfter, ...legacyDataAfter } = legacyAfterReplacement;
+  assert.match(legacyBannerAfter, /\/banner\.jpg$/);
+  assert.deepEqual(legacyDataAfter, legacyDataBefore);
+  assert.equal(getMangaCardImage(legacyAfterReplacement), legacyBannerAfter);
+  const legacyAdminReport = (await service.report()).mangas.find((manga) => manga.id === "base");
+  assert.equal(legacyAdminReport.primaryMedia.path, legacyBannerAfter);
+  assert.equal(legacyAdminReport.primaryMedia.field, "banner");
+  assert.equal(legacyAdminReport.primaryMedia.fallback, false);
+
+  const orig = await service.create({ title: "Original Manga", languageType: "original", primaryImage: await image("main.jpg", "#111111", 1200, 1600), pages: [await image("page10.jpg", "#100010"), await image("page2.jpg", "#200020"), await image("page1.jpg", "#300030")] });
   assert.equal(orig.result.defaultLanguage, "orig");
   assert.equal(orig.result.presentationSection, "completed");
   assert.match(orig.result.banner, /^assets\/mangaka\/completed-manga\/original-manga\//);
   assert.equal(orig.result.banner.endsWith("banner.jpg"), true); assert.equal("cover" in orig.result, false); assert.equal("thumbnail" in orig.result, false); assert.equal("presentation" in orig.result, false);
   assert.equal((await service.report()).mangas.find((manga) => manga.id === orig.result.id).primaryMedia.analysis.level, "success");
   assert.deepEqual(orig.result.languages.orig.pages.map((page) => path.basename(page)), ["page1.jpg", "page2.jpg", "page10.jpg"]);
-  const silent = await service.create({ title: "Silent Manga", languageType: "silent", primaryImage: await image("main.jpg", "#121212", 1600, 900), pages: [await image("01.jpg", "#102030")] });
+  const silent = await service.create({ title: "Silent Manga", languageType: "silent", primaryImage: await image("main.jpg", "#121212", 1200, 1600), pages: [await image("01.jpg", "#102030")] });
   assert.equal(silent.result.languages.orig.label, "Original / Silent manga");
-  const storyboard = await service.create({ title: "Storyboard Copy", slug: "storyboard-copy", presentationSection: "storyboard", languageType: "original", primaryImage: await image("main.jpg", "#111111", 1600, 900), pages: [await image("01.jpg", "#100010")] });
+  const storyboard = await service.create({ title: "Storyboard Copy", slug: "storyboard-copy", presentationSection: "storyboard", languageType: "original", primaryImage: await image("main.jpg", "#111111", 1200, 1600), pages: [await image("01.jpg", "#100010")] });
   assert.equal(storyboard.result.presentationSection, "storyboard");
   assert.match(storyboard.result.banner, /^assets\/mangaka\/complete-storyboards\/storyboard-copy\//);
   assert.notEqual(storyboard.result.id, orig.result.id);
@@ -202,7 +298,7 @@ try {
   movedOriginal = (await service.readCatalog()).find((manga) => manga.id === orig.result.id);
   assert.ok(movedOriginal.languages.orig.pages.every((page) => page.startsWith("assets/mangaka/completed-manga/original-manga/")));
 
-  const multilingual = await service.create({ title: "Translated Manga", languageType: "multilingual", languageCode: "en", primaryImage: await image("main.jpg", "#131313", 1600, 900), pages: [await image("01.jpg", "#405060")] });
+  const multilingual = await service.create({ title: "Translated Manga", languageType: "multilingual", languageCode: "en", primaryImage: await image("main.jpg", "#131313", 1200, 1600), pages: [await image("01.jpg", "#405060")] });
   await service.addLanguage(multilingual.result.id, { code: "fr" });
   let translated = (await service.report()).mangas.find((manga) => manga.id === multilingual.result.id);
   assert.equal(translated.defaultLanguage, "en"); assert.equal(translated.languages.fr.pageCount, 0);
@@ -234,11 +330,22 @@ try {
 
   const beforeDelete = translated.languages.en.pageCount; await service.deletePage(multilingual.result.id, "en", 1);
   translated = (await service.report()).mangas.find((manga) => manga.id === multilingual.result.id); assert.equal(translated.languages.en.pageCount, beforeDelete - 1);
-  await assert.rejects(service.addPages(multilingual.result.id, "en", { files: [await image("duplicate.jpg", "#405060")], position: 1 }), /dupliquÃ©e|dupliquée/);
+  const sameContentDifferentName = await image("duplicate.jpg", "#405060");
+  await service.addPages(multilingual.result.id, "en", { files: [sameContentDifferentName], position: 1 });
+  await assert.rejects(service.addPages(multilingual.result.id, "en", { files: [sameContentDifferentName], position: 1 }), /dupliquÃ©e|dupliquée/);
 
-  const oldBanner = translated.banner;
-  await service.replacePrimaryMedia(multilingual.result.id, { file: await image("main-new.png", "#908070", 1600, 900) });
-  translated = (await service.report()).mangas.find((manga) => manga.id === multilingual.result.id); assert.match(translated.banner, /\.png$/); assert.notEqual(translated.banner, oldBanner); await stat(path.join(root, "public", ...translated.banner.split("/")));
+  const translatedBeforeReplacement = (await service.readCatalog()).find((manga) => manga.id === multilingual.result.id);
+  const { banner: oldBanner, ...translatedDataBefore } = translatedBeforeReplacement;
+  await service.replacePrimaryMedia(multilingual.result.id, { file: await image("main-new.png", "#908070", 1200, 1600) });
+  const translatedAfterReplacement = (await service.readCatalog()).find((manga) => manga.id === multilingual.result.id);
+  const { banner: newBanner, ...translatedDataAfter } = translatedAfterReplacement;
+  assert.match(newBanner, /\.png$/);
+  assert.notEqual(newBanner, oldBanner);
+  assert.deepEqual(translatedDataAfter, translatedDataBefore);
+  assert.equal(getMangaCardImage(translatedAfterReplacement), newBanner);
+  translated = (await service.report()).mangas.find((manga) => manga.id === multilingual.result.id);
+  assert.equal(translated.primaryMedia.path, newBanner);
+  await stat(path.join(root, "public", ...newBanner.split("/")));
   assert.ok((await readdir(path.join(runtime, "trash/mangas"), { recursive: true })).some((entry) => String(entry).includes("banner.jpg")));
   const revealedPage = await service.reveal(multilingual.result.id, { type: "page", language: "en", index: 0 }); assert.equal(revealedPage.command, "explorer.exe"); assert.deepEqual(revealedPage.args.slice(0, 1), ["/select,"]);
   const revealedCover = await service.reveal(multilingual.result.id, { type: "primary" }); assert.equal(revealedCover.mode, "selected");
@@ -415,6 +522,23 @@ try {
       assert.equal(preview.status, 200);
       assert.ok((await preview.arrayBuffer()).byteLength > 0);
     }
+    const completedBeforeReplacement = activeReport.mangas.find((manga) => manga.id === "server-completed");
+    const replacementResponse = await fetch(`${runningAdmin.origin}/api/mangas/server-completed/media/primary`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ file: await image("new-card.jpg", "#334477", 900, 1200) }),
+    });
+    assert.equal(replacementResponse.status, 200, await replacementResponse.text());
+    const afterReplacementReport = await (await fetch(`${runningAdmin.origin}/api/mangas`)).json();
+    const completedAfterReplacement = afterReplacementReport.mangas.find((manga) => manga.id === "server-completed");
+    assert.match(completedAfterReplacement.banner, /\/banner\.jpg$/);
+    assert.equal(completedAfterReplacement.primaryMedia.path, completedAfterReplacement.banner);
+    assert.equal(completedAfterReplacement.primaryMedia.field, "banner");
+    assert.equal(completedAfterReplacement.cover, completedBeforeReplacement.cover);
+    assert.equal(completedAfterReplacement.slug, completedBeforeReplacement.slug);
+    assert.equal(completedAfterReplacement.route, completedBeforeReplacement.route);
+    assert.equal(completedAfterReplacement.defaultLanguage, completedBeforeReplacement.defaultLanguage);
+    assert.deepEqual(completedAfterReplacement.languages, completedBeforeReplacement.languages);
     const removalResponse = await fetch(`${runningAdmin.origin}/api/mangas/${encodeURIComponent(activeServer.manga.id)}`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
@@ -456,6 +580,7 @@ try {
   const adminHtml = await readFile(path.join(PROJECT_DIR, "tools/artwork-admin/public/mangas.html"), "utf8");
   const adminApp = await readFile(path.join(PROJECT_DIR, "tools/artwork-admin/public/modules/mangas/manga-admin.js"), "utf8");
   const adminCss = await readFile(path.join(PROJECT_DIR, "tools/artwork-admin/public/modules/mangas/manga-admin.css"), "utf8");
+  const publicCss = await readFile(path.join(PROJECT_DIR, "src/index.css"), "utf8");
   const readerSource = await readFile(path.join(PROJECT_DIR, "src/components/manga/MangaReader.jsx"), "utf8");
   assert.match(adminHtml, /Ajouter un manga/); assert.match(adminHtml, /name="presentationSection"/); assert.match(adminHtml, /id="manga-section"/); assert.match(adminApp, /ondragstart/); assert.match(adminApp, /workingPages/);
   assert.match(adminHtml, /Visibilité publique de la section Storyboards/);
@@ -463,15 +588,19 @@ try {
   assert.match(adminApp, /adminPreview=1/);
   assert.match(adminApp, /Masquer toute la section Storyboards & Manga Concepts/);
   assert.match(adminApp, /Copie temporaire de test/); assert.match(adminApp, /sectionLabels/);
-  assert.match(adminHtml, /Image principale du manga/); assert.doesNotMatch(adminHtml, /name="cover"/);
-  assert.match(adminApp, /Taille idéale Photoshop/); assert.match(adminApp, /analysis\.resolution/); assert.match(adminApp, /analysis\.ratioStatus/);
-  assert.match(adminCss, /aspect-ratio:16\/9/); assert.match(adminCss, /object-fit:cover/); assert.match(adminCss, /object-position:center/);
-  assert.match(await readFile(path.join(PROJECT_DIR, "src/pages/Mangaka.jsx"), "utf8"), /manga\.banner \|\| manga\.cover/);
+  assert.match(adminHtml, /Image de la carte Manga/); assert.doesNotMatch(adminHtml, /name="cover"/);
+  assert.match(adminApp, /Taille idéale Photoshop/); assert.match(adminApp, /analysis\.resolution/); assert.match(adminApp, /analysis\.ratioStatus/); assert.match(adminApp, /manga\.primaryMedia\.path/);
+  assert.match(adminCss, /aspect-ratio:3\/4/); assert.match(adminCss, /object-fit:cover/); assert.match(adminCss, /object-position:center/);
+  assert.match(publicCss, /\.manga-card__media[\s\S]*?aspect-ratio:\s*3\s*\/\s*4/);
+  assert.match(publicCss, /\.manga-card__body[\s\S]*?width:\s*100%/);
+  assert.match(publicCss, /\.manga-card__body[\s\S]*?margin:\s*0;/);
+  assert.doesNotMatch(publicCss, /margin:\s*-1\.1rem/);
+  assert.match(await readFile(path.join(PROJECT_DIR, "src/pages/Mangaka.jsx"), "utf8"), /getMangaCardImage\(manga\)/);
   assert.match(await readFile(path.join(PROJECT_DIR, "src/pages/Mangaka.jsx"), "utf8"), /Completed|sections\.completed/);
   assert.match(await readFile(path.join(PROJECT_DIR, "src/pages/Mangaka.jsx"), "utf8"), /mangaPresentationSettings\.showStoryboardSection/);
   assert.match(await readFile(path.join(PROJECT_DIR, "src/pages/MangaReaderPage.jsx"), "utf8"), /isMangaPresentationSectionVisible/);
   assert.match(await readFile(path.join(PROJECT_DIR, "src/pages/MangaReaderPage.jsx"), "utf8"), /<Navigate to="\/mangaka" replace/);
-  assert.match(await readFile(path.join(PROJECT_DIR, "src/pages/HomePage.jsx"), "utf8"), /mangas\[0\]\.banner \|\| mangas\[0\]\.cover/);
+  assert.match(await readFile(path.join(PROJECT_DIR, "src/pages/HomePage.jsx"), "utf8"), /sitePresentation/);
   assert.match(readerSource, /languages\.length === 1/);
   console.log("Manga Admin — tests d’intégration réussis");
   console.log("serveur actif + aperçu WebP + suppression, orig, silent, en/fr, 30 pages, ordre, corbeille, collisions, erreurs Windows et rollback vérifiés");

@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
+import PageHero from "../components/PageHero";
 import { mangas } from "../content/mangas";
 import {
   getMangaPresentationSection,
@@ -7,6 +8,7 @@ import {
   MANGA_PRESENTATION_SECTIONS,
 } from "../content/mangaPresentation";
 import { t } from "../content/ui";
+import { getMangaCardImage } from "../utils/mangaCardMedia";
 
 const listVariants = {
   hidden: { opacity: 0 },
@@ -18,40 +20,43 @@ const cardVariants = {
   visible: { opacity: 1, y: 0 },
 };
 
-const MangaCard = ({ manga }) => (
-  <motion.article
-    className="group overflow-hidden border border-black/10 bg-[#faf8f4] dark:border-white/10 dark:bg-[#1d1d1b]"
-    variants={cardVariants}
-  >
-    <Link
-      to={manga.route}
-      className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#9b4035]"
-    >
-      <img
-        src={manga.banner || manga.cover}
-        alt={t.manga.coverAlt(manga.title)}
-        className="aspect-[16/9] w-full bg-[#e8e3da] object-cover transition-opacity duration-300 group-hover:opacity-90 dark:bg-[#262522]"
-        loading="lazy"
-        decoding="async"
-      />
-      <div className="p-6 sm:p-8">
-        <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <h3 className="text-3xl font-medium">
-            {manga.title}{" "}
+const MangaCard = ({ manga, index, categoryLabel }) => (
+  <motion.article className="manga-card" variants={cardVariants}>
+    <Link to={manga.route} className="manga-card__link">
+      <div className="manga-card__media">
+        <img
+          src={getMangaCardImage(manga)}
+          alt={t.manga.coverAlt(manga.title)}
+          loading="lazy"
+          decoding="async"
+        />
+        <span className="manga-card__index" aria-hidden="true">
+          {String(index).padStart(2, "0")}
+        </span>
+      </div>
+      <div className="manga-card__body">
+        <p className="manga-card__meta">
+          <span>{categoryLabel}</span>
+          {manga.status && <span>{manga.status}</span>}
+          {manga.genre && <span>{manga.genre}</span>}
+        </p>
+        <div className="manga-card__heading">
+          <h3 className="manga-card__title">
+            {manga.title}
             {manga.edition && (
-              <span className="block text-sm font-sans uppercase tracking-[0.14em] text-[#9b4035] sm:inline">
+              <span className="manga-card__edition">
                 {manga.edition}
               </span>
             )}
           </h3>
-          <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8a857d]">
+          <span className="manga-card__pages">
             {manga.pageCount} pages
           </span>
         </div>
-        <p className="mt-5 whitespace-pre-line text-sm leading-7 text-[#5d5a55] dark:text-[#c8c3ba]">
+        <p className="manga-card__description line-clamp-4">
           {manga.summary}
         </p>
-        <span className="mt-7 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.15em] text-[#9b4035]">
+        <span className="manga-card__cta">
           {t.manga.read} <span aria-hidden="true">→</span>
         </span>
       </div>
@@ -59,27 +64,36 @@ const MangaCard = ({ manga }) => (
   </motion.article>
 );
 
-const MangaSection = ({ mangas: sectionMangas, text }) => (
-  <section className="mx-auto max-w-7xl border-t border-black/10 pt-10 first:border-t-0 first:pt-0 dark:border-white/10">
-    <div className="mb-8 max-w-2xl">
-      <h2 className="text-3xl font-medium sm:text-4xl">{text.title}</h2>
-      <p className="mt-3 text-sm leading-7 text-[#68645e] dark:text-[#bbb5ac]">
-        {text.description}
-      </p>
-    </div>
+const MangaSection = ({ mangas: sectionMangas, text, index }) => (
+  <section aria-labelledby={`manga-section-${index}`}>
+    <header className="manga-section-heading">
+      <div>
+        <p className="section-eyebrow">Archive / {index}</p>
+        <h2 id={`manga-section-${index}`} className="mt-2 text-4xl uppercase leading-none sm:text-6xl">
+          {text.title}
+        </h2>
+        <p className="mt-3 max-w-2xl text-sm font-medium leading-7 text-muted">{text.description}</p>
+      </div>
+      <span className="manga-section-heading__index" aria-hidden="true">{index}</span>
+    </header>
     {sectionMangas.length ? (
       <motion.div
         initial="hidden"
         animate="visible"
         variants={listVariants}
-        className="grid gap-8 md:grid-cols-2 xl:grid-cols-3"
+        className="grid gap-x-5 gap-y-12 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
       >
-        {sectionMangas.map((manga) => (
-          <MangaCard key={manga.id} manga={manga} />
+        {sectionMangas.map((manga, mangaIndex) => (
+          <MangaCard
+            key={manga.id}
+            manga={manga}
+            index={mangaIndex + 1}
+            categoryLabel={text.title}
+          />
         ))}
       </motion.div>
     ) : (
-      <p className="border border-dashed border-black/15 px-5 py-6 text-sm text-[#68645e] dark:border-white/15 dark:text-[#bbb5ac]">
+      <p className="border-[3px] border-dashed border-line px-5 py-8 text-sm font-semibold text-muted">
         {t.manga.emptySection}
       </p>
     )}
@@ -87,39 +101,28 @@ const MangaSection = ({ mangas: sectionMangas, text }) => (
 );
 
 const Mangaka = () => {
-  const publicMangas = mangas.filter(
-    (manga) => (manga.visibility || "public") === "public",
-  );
+  const publicMangas = mangas.filter((manga) => (manga.visibility || "public") === "public");
   const completedMangas = publicMangas.filter(
-    (manga) =>
-      getMangaPresentationSection(manga) ===
-      MANGA_PRESENTATION_SECTIONS.COMPLETED,
+    (manga) => getMangaPresentationSection(manga) === MANGA_PRESENTATION_SECTIONS.COMPLETED,
   );
   const storyboardMangas = publicMangas.filter(
-    (manga) =>
-      getMangaPresentationSection(manga) ===
-      MANGA_PRESENTATION_SECTIONS.STORYBOARD,
+    (manga) => getMangaPresentationSection(manga) === MANGA_PRESENTATION_SECTIONS.STORYBOARD,
   );
 
   return (
-    <main className="min-h-screen overflow-x-clip bg-[#f4f1eb] px-5 pb-20 pt-28 text-[#1d1d1b] dark:bg-[#171716] dark:text-[#f4f1eb] sm:px-8 lg:px-10">
-      <motion.header
-        className="mx-auto mb-12 max-w-7xl border-b border-black/10 pb-10 dark:border-white/10"
-        initial={{ opacity: 0, y: -16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        <p className="section-eyebrow">{t.manga.eyebrow}</p>
-        <h1 className="section-title">{t.manga.title}</h1>
-        <p className="mt-5 max-w-xl text-[#68645e] dark:text-[#bbb5ac]">
-          {t.manga.introduction}
-        </p>
-      </motion.header>
+    <main className="public-page px-5 pb-20 pt-24 sm:px-8 lg:px-10">
+      <PageHero
+        index="01"
+        eyebrow={t.manga.eyebrow}
+        title={t.manga.title}
+        introduction={t.manga.introduction}
+        backgroundWord="MANGA"
+      />
 
-      <div className="space-y-16 sm:space-y-20">
-        <MangaSection mangas={completedMangas} text={t.manga.sections.completed} />
+      <div className="mx-auto max-w-[100rem] space-y-20 sm:space-y-24">
+        <MangaSection mangas={completedMangas} text={t.manga.sections.completed} index="01" />
         {mangaPresentationSettings.showStoryboardSection && (
-          <MangaSection mangas={storyboardMangas} text={t.manga.sections.storyboard} />
+          <MangaSection mangas={storyboardMangas} text={t.manga.sections.storyboard} index="02" />
         )}
       </div>
     </main>

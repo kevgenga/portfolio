@@ -153,10 +153,10 @@ const ContactPage = () => {
   };
 
   const fieldClass = (hasError) =>
-    `w-full border bg-[#f4f1eb] px-4 py-3 text-[#1d1d1b] outline-none transition-colors placeholder:text-[#8a857d] focus:ring-1 dark:bg-[#171716] dark:text-[#f4f1eb] ${
+    `form-field ${
       hasError
         ? "border-red-700 ring-1 ring-red-700 focus:border-red-700 focus:ring-red-700 dark:border-red-300 dark:ring-red-300"
-        : "border-black/15 focus:border-[#9b4035] focus:ring-[#9b4035] dark:border-white/20"
+        : ""
     }`;
 
   const errorMessage = (field) => fieldErrors[field] && (
@@ -171,15 +171,35 @@ const ContactPage = () => {
   );
 
   return (
-    <main className="min-h-screen overflow-x-clip bg-[#f4f1eb] px-5 pb-20 pt-28 text-[#1d1d1b] dark:bg-[#171716] dark:text-[#f4f1eb] sm:px-8 lg:px-10">
-      <div className="mx-auto grid max-w-6xl gap-12 lg:grid-cols-[0.8fr_1.2fr] lg:gap-20">
-        <motion.header initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-          <p className="section-eyebrow">{t.contact.eyebrow}</p>
-          <h1 className="section-title">{t.contact.title}</h1>
-          <p className="mt-6 max-w-md leading-7 text-[#68645e] dark:text-[#bbb5ac]">{t.contact.introduction}</p>
-          <div className="mt-9 border-t border-black/10 pt-6 dark:border-white/10">
-            <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#8a857d]">{t.contact.directEmail}</p>
-            <a className="mt-2 inline-block text-lg underline decoration-[#9b4035] underline-offset-4 hover:text-[#9b4035]" href={`mailto:${profile.contact.email}`}>
+    <main className="public-page px-5 pb-20 pt-24 sm:px-8 lg:px-10">
+      <div className="mx-auto grid max-w-[100rem] gap-8 lg:grid-cols-[minmax(19rem,0.78fr)_minmax(0,1.22fr)] lg:gap-10">
+        <motion.header
+          className="contact-display"
+          initial={{ opacity: 0, x: -14 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <p className="page-kicker relative z-10 text-muted">{t.contact.eyebrow}</p>
+          <h1 className="contact-display__title">{t.contact.ctaTitle}</h1>
+          <p className="relative z-10 mt-7 max-w-lg text-base font-semibold leading-7 text-muted">
+            {t.contact.introduction}
+          </p>
+          <div className="relative z-10 mt-8 flex flex-wrap gap-2" aria-label={t.contact.servicesLabel}>
+            {t.contact.services.map((service) => (
+              <span key={service} className="border border-foreground bg-page px-3 py-2 text-xs font-black uppercase tracking-[0.12em]">
+                {service}
+              </span>
+            ))}
+          </div>
+          <p className="relative z-10 mt-7 text-xs font-black uppercase tracking-[0.15em]">
+            {profile.about.availability.details.join(" · ")}
+          </p>
+          <div className="relative z-10 mt-9 border-t border-line pt-6">
+            <p className="text-xs font-black uppercase tracking-[0.15em]">{t.contact.directEmail}</p>
+            <a
+              className="mt-2 inline-block break-all text-base font-bold underline decoration-current decoration-2 underline-offset-4 transition-opacity duration-150 hover:opacity-65 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-4 focus-visible:outline-primary sm:text-lg"
+              href={`mailto:${profile.contact.email}`}
+            >
               {profile.contact.email}
             </a>
           </div>
@@ -189,7 +209,7 @@ const ContactPage = () => {
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.55 }}
-          className="border border-black/10 bg-[#faf8f4] p-5 dark:border-white/10 dark:bg-[#1d1d1b] sm:p-8"
+          className="contact-form-panel p-5 sm:p-8 lg:p-10"
         >
           <div id="form-status" className="min-h-6" aria-live="polite" aria-atomic="true">
             {formError && <p className="mb-4 text-sm font-medium text-red-700 dark:text-red-300" role="alert">{formError}</p>}
@@ -216,7 +236,7 @@ const ContactPage = () => {
 
           <form className="mt-2 space-y-6" onSubmit={handleSubmit} noValidate>
             <div>
-              <label htmlFor="contact-name" className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em]">{t.contact.name}</label>
+              <label htmlFor="contact-name" className="mb-2 block text-xs font-black uppercase tracking-[0.14em]">{t.contact.name}</label>
               <input
                 ref={nameInput}
                 id="contact-name"
@@ -233,7 +253,7 @@ const ContactPage = () => {
               {errorMessage("name")}
             </div>
             <div>
-              <label htmlFor="contact-email" className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em]">{t.contact.email}</label>
+              <label htmlFor="contact-email" className="mb-2 block text-xs font-black uppercase tracking-[0.14em]">{t.contact.email}</label>
               <input
                 ref={emailInput}
                 id="contact-email"
@@ -250,7 +270,7 @@ const ContactPage = () => {
               {errorMessage("email")}
             </div>
             <div>
-              <label htmlFor="contact-message" className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em]">{t.contact.message}</label>
+              <label htmlFor="contact-message" className="mb-2 block text-xs font-black uppercase tracking-[0.14em]">{t.contact.message}</label>
               <textarea
                 ref={messageInput}
                 id="contact-message"

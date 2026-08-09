@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { motion } from "framer-motion";
 import ArtworkCard from "../components/gallery/ArtworkCard";
 import BackToTopButton from "../components/gallery/BackToTopButton";
 import EmptyState from "../components/gallery/EmptyState";
 import FilterBar from "../components/gallery/FilterBar";
 import Lightbox from "../components/gallery/Lightbox";
 import PortfolioGrid from "../components/gallery/PortfolioGrid";
+import PageHero from "../components/PageHero";
 import {
   isArtworkCategoryVisible,
   isArtworkPubliclyVisible,
@@ -128,19 +128,16 @@ const Illustration = () => {
   };
 
   return (
-    <main className="min-h-screen overflow-x-clip bg-[#f4f1eb] px-5 pb-16 pt-28 text-[#1d1d1b] dark:bg-[#171716] dark:text-[#f4f1eb] sm:px-8 lg:px-10">
-      <motion.header
-        className="mx-auto mb-12 max-w-7xl border-b border-black/10 pb-10 dark:border-white/10"
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: "easeOut" }}
-      >
-        <p className="section-eyebrow">{t.illustration.eyebrow}</p>
-        <h1 className="section-title">{t.illustration.title}</h1>
-        <p className="mt-5 max-w-xl text-[#68645e] dark:text-[#bbb5ac]">{t.illustration.introduction}</p>
-      </motion.header>
+    <main className="public-page px-5 pb-16 pt-24 sm:px-8 lg:px-10">
+      <PageHero
+        index="02"
+        eyebrow={t.illustration.eyebrow}
+        title={t.illustration.title}
+        introduction={t.illustration.introduction}
+        backgroundWord="ART"
+      />
 
-      <div className="mx-auto max-w-7xl">
+      <div className="mx-auto max-w-[100rem]">
 
       <FilterBar
         filters={filters}
@@ -161,7 +158,7 @@ const Illustration = () => {
 
       {visibleArtworks.length > 0 ? (
         <>
-          <PortfolioGrid className="grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
+          <PortfolioGrid className="grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5" gapClassName="gap-2 sm:gap-3 lg:gap-4">
             {visibleArtworks.map((artwork) => {
               const formattedDate = formatPortfolioDate(artwork.date);
 
@@ -173,6 +170,7 @@ const Illustration = () => {
                   lightboxId={artwork.id}
                   caption={formattedDate}
                   metadata={formattedDate}
+                  variant="wall"
                 />
               );
             })}
@@ -184,7 +182,7 @@ const Illustration = () => {
               className="flex min-h-20 items-center justify-center py-8"
               aria-hidden="true"
             >
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#9b4035] motion-reduce:animate-none" />
+              <span className="h-2 w-2 animate-pulse bg-primary motion-reduce:animate-none" />
             </div>
           )}
         </>

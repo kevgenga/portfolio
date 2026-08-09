@@ -35,7 +35,14 @@ export async function handleMangaRoute(request, response, url, { service, readJs
   }
   const pages = url.pathname.match(/^\/api\/mangas\/([^/]+)\/languages\/([^/]+)\/pages$/);
   if (pages && request.method === "POST") {
-    const output = await service.addPages(decodeURIComponent(pages[1]), decodeURIComponent(pages[2]), await readJson(request)); sendJson(response, 201, { ...output, message: "Pages ajoutées." }); return true;
+    const mangaId = decodeURIComponent(pages[1]);
+    const languageCode = decodeURIComponent(pages[2]);
+    try {
+      const output = await service.addPages(mangaId, languageCode, await readJson(request)); sendJson(response, 201, { ...output, message: "Pages ajoutées." }); return true;
+    } catch (error) {
+      console.error(`[manga-pages:add] ${mangaId}/${languageCode}`, error);
+      throw error;
+    }
   }
   if (pages && request.method === "PUT") {
     const output = await service.reorderPages(decodeURIComponent(pages[1]), decodeURIComponent(pages[2]), (await readJson(request)).pages); sendJson(response, 200, { ...output, message: "Ordre des pages enregistré." }); return true;
@@ -53,7 +60,7 @@ export async function handleMangaRoute(request, response, url, { service, readJs
   }
   const primaryMedia = url.pathname.match(/^\/api\/mangas\/([^/]+)\/media\/primary$/);
   if (primaryMedia && request.method === "PUT") {
-    const output = await service.replacePrimaryMedia(decodeURIComponent(primaryMedia[1]), await readJson(request)); sendJson(response, 200, { ...output, message: "Image principale de la carte manga remplacée." }); return true;
+    const output = await service.replacePrimaryMedia(decodeURIComponent(primaryMedia[1]), await readJson(request)); sendJson(response, 200, { ...output, message: "Image de la carte Manga remplacée." }); return true;
   }
   const reveal = url.pathname.match(/^\/api\/mangas\/([^/]+)\/reveal$/);
   if (reveal && request.method === "POST") {

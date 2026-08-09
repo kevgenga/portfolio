@@ -3,14 +3,26 @@ import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { useReducedMotion } from "framer-motion";
 import { t } from "../../content/ui";
+import {
+  getReaderDragOffset,
+  getReaderSwipeAction,
+  isHorizontalDragIntent,
+} from "./readerGestures";
 
 const MODE_STORAGE_KEY = "manga-reader-mode";
 const DEFAULT_MODE = "horizontal";
-const SWIPE_THRESHOLD = 50;
 const DOUBLE_PAGE_MIN_WIDTH = 900;
 const LANGUAGE_MENU_WIDTH = 176;
 const LANGUAGE_MENU_MARGIN = 8;
 const LANGUAGE_MENU_GAP = 8;
+// Reader tutorial timing in milliseconds
+const READER_TUTORIAL_TIMING = {
+  delay: 180,
+  duration: 3500,
+  fade: 200,
+};
+const DRAG_RESET_DURATION = 180;
+const GHOST_CLICK_DURATION = 450;
 
 const readPreference = (key, acceptedValues, fallback) => {
   try {
@@ -63,10 +75,10 @@ const ReaderToggle = ({ label, value, activeValue, onChange, children }) => (
     aria-label={`${label}: ${children}`}
     aria-pressed={activeValue === value}
     onClick={() => onChange(value)}
-    className={`min-h-9 border px-3 py-2 text-[0.68rem] font-semibold uppercase tracking-[0.12em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d88a7e] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1d1b] ${
+    className={`min-h-9 border bg-[#181818] px-3 py-2 text-[0.68rem] font-semibold uppercase tracking-[0.12em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ffd500] focus-visible:ring-offset-2 focus-visible:ring-offset-[#151515] ${
       activeValue === value
-        ? "border-[#d88a7e] bg-[#d88a7e] text-[#1d1d1b]"
-        : "border-white/20 text-white hover:border-white/50"
+        ? "border-[#f4f1e8] bg-[#f4f1e8] text-[#111111] shadow-[inset_0_-3px_0_#ffd500]"
+        : "border-white/20 text-[#f4f1e8] hover:border-white/45 hover:bg-[#222222]"
     }`}
   >
     {children}
@@ -172,7 +184,7 @@ const LanguageSelector = ({ languages, activeLanguage, onChange }) => {
   if (languages.length === 1) {
     return (
       <span
-        className="inline-flex min-h-9 items-center justify-center border border-white/20 px-2 text-[0.68rem] font-semibold uppercase tracking-[0.1em] text-white sm:px-3"
+        className="inline-flex min-h-9 items-center justify-center border border-white/20 bg-[#181818] px-2 text-[0.68rem] font-semibold uppercase tracking-[0.1em] text-[#f4f1e8] sm:px-3"
         aria-label={`Language: ${activeLanguageData.label}`}
         data-reader-language-label
       >
@@ -229,7 +241,7 @@ const LanguageSelector = ({ languages, activeLanguage, onChange }) => {
             focusOption(activeIndex >= 0 ? activeIndex : 0);
           });
         }}
-        className="inline-flex min-h-9 min-w-11 items-center justify-center border border-white/25 px-2 text-[0.68rem] font-semibold uppercase tracking-[0.1em] text-white transition-colors hover:border-[#d88a7e] hover:text-[#d88a7e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d88a7e] sm:px-3"
+        className="inline-flex min-h-9 min-w-11 items-center justify-center border border-white/25 bg-[#181818] px-2 text-[0.68rem] font-semibold uppercase tracking-[0.1em] text-[#f4f1e8] transition-colors hover:border-white/45 hover:bg-[#222222] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ffd500] sm:px-3"
         data-reader-language-trigger
       >
         {activeLanguageData.shortLabel}
@@ -241,11 +253,11 @@ const LanguageSelector = ({ languages, activeLanguage, onChange }) => {
           role="menu"
           aria-label="Language"
           onKeyDown={handleMenuKeyDown}
-          className="fixed z-[9999] max-w-[calc(100vw-1rem)] border border-white/20 bg-[#1d1d1b] p-2 text-white shadow-2xl"
+          className="fixed z-[9999] max-w-[calc(100vw-1rem)] border border-white/20 bg-[#181818] p-2 text-[#f4f1e8]"
           style={menuPosition}
           data-reader-language-menu
         >
-          <p className="px-2 pb-2 text-[0.62rem] font-semibold uppercase tracking-[0.16em] text-[#d88a7e]">
+          <p className="px-2 pb-2 text-[0.62rem] font-semibold uppercase tracking-[0.16em] text-[#aaa69d]">
             Language
           </p>
           {languages.map(([code, language], index) => {
@@ -261,13 +273,13 @@ const LanguageSelector = ({ languages, activeLanguage, onChange }) => {
                 role="menuitemradio"
                 aria-checked={isActive}
                 onClick={() => selectLanguage(code)}
-                className={`flex min-h-10 w-full items-center gap-2 px-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#d88a7e] ${
+                className={`flex min-h-10 w-full items-center gap-2 px-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#ffd500] ${
                   isActive
-                    ? "bg-[#d88a7e]/15 text-[#f4f1eb]"
+                    ? "bg-white/10 text-[#f4f1e8] shadow-[inset_3px_0_0_#ffd500]"
                     : "text-[#c8c3ba] hover:bg-white/10 hover:text-white"
                 }`}
               >
-                <span aria-hidden="true" className="w-3 text-[#d88a7e]">
+                <span aria-hidden="true" className="w-3 text-[#ffd500]">
                   {isActive ? "●" : "○"}
                 </span>
                 {language.label}
@@ -292,70 +304,71 @@ const MangaPageImage = ({ page, title, eager = false, className = "" }) => (
   />
 );
 
-const ThumbnailStrip = ({
-  pages,
-  activePages,
+const ReaderTutorial = ({
+  isVisible,
+  readingDirection,
+  readingMode,
+  shouldReduceMotion,
+}) => {
+  const isHorizontal = readingMode === "horizontal";
+  const directionLabel = readingDirection === "rtl" ? "Right to left" : "Left to right";
+
+  return (
+    <div
+      className={`pointer-events-none fixed inset-0 z-30 flex items-center justify-center px-4 ${
+        shouldReduceMotion ? "" : "transition-opacity ease-out"
+      } ${isVisible ? "opacity-100" : "opacity-0"}`}
+      style={shouldReduceMotion
+        ? undefined
+        : { transitionDuration: `${READER_TUTORIAL_TIMING.fade}ms` }}
+      aria-hidden="true"
+      data-reader-tutorial
+      data-reader-tutorial-mode={readingMode}
+    >
+      <div className="w-full max-w-[15rem] border border-white/25 bg-[#151515]/95 px-5 py-6 text-center text-[#f4f1e8] shadow-[0_14px_36px_rgba(0,0,0,0.36)]">
+        <span className="block text-4xl font-light leading-none text-white" aria-hidden="true">
+          {isHorizontal ? (readingDirection === "rtl" ? "←" : "→") : "↓"}
+        </span>
+        <span className="mx-auto mt-4 block h-0.5 w-8 bg-[#ffd500]" aria-hidden="true" />
+        <p className="mt-3 text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-[#aaa69d]">
+          {isHorizontal ? directionLabel : "Vertical reading"}
+        </p>
+        <p className="mt-1 text-sm font-bold uppercase tracking-[0.14em] text-[#f4f1e8]">
+          {isHorizontal ? "Horizontal" : "Scroll to read"}
+        </p>
+        <p className="mt-3 text-xs leading-relaxed text-[#c8c3ba]">
+          {isHorizontal
+            ? "Swipe right for next page"
+            : `${directionLabel} page order`}
+        </p>
+      </div>
+    </div>
+  );
+};
+
+const ReaderPagination = ({
+  currentPage,
+  pageCount,
   isVisible,
   interfaceTransition,
-  thumbnailElements,
-  onSelect,
 }) => (
   <div
-    className={`fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.08] bg-black/70 shadow-[0_-8px_24px_rgba(0,0,0,0.24)] backdrop-blur-md ${interfaceTransition} ${
+    className={`fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.1] bg-[#151515]/95 ${interfaceTransition} ${
       isVisible
         ? "translate-y-0 opacity-100"
         : "pointer-events-none translate-y-full opacity-0"
     }`}
     aria-hidden={!isVisible}
     inert={isVisible ? undefined : ""}
-    data-thumbnail-interface
+    data-reader-pagination
   >
-    <div className="min-h-0 overflow-hidden px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
-      <div
-        className="flex max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-2"
-        dir="rtl"
-        role="list"
-        aria-label="Manga pages"
-        data-thumbnail-strip
-      >
-        {pages.map((page, index) => {
-          const pageNumber = index + 1;
-          const isActive = activePages.includes(pageNumber);
-
-          return (
-            <div key={page} role="listitem" className="w-16 shrink-0 sm:w-20">
-              <button
-                ref={(element) => {
-                  thumbnailElements.current[index] = element;
-                }}
-                type="button"
-                aria-label={`Open page ${pageNumber}`}
-                aria-pressed={isActive}
-                onClick={() => onSelect(pageNumber)}
-                className={`relative w-full border-2 bg-white p-0.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9b4035] focus-visible:ring-offset-2 dark:focus-visible:ring-offset-[#1d1d1b] ${
-                  isActive
-                    ? "border-[#9b4035]"
-                    : "border-transparent opacity-65 hover:opacity-100"
-                }`}
-                data-thumbnail-page={pageNumber}
-              >
-                <img
-                  src={page}
-                  alt=""
-                  className="aspect-[3/4] w-full object-cover object-top"
-                  loading="lazy"
-                  decoding="async"
-                  draggable="false"
-                />
-                <span className="absolute bottom-1 right-1 bg-black/75 px-1.5 py-0.5 text-[0.6rem] font-semibold text-white" dir="ltr">
-                  {pageNumber}
-                </span>
-              </button>
-            </div>
-          );
-        })}
-      </div>
-    </div>
+    <p
+      className="flex min-h-11 items-center justify-center px-4 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 text-xs font-semibold tracking-[0.14em] text-[#f4f1e8] sm:min-h-12 sm:py-2"
+      aria-label={`Page ${currentPage} of ${pageCount}`}
+      dir="ltr"
+    >
+      {currentPage} / {pageCount}
+    </p>
   </div>
 );
 
@@ -380,14 +393,44 @@ const MangaReader = ({ manga }) => {
   const [isInterfaceVisible, setIsInterfaceVisible] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [supportsFullscreen, setSupportsFullscreen] = useState(false);
+  const [isTutorialMounted, setIsTutorialMounted] = useState(false);
+  const [isTutorialVisible, setIsTutorialVisible] = useState(false);
   const readerRoot = useRef(null);
+  const horizontalStage = useRef(null);
+  const horizontalPages = useRef(null);
   const verticalPageElements = useRef([]);
-  const thumbnailElements = useRef([]);
-  const touchStartX = useRef(null);
-  const touchStartY = useRef(null);
-  const suppressZoneClick = useRef(false);
+  const pointerGesture = useRef(null);
+  const dragFrame = useRef(null);
+  const suppressZoneClickUntil = useRef(0);
+  const tutorialIsActive = useRef(false);
+  const tutorialTimers = useRef({ show: null, hide: null, remove: null });
   const shouldReduceMotion = useReducedMotion();
+  const shouldReduceMotionRef = useRef(Boolean(shouldReduceMotion));
   const pageDisplay = readingMode === "horizontal" && isWideReader ? "double" : "single";
+
+  const clearTutorialTimers = useCallback(() => {
+    Object.values(tutorialTimers.current).forEach((timer) => {
+      if (timer !== null) window.clearTimeout(timer);
+    });
+    tutorialTimers.current = { show: null, hide: null, remove: null };
+  }, []);
+
+  const dismissTutorial = useCallback(() => {
+    if (!tutorialIsActive.current) return;
+
+    tutorialIsActive.current = false;
+    clearTutorialTimers();
+    setIsTutorialVisible(false);
+
+    if (shouldReduceMotionRef.current) {
+      setIsTutorialMounted(false);
+      return;
+    }
+
+    tutorialTimers.current.remove = window.setTimeout(() => {
+      setIsTutorialMounted(false);
+    }, READER_TUTORIAL_TIMING.fade);
+  }, [clearTutorialTimers]);
 
   const selectLanguage = useCallback(
     (language) => {
@@ -397,7 +440,6 @@ const MangaReader = ({ manga }) => {
       setActiveLanguage(language);
       setCurrentPage((page) => Math.min(page, nextPages.length));
       verticalPageElements.current = [];
-      thumbnailElements.current = [];
     },
     [languages],
   );
@@ -415,11 +457,6 @@ const MangaReader = ({ manga }) => {
     src: pages[pageNumber - 1],
     number: pageNumber,
   }));
-
-  const counterLabel =
-    visiblePageNumbers.length === 1
-      ? `Page ${visiblePageNumbers[0]} of ${pageCount}`
-      : `Pages ${visiblePageNumbers[0]}–${visiblePageNumbers.at(-1)} of ${pageCount}`;
 
   const canGoPrevious = visiblePageNumbers[0] > 1;
   const canGoNext = visiblePageNumbers.at(-1) < pageCount;
@@ -488,6 +525,35 @@ const MangaReader = ({ manga }) => {
   }, [languageStorageKey, resolvedLanguage]);
 
   useEffect(() => {
+    shouldReduceMotionRef.current = Boolean(shouldReduceMotion);
+  }, [shouldReduceMotion]);
+
+  useEffect(() => {
+    clearTutorialTimers();
+    tutorialIsActive.current = true;
+    setIsTutorialMounted(true);
+    setIsTutorialVisible(shouldReduceMotionRef.current);
+
+    if (!shouldReduceMotionRef.current) {
+      tutorialTimers.current.show = window.setTimeout(() => {
+        setIsTutorialVisible(true);
+      }, READER_TUTORIAL_TIMING.delay);
+    }
+
+    tutorialTimers.current.hide = window.setTimeout(
+      dismissTutorial,
+      READER_TUTORIAL_TIMING.duration + (
+        shouldReduceMotionRef.current ? 0 : READER_TUTORIAL_TIMING.delay
+      ),
+    );
+
+    return () => {
+      tutorialIsActive.current = false;
+      clearTutorialTimers();
+    };
+  }, [clearTutorialTimers, dismissTutorial, id, slug]);
+
+  useEffect(() => {
     const root = readerRoot.current;
     if (!root) return undefined;
 
@@ -529,7 +595,6 @@ const MangaReader = ({ manga }) => {
     setCurrentPage(1);
     setIsInterfaceVisible(true);
     verticalPageElements.current = [];
-    thumbnailElements.current = [];
   }, [defaultLanguage, id, languageCodes, languageStorageKey]);
 
   useEffect(() => {
@@ -552,15 +617,6 @@ const MangaReader = ({ manga }) => {
     return () => observer.disconnect();
   }, [pages, readingMode]);
 
-  useEffect(() => {
-    const activeThumbnail = thumbnailElements.current[currentPage - 1];
-    activeThumbnail?.scrollIntoView({
-      behavior: shouldReduceMotion ? "auto" : "smooth",
-      block: "nearest",
-      inline: "center",
-    });
-  }, [currentPage, readingMode, shouldReduceMotion, visiblePageNumbers]);
-
   const toggleInterface = useCallback(() => {
     setIsInterfaceVisible((isVisible) => !isVisible);
   }, []);
@@ -579,6 +635,8 @@ const MangaReader = ({ manga }) => {
 
   useEffect(() => {
     const handleKeyDown = (event) => {
+      dismissTutorial();
+
       if (event.key === "Escape") {
         if (document.fullscreenElement) {
           document.exitFullscreen().catch(() => {});
@@ -612,48 +670,142 @@ const MangaReader = ({ manga }) => {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [goToNext, goToPrevious, isInterfaceVisible, readingMode]);
+  }, [dismissTutorial, goToNext, goToPrevious, isInterfaceVisible, readingMode]);
 
-  const handleTouchStart = (event) => {
-    const touch = event.changedTouches[0];
-    touchStartX.current = touch?.clientX ?? null;
-    touchStartY.current = touch?.clientY ?? null;
-    suppressZoneClick.current = false;
+  useEffect(() => {
+    if (!isTutorialMounted) return undefined;
+
+    window.addEventListener("scroll", dismissTutorial, true);
+    return () => window.removeEventListener("scroll", dismissTutorial, true);
+  }, [dismissTutorial, isTutorialMounted]);
+
+  useEffect(() => () => {
+    if (dragFrame.current !== null) cancelAnimationFrame(dragFrame.current);
+  }, []);
+
+  const updateDragOffset = (offset) => {
+    if (dragFrame.current !== null) cancelAnimationFrame(dragFrame.current);
+
+    dragFrame.current = requestAnimationFrame(() => {
+      dragFrame.current = null;
+      if (horizontalPages.current) {
+        horizontalPages.current.style.transform = `translate3d(${offset}px, 0, 0)`;
+      }
+    });
   };
 
-  const handleTouchEnd = (event) => {
+  const resetHorizontalDrag = () => {
+    if (dragFrame.current !== null) {
+      cancelAnimationFrame(dragFrame.current);
+      dragFrame.current = null;
+    }
+
+    if (horizontalPages.current) {
+      horizontalPages.current.style.transition = shouldReduceMotion
+        ? "none"
+        : `transform ${DRAG_RESET_DURATION}ms ease-out`;
+      horizontalPages.current.style.transform = "translate3d(0, 0, 0)";
+    }
+
+    if (horizontalStage.current) horizontalStage.current.style.cursor = "";
+  };
+
+  const handlePointerDown = (event) => {
     if (
       readingMode !== "horizontal" ||
-      touchStartX.current === null ||
-      touchStartY.current === null
+      !event.isPrimary ||
+      (event.pointerType === "mouse" && event.button !== 0)
     ) {
       return;
     }
 
-    const touch = event.changedTouches[0];
-    const touchEndX = touch?.clientX ?? touchStartX.current;
-    const touchEndY = touch?.clientY ?? touchStartY.current;
-    const deltaX = touchEndX - touchStartX.current;
-    const deltaY = touchEndY - touchStartY.current;
-    touchStartX.current = null;
-    touchStartY.current = null;
+    const target = event.target;
+    if (!(target instanceof Element)) return;
 
-    if (
-      Math.abs(deltaX) < SWIPE_THRESHOLD ||
-      Math.abs(deltaX) <= Math.abs(deltaY)
-    ) {
-      return;
-    }
+    const interactiveTarget = target.closest(
+      "button, a, input, textarea, select, [contenteditable='true'], [role='button']",
+    );
+    const isReadingZone = target.closest("[data-horizontal-click-zones]");
+    if (interactiveTarget && !isReadingZone) return;
 
-    suppressZoneClick.current = true;
-    const isNextSwipe = readingDirection === "rtl" ? deltaX > 0 : deltaX < 0;
-    if (isNextSwipe) goToNext();
-    else goToPrevious();
+    suppressZoneClickUntil.current = 0;
+    pointerGesture.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      horizontalIntent: false,
+      cancelled: false,
+      dragged: false,
+      captured: false,
+    };
+
+    if (horizontalPages.current) horizontalPages.current.style.transition = "none";
   };
 
+  const handlePointerMove = (event) => {
+    const gesture = pointerGesture.current;
+    if (!gesture || gesture.pointerId !== event.pointerId || gesture.cancelled) return;
+
+    const deltaX = event.clientX - gesture.startX;
+    const deltaY = event.clientY - gesture.startY;
+
+    if (!gesture.horizontalIntent) {
+      gesture.horizontalIntent = isHorizontalDragIntent(deltaX, deltaY);
+
+      if (!gesture.horizontalIntent && Math.abs(deltaY) >= 8) {
+        gesture.cancelled = true;
+        resetHorizontalDrag();
+        return;
+      }
+    }
+
+    if (!gesture.horizontalIntent) return;
+
+    if (!gesture.captured) {
+      gesture.captured = true;
+      event.currentTarget.style.cursor = "grabbing";
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+
+    if (event.cancelable) event.preventDefault();
+    gesture.dragged = true;
+    const stageWidth = event.currentTarget.getBoundingClientRect().width;
+    const canNavigate = deltaX > 0 ? canGoNext : canGoPrevious;
+    updateDragOffset(getReaderDragOffset({ deltaX, width: stageWidth, canNavigate }));
+  };
+
+  const finishPointerGesture = (event, navigate = true) => {
+    const gesture = pointerGesture.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+
+    const deltaX = event.clientX - gesture.startX;
+    const deltaY = event.clientY - gesture.startY;
+    const stageWidth = event.currentTarget.getBoundingClientRect().width;
+    const action = gesture.horizontalIntent && navigate
+      ? getReaderSwipeAction({ deltaX, deltaY, width: stageWidth })
+      : null;
+    const wasDragged = gesture.dragged;
+
+    pointerGesture.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    resetHorizontalDrag();
+
+    if (wasDragged) {
+      suppressZoneClickUntil.current = Date.now() + GHOST_CLICK_DURATION;
+    }
+
+    if (action === "next") goToNext();
+    else if (action === "previous") goToPrevious();
+  };
+
+  const handlePointerUp = (event) => finishPointerGesture(event);
+  const handlePointerCancel = (event) => finishPointerGesture(event, false);
+
   const handleZoneAction = (action) => {
-    if (suppressZoneClick.current) {
-      suppressZoneClick.current = false;
+    if (Date.now() <= suppressZoneClickUntil.current) {
+      suppressZoneClickUntil.current = 0;
       return;
     }
     action();
@@ -668,7 +820,7 @@ const MangaReader = ({ manga }) => {
   return (
     <main
       ref={readerRoot}
-      className={`relative flex min-h-[100dvh] w-[100dvw] flex-col overflow-x-clip bg-[#111110] text-[#f4f1eb] ${
+      className={`relative flex min-h-[100dvh] w-[100dvw] flex-col overflow-x-clip bg-[#0f0f0f] text-[#f4f1e8] ${
         readingMode === "horizontal" ? "h-[100dvh] overflow-y-hidden" : ""
       }`}
       dir="ltr"
@@ -678,7 +830,18 @@ const MangaReader = ({ manga }) => {
       data-reader-interface={isInterfaceVisible ? "visible" : "hidden"}
       data-reader-fullscreen={isFullscreen ? "true" : "false"}
       data-reader-language={resolvedLanguage}
+      onPointerDownCapture={dismissTutorial}
+      onWheelCapture={dismissTutorial}
     >
+      {isTutorialMounted && (
+        <ReaderTutorial
+          isVisible={isTutorialVisible}
+          readingDirection={readingDirection}
+          readingMode={readingMode}
+          shouldReduceMotion={shouldReduceMotion}
+        />
+      )}
+
       <div
         className={`fixed inset-x-0 top-0 z-40 text-white ${interfaceTransition} ${
           isInterfaceVisible
@@ -689,23 +852,18 @@ const MangaReader = ({ manga }) => {
         inert={isInterfaceVisible ? undefined : ""}
         data-reader-header
       >
-        <header className="border-b border-white/[0.08] bg-black/70 shadow-lg backdrop-blur-md">
+        <header className="border-b border-white/[0.12] bg-[#151515]/95">
           <div className="mx-auto max-w-[1600px] px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] sm:px-5">
             <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:gap-4">
               <nav className="flex min-w-0 items-center gap-1 sm:gap-2" aria-label="Reader navigation">
                 <Link
-                  to="/"
-                  onClick={() => window.scrollTo({ top: 0, left: 0, behavior: "auto" })}
-                  aria-label="KEVGENGA home"
-                  className="px-2 py-2 text-xs font-bold uppercase tracking-[0.16em] text-white transition-colors hover:text-[#d88a7e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d88a7e] sm:text-sm"
-                >
-                  KEVGENGA
-                </Link>
-                <Link
                   to="/mangaka"
-                  className="border border-white/25 px-2 py-2 text-[0.68rem] font-semibold uppercase tracking-[0.1em] transition-colors hover:border-[#d88a7e] hover:text-[#d88a7e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d88a7e] sm:px-3"
+                  aria-label="Back to manga gallery"
+                  className="inline-flex min-h-9 items-center gap-1.5 border border-white/25 bg-[#181818] px-2 py-2 text-[0.68rem] font-semibold uppercase tracking-[0.1em] text-[#f4f1e8] transition-colors hover:border-white/45 hover:bg-[#222222] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ffd500] sm:px-3"
                 >
-                  Manga
+                  <span aria-hidden="true">←</span>
+                  <span className="sm:hidden">Back</span>
+                  <span className="hidden sm:inline">Back to manga</span>
                 </Link>
               </nav>
 
@@ -719,15 +877,6 @@ const MangaReader = ({ manga }) => {
                   activeLanguage={resolvedLanguage}
                   onChange={selectLanguage}
                 />
-                <button
-                  type="button"
-                  onClick={toggleInterface}
-                  aria-label="Hide reader interface"
-                  className="flex min-h-9 min-w-9 items-center justify-center gap-2 border border-white/20 px-2 text-xs font-semibold uppercase tracking-[0.08em] transition-colors hover:border-[#d88a7e] hover:text-[#d88a7e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d88a7e]"
-                >
-                  <span aria-hidden="true">×</span>
-                  <span className="hidden sm:inline">Hide</span>
-                </button>
               </div>
             </div>
 
@@ -737,21 +886,12 @@ const MangaReader = ({ manga }) => {
                 <ReaderToggle label="Reading mode" value="horizontal" activeValue={readingMode} onChange={selectMode}>Horizontal</ReaderToggle>
               </div>
 
-              <p
-                className="ml-auto text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-[#d88a7e] sm:text-xs"
-                aria-live="polite"
-                aria-atomic="true"
-                data-reader-counter
-              >
-                {counterLabel}
-              </p>
-
               {supportsFullscreen && (
                 <button
                   type="button"
                   onClick={toggleFullscreen}
                   aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-                  className="flex min-h-9 items-center justify-center gap-2 border border-white/25 px-2 text-xs font-semibold uppercase tracking-[0.08em] transition-colors hover:border-[#d88a7e] hover:text-[#d88a7e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d88a7e] sm:px-3"
+                  className="ml-auto flex min-h-9 items-center justify-center gap-2 border border-white/25 bg-[#181818] px-2 text-xs font-semibold uppercase tracking-[0.08em] transition-colors hover:border-white/45 hover:bg-[#222222] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ffd500] sm:px-3"
                 >
                   <span aria-hidden="true">{isFullscreen ? "×" : "⛶"}</span>
                   <span className="hidden sm:inline">{isFullscreen ? "Exit fullscreen" : "Fullscreen"}</span>
@@ -764,7 +904,7 @@ const MangaReader = ({ manga }) => {
 
       {readingMode === "vertical" ? (
         <section
-          className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-3 bg-[#111110] px-0 py-0 sm:gap-4 sm:px-4"
+          className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-3 bg-[#0f0f0f] px-0 py-0 sm:gap-4 sm:px-4"
           aria-label={`${title} vertical reader`}
           data-vertical-reader
         >
@@ -776,19 +916,19 @@ const MangaReader = ({ manga }) => {
               type="button"
               onClick={() => handleZoneAction(goToPrevious)}
               aria-label="Previous page"
-              className="cursor-n-resize bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#d88a7e]"
+              className="cursor-n-resize bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#ffd500]"
             />
             <button
               type="button"
               onClick={() => handleZoneAction(toggleInterface)}
               aria-label={isInterfaceVisible ? "Hide reader interface" : "Show reader interface"}
-              className="cursor-pointer bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#d88a7e]"
+              className="cursor-pointer bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#ffd500]"
             />
             <button
               type="button"
               onClick={() => handleZoneAction(goToNext)}
               aria-label="Next page"
-              className="cursor-s-resize bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#d88a7e]"
+              className="cursor-s-resize bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#ffd500]"
             />
           </div>
 
@@ -827,9 +967,13 @@ const MangaReader = ({ manga }) => {
           data-horizontal-reader
         >
           <div
-            className="relative flex min-h-0 flex-1 touch-pan-y items-center justify-center overflow-hidden bg-[#111110] p-0"
-            onTouchStart={handleTouchStart}
-            onTouchEnd={handleTouchEnd}
+            ref={horizontalStage}
+            className="relative flex min-h-0 flex-1 touch-pan-y items-center justify-center overflow-hidden bg-[#0f0f0f] p-0"
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerCancel}
+            onLostPointerCapture={handlePointerCancel}
             data-horizontal-stage
           >
             <div className="absolute inset-0 z-10 grid grid-cols-3" data-horizontal-click-zones>
@@ -837,19 +981,19 @@ const MangaReader = ({ manga }) => {
                 type="button"
                 onClick={() => handleZoneAction(goToNext)}
                 aria-label="Next page or spread"
-                className="cursor-w-resize bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#d88a7e]"
+                className="cursor-w-resize bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#ffd500]"
               />
               <button
                 type="button"
                 onClick={() => handleZoneAction(toggleInterface)}
                 aria-label={isInterfaceVisible ? "Hide reader interface" : "Show reader interface"}
-                className="cursor-pointer bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#d88a7e]"
+                className="cursor-pointer bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#ffd500]"
               />
               <button
                 type="button"
                 onClick={() => handleZoneAction(goToPrevious)}
                 aria-label="Previous page or spread"
-                className="cursor-e-resize bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#d88a7e]"
+                className="cursor-e-resize bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#ffd500]"
               />
             </div>
 
@@ -860,7 +1004,7 @@ const MangaReader = ({ manga }) => {
               tabIndex={isInterfaceVisible ? 0 : -1}
               aria-label="Next page or spread"
               aria-hidden={!isInterfaceVisible}
-              className={`absolute left-1 top-1/2 z-20 flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center border border-white/20 bg-black/55 text-3xl text-white transition-opacity hover:border-[#d88a7e] hover:text-[#d88a7e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d88a7e] disabled:cursor-not-allowed disabled:opacity-25 sm:left-3 ${
+              className={`absolute left-1 top-1/2 z-20 flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center border border-white/20 bg-[#151515]/90 text-3xl text-[#f4f1e8] transition-[opacity,background-color,border-color,color] hover:border-white/45 hover:bg-[#222222] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ffd500] disabled:cursor-not-allowed disabled:opacity-25 sm:left-3 ${
                 isInterfaceVisible ? "opacity-100" : "pointer-events-none opacity-0"
               }`}
             >
@@ -868,6 +1012,7 @@ const MangaReader = ({ manga }) => {
             </button>
 
             <div
+              ref={horizontalPages}
               className="flex h-full min-h-0 w-full items-center justify-center gap-0"
               dir={visiblePages.length > 1 ? "rtl" : "ltr"}
               data-horizontal-pages={visiblePageNumbers.join("-")}
@@ -902,7 +1047,7 @@ const MangaReader = ({ manga }) => {
               tabIndex={isInterfaceVisible ? 0 : -1}
               aria-label="Previous page or spread"
               aria-hidden={!isInterfaceVisible}
-              className={`absolute right-1 top-1/2 z-20 flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center border border-white/20 bg-black/55 text-3xl text-white transition-opacity hover:border-[#d88a7e] hover:text-[#d88a7e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d88a7e] disabled:cursor-not-allowed disabled:opacity-25 sm:right-3 ${
+              className={`absolute right-1 top-1/2 z-20 flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center border border-white/20 bg-[#151515]/90 text-3xl text-[#f4f1e8] transition-[opacity,background-color,border-color,color] hover:border-white/45 hover:bg-[#222222] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ffd500] disabled:cursor-not-allowed disabled:opacity-25 sm:right-3 ${
                 isInterfaceVisible ? "opacity-100" : "pointer-events-none opacity-0"
               }`}
             >
@@ -913,13 +1058,11 @@ const MangaReader = ({ manga }) => {
         </section>
       )}
 
-      <ThumbnailStrip
-        pages={pages}
-        activePages={visiblePageNumbers}
+      <ReaderPagination
+        currentPage={visiblePageNumbers[0]}
+        pageCount={pageCount}
         isVisible={isInterfaceVisible}
         interfaceTransition={interfaceTransition}
-        thumbnailElements={thumbnailElements}
-        onSelect={goToPage}
       />
     </main>
   );

@@ -41,13 +41,13 @@ const DocumentMetadata = () => {
 };
 
 const ScrollToTop = () => {
-  const { hash, key, pathname } = useLocation();
+  const { key, pathname } = useLocation();
 
   useLayoutEffect(() => {
-    if (pathname === "/" && !hash) {
+    if (pathname === "/") {
       window.scrollTo({ top: 0, left: 0, behavior: "auto" });
     }
-  }, [hash, key, pathname]);
+  }, [key, pathname]);
 
   return null;
 };
@@ -57,7 +57,7 @@ const PageFallback = ({ immersive = false }) => (
     className={`min-h-[100dvh] text-center ${
       immersive
         ? "bg-[#111110] pt-8 text-white"
-        : "bg-[#f4f1eb] pt-28 text-[#1d1d1b] dark:bg-[#171716] dark:text-[#f4f1eb]"
+        : "bg-page pt-28 text-foreground"
     }`}
     role="status"
   >

@@ -34,6 +34,16 @@ export function normalizeLanguageCode(code) {
   return value;
 }
 
+export function normalizeStorageFolder(folder) {
+  const value = String(folder ?? "").trim().replaceAll("\\", "/").replace(/^\/+|\/+$/g, "");
+  if (!value) return "";
+  const segments = value.split("/");
+  if (segments.some((segment) => !/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(segment) || segment === "." || segment === "..")) {
+    throw new Error("Dossier physique de langue invalide.");
+  }
+  return segments.join("/");
+}
+
 export function validateMangaCatalog(mangas) {
   const ids = new Set();
   const slugs = new Set();
@@ -64,6 +74,7 @@ export function validateMangaCatalog(mangas) {
     if (!manga.languages[manga.defaultLanguage]) throw new Error(`Langue par défaut absente pour ${manga.title}.`);
     for (const [code, language] of Object.entries(manga.languages)) {
       normalizeLanguageCode(code);
+      if (language.storageFolder !== undefined) normalizeStorageFolder(language.storageFolder);
       if (!Array.isArray(language.pages)) throw new Error(`Pages invalides pour ${manga.title}/${code}.`);
       for (const page of language.pages) {
         if (typeof page !== "string" || !page.startsWith(ASSET_PREFIX)) throw new Error(`Chemin de page invalide pour ${manga.title}/${code}.`);
