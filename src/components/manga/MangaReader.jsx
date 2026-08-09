@@ -4,9 +4,15 @@ import { Link } from "react-router-dom";
 import { useReducedMotion } from "framer-motion";
 import { t } from "../../content/ui";
 import {
+  canStartReaderPointerGesture,
+  finishReaderPointerGesture,
   getReaderDragOffset,
-  getReaderSwipeAction,
+  getReaderRailPanelRoles,
+  getReaderRailSnapOffset,
+  getReaderRailTransform,
+  getReaderSwipeDirectionAction,
   isHorizontalDragIntent,
+  isVerticalDragIntent,
 } from "./readerGestures";
 
 const MODE_STORAGE_KEY = "manga-reader-mode";
@@ -22,7 +28,37 @@ const READER_TUTORIAL_TIMING = {
   fade: 200,
 };
 const DRAG_RESET_DURATION = 180;
+const DRAG_SNAP_DURATION = 210;
+const DRAG_SNAP_EASING = "cubic-bezier(0.22, 1, 0.36, 1)";
 const GHOST_CLICK_DURATION = 450;
+const HORIZONTAL_RAIL_ROLES = getReaderRailPanelRoles();
+
+const capturePointer = (element, pointerId) => {
+  if (typeof element?.setPointerCapture !== "function") return false;
+
+  try {
+    element.setPointerCapture(pointerId);
+    return typeof element.hasPointerCapture !== "function" || element.hasPointerCapture(pointerId);
+  } catch {
+    return false;
+  }
+};
+
+const releasePointer = (element, pointerId) => {
+  if (
+    typeof element?.hasPointerCapture !== "function" ||
+    typeof element?.releasePointerCapture !== "function" ||
+    !element.hasPointerCapture(pointerId)
+  ) {
+    return;
+  }
+
+  try {
+    element.releasePointerCapture(pointerId);
+  } catch {
+    // The browser may already have released capture after pointercancel.
+  }
+};
 
 const readPreference = (key, acceptedValues, fallback) => {
   try {
@@ -304,6 +340,42 @@ const MangaPageImage = ({ page, title, eager = false, className = "" }) => (
   />
 );
 
+const HorizontalRailPanel = ({ panel, title }) => (
+  <div
+    className="flex h-full min-h-0 w-full flex-none items-center justify-center overflow-hidden"
+    aria-hidden={panel.role !== "current"}
+    data-rail-panel={panel.role}
+    data-rail-pages={panel.pageNumbers.join("-")}
+  >
+    <div
+      className="flex h-full min-h-0 w-full items-center justify-center gap-0"
+      dir={panel.pages.length > 1 ? "rtl" : "ltr"}
+    >
+      {panel.pages.map((page) => (
+        <figure
+          key={page.src}
+          className={`m-0 min-h-0 border-0 p-0 ${
+            panel.pages.length > 1
+              ? "contents"
+              : "flex h-full w-full items-center justify-center"
+          }`}
+          data-page={page.number}
+          dir="ltr"
+        >
+          <MangaPageImage
+            page={page}
+            title={title}
+            eager
+            className={`m-0 h-full max-h-[100dvh] w-auto flex-none border-0 p-0 object-contain ${
+              panel.pages.length > 1 ? "max-w-[50%]" : "max-w-full"
+            }`}
+          />
+        </figure>
+      ))}
+    </div>
+  </div>
+);
+
 const ReaderTutorial = ({
   isVisible,
   readingDirection,
@@ -401,6 +473,9 @@ const MangaReader = ({ manga }) => {
   const verticalPageElements = useRef([]);
   const pointerGesture = useRef(null);
   const dragFrame = useRef(null);
+  const railNavigation = useRef(null);
+  const railSnapTimer = useRef(null);
+  const railNeedsRecentering = useRef(false);
   const suppressZoneClickUntil = useRef(0);
   const tutorialIsActive = useRef(false);
   const tutorialTimers = useRef({ show: null, hide: null, remove: null });
@@ -453,13 +528,44 @@ const MangaReader = ({ manga }) => {
     [pages],
   );
 
-  const visiblePages = visiblePageNumbers.map((pageNumber) => ({
-    src: pages[pageNumber - 1],
-    number: pageNumber,
-  }));
-
   const canGoPrevious = visiblePageNumbers[0] > 1;
   const canGoNext = visiblePageNumbers.at(-1) < pageCount;
+  const nextPageNumber = canGoNext
+    ? pageDisplay === "double"
+      ? visiblePageNumbers[0] === 1
+        ? 2
+        : visiblePageNumbers[0] + 2
+      : currentPage + 1
+    : null;
+  const previousPageNumber = canGoPrevious
+    ? pageDisplay === "double"
+      ? visiblePageNumbers[0] === 2
+        ? 1
+        : visiblePageNumbers[0] - 2
+      : currentPage - 1
+    : null;
+  const horizontalPanelStarts = {
+    current: currentPage,
+    next: nextPageNumber,
+    previous: previousPageNumber,
+  };
+  const horizontalPanels = HORIZONTAL_RAIL_ROLES.map((role) => {
+    const startPage = horizontalPanelStarts[role];
+    const pageNumbers = startPage === null
+      ? []
+      : role === "current"
+        ? visiblePageNumbers
+        : getVisiblePageNumbers(startPage, pageDisplay, pageCount);
+
+    return {
+      role,
+      pageNumbers,
+      pages: pageNumbers.map((pageNumber) => ({
+        src: pages[pageNumber - 1],
+        number: pageNumber,
+      })),
+    };
+  });
 
   const goToPage = useCallback(
     (pageNumber, { scroll = readingMode === "vertical" } = {}) => {
@@ -479,41 +585,21 @@ const MangaReader = ({ manga }) => {
   );
 
   const goToNext = useCallback(() => {
-    if (!canGoNext) return;
-
-    const nextPage =
-      pageDisplay === "double"
-        ? visiblePageNumbers[0] === 1
-          ? 2
-          : visiblePageNumbers[0] + 2
-        : currentPage + 1;
-    goToPage(nextPage, { scroll: readingMode === "vertical" });
+    if (nextPageNumber === null) return;
+    goToPage(nextPageNumber, { scroll: readingMode === "vertical" });
   }, [
-    canGoNext,
-    currentPage,
     goToPage,
-    pageDisplay,
+    nextPageNumber,
     readingMode,
-    visiblePageNumbers,
   ]);
 
   const goToPrevious = useCallback(() => {
-    if (!canGoPrevious) return;
-
-    const previousPage =
-      pageDisplay === "double"
-        ? visiblePageNumbers[0] === 2
-          ? 1
-          : visiblePageNumbers[0] - 2
-        : currentPage - 1;
-    goToPage(previousPage, { scroll: readingMode === "vertical" });
+    if (previousPageNumber === null) return;
+    goToPage(previousPageNumber, { scroll: readingMode === "vertical" });
   }, [
-    canGoPrevious,
-    currentPage,
     goToPage,
-    pageDisplay,
+    previousPageNumber,
     readingMode,
-    visiblePageNumbers,
   ]);
 
   useEffect(() => {
@@ -679,9 +765,42 @@ const MangaReader = ({ manga }) => {
     return () => window.removeEventListener("scroll", dismissTutorial, true);
   }, [dismissTutorial, isTutorialMounted]);
 
+  const clearRailSnapTimer = useCallback(() => {
+    if (railSnapTimer.current !== null) {
+      window.clearTimeout(railSnapTimer.current);
+      railSnapTimer.current = null;
+    }
+  }, []);
+
+  const completeHorizontalSnap = useCallback(() => {
+    const action = railNavigation.current;
+    if (!action) return;
+
+    railNavigation.current = null;
+    railNeedsRecentering.current = true;
+    clearRailSnapTimer();
+
+    if (action === "next") goToNext();
+    else if (action === "previous") goToPrevious();
+  }, [clearRailSnapTimer, goToNext, goToPrevious]);
+
+  useLayoutEffect(() => {
+    if (!railNeedsRecentering.current || !horizontalPages.current) return;
+
+    horizontalPages.current.style.transition = "none";
+    horizontalPages.current.style.transform = getReaderRailTransform(0);
+    railNeedsRecentering.current = false;
+  }, [currentPage, pageDisplay, resolvedLanguage]);
+
   useEffect(() => () => {
     if (dragFrame.current !== null) cancelAnimationFrame(dragFrame.current);
-  }, []);
+    clearRailSnapTimer();
+    const gesture = pointerGesture.current;
+    if (gesture) releasePointer(gesture.captureElement, gesture.pointerId);
+    pointerGesture.current = null;
+    railNavigation.current = null;
+    railNeedsRecentering.current = false;
+  }, [clearRailSnapTimer]);
 
   const updateDragOffset = (offset) => {
     if (dragFrame.current !== null) cancelAnimationFrame(dragFrame.current);
@@ -689,7 +808,7 @@ const MangaReader = ({ manga }) => {
     dragFrame.current = requestAnimationFrame(() => {
       dragFrame.current = null;
       if (horizontalPages.current) {
-        horizontalPages.current.style.transform = `translate3d(${offset}px, 0, 0)`;
+        horizontalPages.current.style.transform = getReaderRailTransform(offset);
       }
     });
   };
@@ -703,19 +822,52 @@ const MangaReader = ({ manga }) => {
     if (horizontalPages.current) {
       horizontalPages.current.style.transition = shouldReduceMotion
         ? "none"
-        : `transform ${DRAG_RESET_DURATION}ms ease-out`;
-      horizontalPages.current.style.transform = "translate3d(0, 0, 0)";
+        : `transform ${DRAG_RESET_DURATION}ms ${DRAG_SNAP_EASING}`;
+      horizontalPages.current.style.transform = getReaderRailTransform(0);
     }
 
     if (horizontalStage.current) horizontalStage.current.style.cursor = "";
   };
 
+  const startHorizontalSnap = (action, stageWidth) => {
+    if (!horizontalPages.current) return;
+    if (dragFrame.current !== null) {
+      cancelAnimationFrame(dragFrame.current);
+      dragFrame.current = null;
+    }
+
+    railNavigation.current = action;
+    horizontalPages.current.style.transition = shouldReduceMotion
+      ? "none"
+      : `transform ${DRAG_SNAP_DURATION}ms ${DRAG_SNAP_EASING}`;
+    horizontalPages.current.style.transform = getReaderRailTransform(
+      getReaderRailSnapOffset({ action, width: stageWidth }),
+    );
+    if (horizontalStage.current) horizontalStage.current.style.cursor = "";
+
+    if (shouldReduceMotion) {
+      completeHorizontalSnap();
+      return;
+    }
+
+    clearRailSnapTimer();
+    railSnapTimer.current = window.setTimeout(
+      completeHorizontalSnap,
+      DRAG_SNAP_DURATION + 80,
+    );
+  };
+
+  const handleRailTransitionEnd = (event) => {
+    if (event.target !== event.currentTarget || event.propertyName !== "transform") return;
+    completeHorizontalSnap();
+  };
+
   const handlePointerDown = (event) => {
-    if (
-      readingMode !== "horizontal" ||
-      !event.isPrimary ||
-      (event.pointerType === "mouse" && event.button !== 0)
-    ) {
+    if (!event.isPrimary && pointerGesture.current) {
+      const activeGesture = pointerGesture.current;
+      pointerGesture.current = null;
+      releasePointer(activeGesture.captureElement, activeGesture.pointerId);
+      resetHorizontalDrag();
       return;
     }
 
@@ -726,25 +878,40 @@ const MangaReader = ({ manga }) => {
       "button, a, input, textarea, select, [contenteditable='true'], [role='button']",
     );
     const isReadingZone = target.closest("[data-horizontal-click-zones]");
-    if (interactiveTarget && !isReadingZone) return;
+    const blockedTarget = Boolean(interactiveTarget && !isReadingZone);
+
+    if (!canStartReaderPointerGesture({
+      readingMode,
+      isPrimary: event.isPrimary,
+      pointerType: event.pointerType,
+      button: event.button,
+      blockedTarget,
+      hasActiveGesture: Boolean(pointerGesture.current || railNavigation.current),
+    })) {
+      return;
+    }
 
     suppressZoneClickUntil.current = 0;
-    pointerGesture.current = {
+    const captureElement = typeof target.setPointerCapture === "function"
+      ? target
+      : event.currentTarget;
+    const gesture = {
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
       horizontalIntent: false,
-      cancelled: false,
       dragged: false,
-      captured: false,
+      captureElement,
+      captured: capturePointer(captureElement, event.pointerId),
     };
+    pointerGesture.current = gesture;
 
     if (horizontalPages.current) horizontalPages.current.style.transition = "none";
   };
 
   const handlePointerMove = (event) => {
     const gesture = pointerGesture.current;
-    if (!gesture || gesture.pointerId !== event.pointerId || gesture.cancelled) return;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
 
     const deltaX = event.clientX - gesture.startX;
     const deltaY = event.clientY - gesture.startY;
@@ -752,8 +919,9 @@ const MangaReader = ({ manga }) => {
     if (!gesture.horizontalIntent) {
       gesture.horizontalIntent = isHorizontalDragIntent(deltaX, deltaY);
 
-      if (!gesture.horizontalIntent && Math.abs(deltaY) >= 8) {
-        gesture.cancelled = true;
+      if (!gesture.horizontalIntent && isVerticalDragIntent(deltaX, deltaY)) {
+        pointerGesture.current = null;
+        releasePointer(gesture.captureElement, event.pointerId);
         resetHorizontalDrag();
         return;
       }
@@ -762,42 +930,41 @@ const MangaReader = ({ manga }) => {
     if (!gesture.horizontalIntent) return;
 
     if (!gesture.captured) {
-      gesture.captured = true;
-      event.currentTarget.style.cursor = "grabbing";
-      event.currentTarget.setPointerCapture(event.pointerId);
+      gesture.captured = capturePointer(gesture.captureElement, event.pointerId);
     }
+    event.currentTarget.style.cursor = "grabbing";
 
     if (event.cancelable) event.preventDefault();
     gesture.dragged = true;
     const stageWidth = event.currentTarget.getBoundingClientRect().width;
-    const canNavigate = deltaX > 0 ? canGoNext : canGoPrevious;
+    const dragAction = getReaderSwipeDirectionAction(deltaX);
+    const canNavigate = dragAction === "next" ? canGoNext : canGoPrevious;
     updateDragOffset(getReaderDragOffset({ deltaX, width: stageWidth, canNavigate }));
   };
 
   const finishPointerGesture = (event, navigate = true) => {
     const gesture = pointerGesture.current;
-    if (!gesture || gesture.pointerId !== event.pointerId) return;
-
-    const deltaX = event.clientX - gesture.startX;
-    const deltaY = event.clientY - gesture.startY;
     const stageWidth = event.currentTarget.getBoundingClientRect().width;
-    const action = gesture.horizontalIntent && navigate
-      ? getReaderSwipeAction({ deltaX, deltaY, width: stageWidth })
-      : null;
-    const wasDragged = gesture.dragged;
+    const result = finishReaderPointerGesture({
+      gesture,
+      pointerId: event.pointerId,
+      endX: event.clientX,
+      endY: event.clientY,
+      width: stageWidth,
+      cancelled: !navigate,
+      canGoNext,
+      canGoPrevious,
+    });
+    if (!result.handled) return;
 
-    pointerGesture.current = null;
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-    resetHorizontalDrag();
-
-    if (wasDragged) {
+    pointerGesture.current = result.gesture;
+    releasePointer(gesture?.captureElement, event.pointerId);
+    if (result.wasDragged) {
       suppressZoneClickUntil.current = Date.now() + GHOST_CLICK_DURATION;
     }
 
-    if (action === "next") goToNext();
-    else if (action === "previous") goToPrevious();
+    if (result.action) startHorizontalSnap(result.action, stageWidth);
+    else resetHorizontalDrag();
   };
 
   const handlePointerUp = (event) => finishPointerGesture(event);
@@ -1013,30 +1180,19 @@ const MangaReader = ({ manga }) => {
 
             <div
               ref={horizontalPages}
-              className="flex h-full min-h-0 w-full items-center justify-center gap-0"
-              dir={visiblePages.length > 1 ? "rtl" : "ltr"}
+              className="flex h-full min-h-0 w-full flex-none will-change-transform"
+              style={{ transform: getReaderRailTransform(0) }}
+              onTransitionEnd={handleRailTransitionEnd}
+              dir="ltr"
               data-horizontal-pages={visiblePageNumbers.join("-")}
+              data-horizontal-rail
             >
-              {visiblePages.map((page) => (
-                <figure
-                  key={page.src}
-                  className={`m-0 min-h-0 border-0 p-0 ${
-                    visiblePages.length > 1
-                      ? "contents"
-                      : "flex h-full w-full items-center justify-center"
-                  }`}
-                  data-page={page.number}
-                  dir="ltr"
-                >
-                  <MangaPageImage
-                    page={page}
-                    title={title}
-                    eager
-                    className={`m-0 h-full max-h-[100dvh] w-auto flex-none border-0 p-0 object-contain ${
-                      visiblePages.length > 1 ? "max-w-[50%]" : "max-w-full"
-                    }`}
-                  />
-                </figure>
+              {horizontalPanels.map((panel) => (
+                <HorizontalRailPanel
+                  key={panel.pageNumbers.join("-") || `empty-${panel.role}`}
+                  panel={panel}
+                  title={title}
+                />
               ))}
             </div>
 
