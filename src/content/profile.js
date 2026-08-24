@@ -23,7 +23,8 @@ export const profile = {
       distinction: "Winner",
       year: "2022",
       organization: "MangaDraft × Manga-io × XP-PEN",
-      event: "Illustration Contest",
+      event: 'Winning manga: "Stubborn Love"',
+      eventLanguage: "fr",
       tone: "yellow",
     },
     {
@@ -32,7 +33,7 @@ export const profile = {
       distinction: "Selected",
       year: "2026",
       organization: "KADOKAWA WORLD MANGA CONTEST",
-      event: "悟空の世!",
+      event: 'Finalist manga: "悟空の世!" — Solo manga selected among ~300 finalists from 1,959 entries across 118 countries & regions',
       eventLanguage: "ja",
       tone: "blue",
     },
