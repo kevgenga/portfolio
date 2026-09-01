@@ -33,7 +33,7 @@ export const profile = {
       distinction: "Selected",
       year: "2026",
       organization: "KADOKAWA WORLD MANGA CONTEST",
-      event: 'Finalist manga: "悟空の世!" — Solo manga selected among ~300 finalists from 1,959 entries across 118 countries & regions',
+      event: 'Manga Finalist: “悟空の世!” — Top 300 of 1,959 entries from 118 countries & regions',
       eventLanguage: "ja",
       tone: "blue",
     },
