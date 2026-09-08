@@ -555,11 +555,21 @@ a {
 }
 
 .dark .recognition-entry {
-  border-color: var(--color-text);
+  border-color: var(--color-line);
+  background: color-mix(in srgb, var(--color-surface) 94%, var(--color-paper));
+  color: var(--color-text);
 }
 
 .recognition-entry .section-eyebrow {
   color: var(--color-secondary);
+}
+
+.dark .recognition-entry .section-eyebrow {
+  color: color-mix(in srgb, var(--color-secondary) 70%, var(--color-paper));
+}
+
+.dark .recognition-entry > div > p:not(.section-eyebrow) {
+  color: var(--color-muted);
 }
 
 .recognition-seal {
@@ -649,7 +659,6 @@ a {
 }
 
 .dark .recognition-manga-link--blue {
-  border-color: var(--color-paper);
   border-bottom-color: var(--color-secondary);
 }
 
