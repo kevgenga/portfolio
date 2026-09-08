@@ -16,6 +16,34 @@ const reveal = {
   transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] },
 };
 
+const RecognitionEvent = ({
+  event,
+  mangaTitle,
+  mangaUrl,
+  officialUrl,
+  tone,
+}) => {
+  const resultUrl = mangaUrl || officialUrl;
+  const titleStart = event.indexOf(mangaTitle);
+  if (titleStart === -1 || !resultUrl) return event;
+
+  return (
+    <>
+      {event.slice(0, titleStart)}
+      <a
+        href={resultUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={`${mangaTitle} — Official results (opens in a new tab)`}
+        className={`recognition-manga-link recognition-manga-link--${tone}`}
+      >
+        {mangaTitle}
+      </a>
+      {event.slice(titleStart + mangaTitle.length)}
+    </>
+  );
+};
+
 const HomePage = () => (
   <main className="public-page">
     <motion.section
@@ -81,7 +109,9 @@ const HomePage = () => (
               <RecognitionSeal {...recognition} index={index + 1} />
               <div>
                 <p className="section-eyebrow">
-                  {recognition.award} · {recognition.year}
+                  <span className={recognition.tone === "yellow" ? "recognition-award-highlight" : undefined}>
+                    {recognition.award} · {recognition.year}
+                  </span>
                 </p>
                 <h3 className="mt-3 text-3xl uppercase leading-[0.95] sm:text-5xl">
                   {recognition.organization}
@@ -90,7 +120,7 @@ const HomePage = () => (
                   className="mt-4 text-sm font-semibold leading-relaxed text-ink/70"
                   lang={recognition.eventLanguage}
                 >
-                  {recognition.event}
+                  <RecognitionEvent {...recognition} />
                 </p>
               </div>
             </article>

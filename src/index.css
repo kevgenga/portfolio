@@ -607,6 +607,61 @@ a {
   content: "";
 }
 
+.recognition-manga-link {
+  display: inline-block;
+  max-width: 100%;
+  padding: 0.06em 0.3em;
+  border: 1px solid transparent;
+  border-radius: 0;
+  font-weight: 900;
+  line-height: 1.4;
+  vertical-align: baseline;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.recognition-manga-link--yellow,
+.recognition-award-highlight {
+  background: var(--color-primary);
+  color: var(--color-ink);
+  text-transform: uppercase;
+}
+
+.recognition-manga-link--yellow {
+  --manga-link-accent: var(--color-ink);
+}
+
+.recognition-award-highlight {
+  display: inline-block;
+  padding: 0.06em 0.3em;
+  border: 1px solid transparent;
+  font-weight: 900;
+  line-height: 1.4;
+}
+
+.recognition-manga-link--blue {
+  --manga-link-accent: var(--color-secondary);
+  background: var(--color-ink);
+  color: var(--color-paper);
+  font-family: "Yu Gothic", "YuGothic", "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif;
+  box-shadow: 0 3px 0 var(--manga-link-accent);
+}
+
+.dark .recognition-manga-link--blue {
+  border-color: var(--color-paper);
+  border-bottom-color: var(--color-secondary);
+}
+
+.recognition-manga-link:hover {
+  opacity: 0.85;
+}
+
+.recognition-manga-link:focus-visible {
+  outline: 2px solid var(--manga-link-accent);
+  outline-offset: 3px;
+}
+
 .recognition-seal__number {
   position: absolute;
   top: 0.72rem;
