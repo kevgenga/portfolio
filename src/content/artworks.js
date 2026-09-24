@@ -4201,5 +4201,17 @@ export const artworks = [
     featured: false,
     orientation: "",
   },
+  {
+    id: "illustration68",
+    title: "",
+    image: assetPath("assets/illustration/illustrations/Illustration68.jpg"),
+    thumbnail: "",
+    category: ["illustrations"],
+    date: "24-09-2026",
+    year: 2026,
+    alt: "Illustration68",
+    featured: false,
+    orientation: "",
+  },
 ];
 
