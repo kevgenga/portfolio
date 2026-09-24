@@ -1,6 +1,9 @@
 import { useEffect } from "react";
 import { Fancybox } from "@fancyapps/ui";
 import "@fancyapps/ui/dist/fancybox/fancybox.css";
+import { useLanguage } from "../../i18n/languageContext";
+import { fr } from "../../i18n/translations/fr";
+import { ja } from "../../i18n/translations/ja";
 
 const defaultOptions = {};
 
@@ -25,7 +28,10 @@ const Lightbox = ({
   slides,
   galleryName,
 }) => {
+  const { locale } = useLanguage();
   useEffect(() => {
+    const lightboxText = locale === "ja" ? ja.lightbox : locale === "fr" ? fr.lightbox : null;
+    const localizedOptions = lightboxText ? { ...options, l10n: lightboxText } : options;
     if (slides && galleryName) {
       let active = true;
       let instance = null;
@@ -37,19 +43,19 @@ const Lightbox = ({
         updateHash(`#${galleryName}-${index + 1}`);
 
         instance = Fancybox.show(slides.map((slide) => ({ ...slide })), {
-          ...options,
+          ...localizedOptions,
           Hash: false,
           startIndex: index,
           triggerEl,
           on: {
-            ...options.on,
+            ...localizedOptions.on,
             "Carousel.change": (fancybox, carousel) => {
               updateHash(`#${galleryName}-${carousel.page + 1}`);
-              options.on?.["Carousel.change"]?.(fancybox, carousel);
+              localizedOptions.on?.["Carousel.change"]?.(fancybox, carousel);
             },
             close: (fancybox, event) => {
               updateHash(restoreHash);
-              options.on?.close?.(fancybox, event);
+              localizedOptions.on?.close?.(fancybox, event);
             },
           },
         });
@@ -77,13 +83,13 @@ const Lightbox = ({
       };
     }
 
-    Fancybox.bind(selector, options);
+    Fancybox.bind(selector, localizedOptions);
 
     return () => {
       Fancybox.unbind(selector);
       Fancybox.close();
     };
-  }, [galleryName, options, refreshKey, selector, slides]);
+  }, [galleryName, locale, options, refreshKey, selector, slides]);
 
   return null;
 };

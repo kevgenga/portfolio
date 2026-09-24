@@ -32,6 +32,38 @@ html.dark {
   --color-button-hover: #dedbd2;
 }
 
+html[lang="ja"] {
+  --font-japanese: "Yu Gothic", "YuGothic", "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Meiryo", sans-serif;
+  font-family: var(--font-japanese);
+}
+
+html[lang="ja"] .page-title,
+html[lang="ja"] .section-title,
+html[lang="ja"] .contact-display__title,
+html[lang="ja"] .about-hero__roles,
+html[lang="ja"] .about-signature,
+html[lang="ja"] .capability-block__title,
+html[lang="ja"] .section-label__text,
+html[lang="ja"] .manga-section-heading h2,
+html[lang="ja"] .nav-link {
+  font-family: var(--font-japanese);
+  font-weight: 800;
+}
+
+html[lang="ja"] .page-title,
+html[lang="ja"] .section-title,
+html[lang="ja"] .contact-display__title,
+html[lang="ja"] .about-hero__roles,
+html[lang="ja"] .about-signature,
+html[lang="ja"] .manga-section-heading h2 {
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+html[lang="ja"] .page-hero .page-title {
+  font-size: clamp(2.7rem, 9vw, 6.5rem);
+}
+
 html,
 body,
 #root {
@@ -347,6 +379,18 @@ a {
   line-height: 0.94;
   text-transform: uppercase;
   transform: rotate(-1.2deg);
+}
+
+html[lang="ja"] .about-signature {
+  font-size: clamp(2.4rem, 3.75vw, 4.35rem);
+  line-height: 1.08;
+  text-wrap: balance;
+}
+
+@media (min-width: 768px) {
+  html[lang="fr"] .about-signature {
+    font-size: clamp(2.4rem, 4vw, 4.4rem);
+  }
 }
 
 .artwork-hero {
@@ -1229,6 +1273,10 @@ a {
     max-width: none;
     margin: -2rem 1rem 1.4rem;
     font-size: clamp(2.4rem, 11vw, 4.4rem);
+  }
+
+  html[lang="ja"] .about-signature {
+    font-size: clamp(2.35rem, 10vw, 3.4rem);
   }
 
   .artwork-strip {

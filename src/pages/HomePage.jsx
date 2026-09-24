@@ -8,6 +8,7 @@ import RecognitionSeal from "../components/about/RecognitionSeal";
 import SectionLabel from "../components/SectionLabel";
 import { profile } from "../content/profile";
 import { sitePresentation } from "../content/sitePresentation";
+import { useLanguage } from "../i18n/languageContext";
 
 const reveal = {
   initial: { opacity: 0, y: 18 },
@@ -22,6 +23,7 @@ const RecognitionEvent = ({
   mangaUrl,
   officialUrl,
   tone,
+  ariaLabel,
 }) => {
   const resultUrl = mangaUrl || officialUrl;
   const titleStart = event.indexOf(mangaTitle);
@@ -34,7 +36,7 @@ const RecognitionEvent = ({
         href={resultUrl}
         target="_blank"
         rel="noopener noreferrer"
-        aria-label={`${mangaTitle} — Official results (opens in a new tab)`}
+        aria-label={ariaLabel}
         className={`recognition-manga-link recognition-manga-link--${tone}`}
       >
         {mangaTitle}
@@ -44,7 +46,16 @@ const RecognitionEvent = ({
   );
 };
 
-const HomePage = () => (
+const HomePage = () => {
+  const { t, content, locale } = useLanguage();
+  const about = content?.about || profile.about;
+  const experience = content?.experience || profile.experience;
+  const localizeGroups = (groups) => groups.map((group) => ({
+    ...group,
+    label: content?.capabilityLabels[group.label] || group.label,
+    items: group.items.map((item) => content?.capabilityItems[item] || item),
+  }));
+  return (
   <main className="public-page">
     <motion.section
       id="about"
@@ -60,23 +71,23 @@ const HomePage = () => (
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
       >
-        <p className="page-kicker">Manga artist portfolio / 2026</p>
+        <p className="page-kicker">{t.home.kicker}</p>
         <h1 id="about-title" className="about-hero__name">{profile.name}</h1>
         <p className="about-hero__roles">
-          {profile.about.roles.map((role) => (
+          {about.roles.map((role) => (
             <span key={role} className="block">{role}</span>
           ))}
         </p>
         <p className="about-hero__meta">
-          <span>{profile.about.experienceLabel}</span>
-          <span>{profile.about.location}</span>
+          <span>{about.experienceLabel}</span>
+          <span>{t.home.location}</span>
         </p>
-        <p className="about-hero__summary">{profile.about.summary}</p>
-        <ProfessionalStatus {...profile.about.availability} />
+        <p className="about-hero__summary">{about.summary}</p>
+        <ProfessionalStatus {...about.availability} />
       </motion.div>
 
-      <ArtworkHero artwork={sitePresentation.hero} />
-      <p className="about-signature">Drawing stories into life.</p>
+      <ArtworkHero artwork={sitePresentation.hero} alt={t.home.heroAlt} caption={t.home.heroCaption} />
+      <p className="about-signature">{t.home.signature}</p>
     </motion.section>
 
     <motion.section
@@ -84,11 +95,14 @@ const HomePage = () => (
       aria-labelledby="artwork-first-title"
       {...reveal}
     >
-      <SectionLabel index="01" label="Artwork first" note="Selected manga, characters and action" />
+      <SectionLabel index="01" label={t.home.artworkLabel} note={t.home.artworkNote} />
       <h2 id="artwork-first-title" className="section-title my-10 max-w-5xl sm:my-14">
-        Lines. Motion. Character.
+        {t.home.artworkTitle}
       </h2>
-      <ArtworkStrip artworks={sitePresentation.aboutShowcase} />
+      <ArtworkStrip artworks={sitePresentation.aboutShowcase.map((artwork) => ({
+        ...artwork,
+        ...t.home.showcase?.[artwork.id],
+      }))} />
     </motion.section>
 
     <motion.section
@@ -99,18 +113,20 @@ const HomePage = () => (
       <div className="mx-auto max-w-[100rem] px-5 py-16 sm:px-8 sm:py-20 lg:px-10 lg:py-24">
         <SectionLabel
           index="02"
-          label="Selected recognition"
-          note="International manga and illustration competitions"
+          label={t.home.recognitionLabel}
+          note={t.home.recognitionNote}
         />
-        <h2 id="recognition-title" className="sr-only">Selected recognition</h2>
+        <h2 id="recognition-title" className="sr-only">{t.home.recognitionLabel}</h2>
         <div className="recognition-grid mt-10 sm:mt-14">
-          {profile.recognition.map((recognition, index) => (
+          {profile.recognition.map((recognition, index) => {
+            const localized = content?.recognition[recognition.id] || {};
+            return (
             <article key={recognition.id} className="recognition-entry">
-              <RecognitionSeal {...recognition} index={index + 1} />
+              <RecognitionSeal {...recognition} {...localized} index={index + 1} />
               <div>
                 <p className="section-eyebrow">
                   <span className={recognition.tone === "yellow" ? "recognition-award-highlight" : undefined}>
-                    {recognition.award} · {recognition.year}
+                    {localized.award || recognition.award} · {recognition.year}
                   </span>
                 </p>
                 <h3 className="mt-3 text-3xl uppercase leading-[0.95] sm:text-5xl">
@@ -118,13 +134,14 @@ const HomePage = () => (
                 </h3>
                 <p
                   className="mt-4 text-sm font-semibold leading-relaxed text-ink/70"
-                  lang={recognition.eventLanguage}
+                  lang={locale}
                 >
-                  <RecognitionEvent {...recognition} />
+                  <RecognitionEvent {...recognition} event={localized.event || recognition.event}
+                    ariaLabel={t.home.officialResults(recognition.mangaTitle)} />
                 </p>
               </div>
             </article>
-          ))}
+          ); })}
         </div>
       </div>
     </motion.section>
@@ -135,18 +152,18 @@ const HomePage = () => (
       {...reveal}
     >
       <div className="mx-auto max-w-[100rem] px-5 py-16 sm:px-8 sm:py-20 lg:px-10 lg:py-24">
-        <SectionLabel index="03" label="Experience" note="Practice and capabilities" inverse />
+        <SectionLabel index="03" label={t.home.experienceLabel} note={t.home.experienceNote} inverse />
         <div className="mt-10 grid gap-12 lg:grid-cols-[minmax(15rem,0.32fr)_minmax(0,0.68fr)] lg:gap-16">
           <div>
             <h2 id="experience-title" className="text-4xl uppercase leading-[0.9] text-paper sm:text-6xl">
-              {profile.experience.role}
+              {experience.role}
             </h2>
             <p className="mt-4 text-xs font-black uppercase tracking-[0.18em] text-primary">
-              {profile.experience.period}
+              {experience.period}
             </p>
           </div>
           <div className="grid gap-8 sm:grid-cols-2 xl:grid-cols-3">
-            {profile.capabilities.map((group, index) => (
+            {localizeGroups(profile.capabilities).map((group, index) => (
               <CapabilityGroup key={group.label} {...group} index={index + 1} />
             ))}
           </div>
@@ -159,10 +176,10 @@ const HomePage = () => (
       aria-labelledby="tools-title"
       {...reveal}
     >
-      <SectionLabel index="04" label="Tools" note="Digital and traditional" />
-      <h2 id="tools-title" className="sr-only">Tools</h2>
+      <SectionLabel index="04" label={t.home.toolsLabel} note={t.home.toolsNote} />
+      <h2 id="tools-title" className="sr-only">{t.home.toolsLabel}</h2>
       <div className="mt-10 grid gap-8 md:grid-cols-2">
-        {profile.tools.map((group, index) => (
+        {localizeGroups(profile.tools).map((group, index) => (
           <CapabilityGroup key={group.label} {...group} index={index + 1} />
         ))}
       </div>
@@ -174,15 +191,16 @@ const HomePage = () => (
       {...reveal}
     >
       <div className="mx-auto max-w-[100rem] px-5 py-16 sm:px-8 sm:py-20 lg:px-10 lg:py-24">
-        <SectionLabel index="05" label="Sketchbook" note="@kevgenga" />
-        <h2 id="sketchbook-title" className="section-title mt-10 sm:mt-14">Recent work.</h2>
+        <SectionLabel index="05" label={t.home.sketchbookLabel} note="@kevgenga" />
+        <h2 id="sketchbook-title" className="section-title mt-10 sm:mt-14">{t.home.sketchbookTitle}</h2>
         <p className="mt-4 max-w-2xl text-sm font-medium leading-relaxed text-muted sm:text-base">
-          Recent sketches, studies and manga artwork published on Instagram.
+          {t.home.sketchbookDescription}
         </p>
         <InstagramSketchbook />
       </div>
     </motion.section>
   </main>
-);
+  );
+};
 
 export default HomePage;

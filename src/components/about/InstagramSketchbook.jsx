@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
+import { useLanguage } from "../../i18n/languageContext";
 
 const InstagramSketchbook = () => {
+  const { t } = useLanguage();
   const widgetRef = useRef(null);
   const [isReady, setIsReady] = useState(false);
 
@@ -26,7 +28,7 @@ const InstagramSketchbook = () => {
       {!isReady && (
         <div className="absolute inset-0 flex items-center justify-center p-6 text-center" role="status">
           <p className="text-xs font-black uppercase tracking-[0.16em] text-muted">
-            Recent work loading
+            {t.home.sketchbookLoading}
           </p>
         </div>
       )}

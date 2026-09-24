@@ -1,32 +1,72 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { FaBars, FaMoon, FaSun, FaTimes } from "react-icons/fa";
+import { FaBars, FaGlobe, FaMoon, FaSun, FaTimes } from "react-icons/fa";
 import { profile } from "../content/profile";
-import { t } from "../content/ui";
 import { useTheme } from "../context/ThemeContext";
-
-const navItems = [
-  { to: "/", label: t.navigation.about, end: true },
-  { to: "/mangaka", label: t.navigation.manga },
-  { to: "/illustration", label: t.navigation.illustration },
-  { to: "/animation", label: t.navigation.animation },
-  { to: "/contact", label: t.navigation.contact },
-];
+import { useLanguage } from "../i18n/languageContext";
+import { locales } from "../i18n/locale";
 
 const focusClass =
   "focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-page";
 
 const Navbar = () => {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [languageOpen, setLanguageOpen] = useState(false);
   const menuButtonRef = useRef(null);
   const firstLinkRef = useRef(null);
+  const languageRootRef = useRef(null);
+  const languageButtonRef = useRef(null);
+  const languageOptionRefs = useRef([]);
   const location = useLocation();
   const { theme, toggleTheme } = useTheme();
+  const { locale, setLocale, t } = useLanguage();
+  const navItems = [
+    { to: "/", label: t.navigation.about, end: true },
+    { to: "/mangaka", label: t.navigation.manga },
+    { to: "/illustration", label: t.navigation.illustration },
+    { to: "/animation", label: t.navigation.animation },
+    { to: "/contact", label: t.navigation.contact },
+  ];
 
   useEffect(() => {
     setMenuOpen(false);
+    setLanguageOpen(false);
   }, [location.pathname, location.hash]);
+
+  useEffect(() => {
+    if (!languageOpen) return undefined;
+    const focusFrame = requestAnimationFrame(() => {
+      languageOptionRefs.current[locales.findIndex((item) => item.code === locale)]?.focus();
+    });
+    const closeOutside = (event) => {
+      if (!languageRootRef.current?.contains(event.target)) setLanguageOpen(false);
+    };
+    const closeEscape = (event) => {
+      if (event.key !== "Escape") return;
+      setLanguageOpen(false);
+      languageButtonRef.current?.focus();
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("keydown", closeEscape);
+    return () => {
+      cancelAnimationFrame(focusFrame);
+      document.removeEventListener("pointerdown", closeOutside);
+      document.removeEventListener("keydown", closeEscape);
+    };
+  }, [languageOpen, locale]);
+
+  const handleLanguageKeys = (event) => {
+    const currentIndex = languageOptionRefs.current.indexOf(document.activeElement);
+    let nextIndex;
+    if (event.key === "ArrowDown") nextIndex = (currentIndex + 1) % locales.length;
+    else if (event.key === "ArrowUp") nextIndex = (currentIndex - 1 + locales.length) % locales.length;
+    else if (event.key === "Home") nextIndex = 0;
+    else if (event.key === "End") nextIndex = locales.length - 1;
+    else return;
+    event.preventDefault();
+    languageOptionRefs.current[nextIndex]?.focus();
+  };
 
   useEffect(() => {
     if (!menuOpen) return undefined;
@@ -86,6 +126,37 @@ const Navbar = () => {
               {item.label}
             </NavLink>
           ))}
+          <div className="relative" ref={languageRootRef}>
+            <button
+              ref={languageButtonRef}
+              type="button"
+              onClick={() => setLanguageOpen((open) => !open)}
+              aria-label={`${t.navigation.language}: ${locales.find((item) => item.code === locale)?.label}`}
+              aria-haspopup="menu"
+              aria-expanded={languageOpen}
+              className={`grid h-10 w-10 place-items-center border-2 border-current text-sm hover:bg-surface ${focusClass}`}
+            >
+              <FaGlobe aria-hidden="true" />
+            </button>
+            {languageOpen && (
+              <div role="menu" aria-label={t.navigation.selectLanguage} onKeyDown={handleLanguageKeys} className="absolute right-0 top-full z-[60] mt-2 min-w-40 border-2 border-foreground bg-page p-1 text-foreground shadow-lg">
+                {locales.map((item, index) => (
+                  <button
+                    key={item.code}
+                    ref={(element) => { languageOptionRefs.current[index] = element; }}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={locale === item.code}
+                    lang={item.code}
+                    onClick={() => { setLocale(item.code); setLanguageOpen(false); languageButtonRef.current?.focus(); }}
+                    className={`block w-full px-3 py-2 text-left text-sm font-bold hover:bg-surface ${locale === item.code ? "border-l-[3px] border-primary" : "border-l-[3px] border-transparent"} ${focusClass}`}
+                  >
+                    {item.flag} {item.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <button
             type="button"
             onClick={toggleTheme}
@@ -145,6 +216,15 @@ const Navbar = () => {
                   >
                     {item.label}
                   </NavLink>
+                ))}
+              </div>
+              <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label={t.navigation.selectLanguage}>
+                {locales.map((item) => (
+                  <button key={item.code} type="button" lang={item.code} aria-pressed={locale === item.code}
+                    onClick={() => setLocale(item.code)}
+                    className={`border-2 px-3 py-2 text-sm font-bold ${locale === item.code ? "border-primary" : "border-foreground/40"} ${focusClass}`}>
+                    {item.flag} {item.label}
+                  </button>
                 ))}
               </div>
               <button

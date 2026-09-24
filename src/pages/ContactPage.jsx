@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { profile } from "../content/profile";
-import { t } from "../content/ui";
+import { useLanguage } from "../i18n/languageContext";
 import {
   ContactSubmissionError,
   submitContactForm,
@@ -17,7 +17,7 @@ const emptyForm = { name: "", email: "", message: "" };
 const emptyHoneypots = { companyWebsite: "", gotcha: "" };
 const fieldOrder = ["name", "email", "message"];
 
-const fieldMessage = (field, code) => {
+const fieldMessage = (t, field, code) => {
   if (code === "abusive") return t.contact.respectfulLanguageError;
   if (field === "name") {
     return code === "required" ? t.contact.nameRequiredError : t.contact.nameError;
@@ -37,6 +37,7 @@ const fieldMessage = (field, code) => {
 };
 
 const ContactPage = () => {
+  const { t, content } = useLanguage();
   const [formData, setFormData] = useState(emptyForm);
   const [honeypots, setHoneypots] = useState(emptyHoneypots);
   const [fieldErrors, setFieldErrors] = useState({});
@@ -87,15 +88,9 @@ const ContactPage = () => {
 
     const validation = validateContactForm(formData);
     if (!validation.isValid) {
-      const messages = Object.fromEntries(
-        Object.entries(validation.errors).map(([field, code]) => [
-          field,
-          fieldMessage(field, code),
-        ]),
-      );
-      setFieldErrors(messages);
-      if (Object.keys(messages).length > 1) setFormError(t.contact.validationSummary);
-      focusFirstInvalidField(messages);
+      setFieldErrors(validation.errors);
+      if (Object.keys(validation.errors).length > 1) setFormError("validationSummary");
+      focusFirstInvalidField(validation.errors);
       submissionGuard.current.release();
       return;
     }
@@ -111,8 +106,8 @@ const ContactPage = () => {
     if (protectionError) {
       setFormError(
         protectionError === "rateLimited"
-          ? t.contact.rateLimitError
-          : t.contact.protectionError,
+          ? "rateLimitError"
+          : "protectionError",
       );
       submissionGuard.current.release();
       return;
@@ -136,15 +131,15 @@ const ContactPage = () => {
       setHoneypots(emptyHoneypots);
     } catch (submissionError) {
       if (!(submissionError instanceof ContactSubmissionError) || submissionError.status === null) {
-        setFormError(t.contact.networkError);
+        setFormError("networkError");
       } else if (submissionError.status === 400) {
-        setFormError(t.contact.badRequestError);
+        setFormError("badRequestError");
       } else if (submissionError.status === 403) {
-        setFormError(t.contact.forbiddenError);
+        setFormError("forbiddenError");
       } else if (submissionError.status >= 500) {
-        setFormError(t.contact.serviceError);
+        setFormError("serviceError");
       } else {
-        setFormError(t.contact.submitError);
+        setFormError("submitError");
       }
     } finally {
       setIsSubmitting(false);
@@ -166,7 +161,7 @@ const ContactPage = () => {
       role="alert"
     >
       <span aria-hidden="true">!</span>
-      <span>{fieldErrors[field]}</span>
+      <span>{fieldMessage(t, field, fieldErrors[field])}</span>
     </p>
   );
 
@@ -192,7 +187,7 @@ const ContactPage = () => {
             ))}
           </div>
           <p className="relative z-10 mt-7 text-xs font-black uppercase tracking-[0.15em]">
-            {profile.about.availability.details.join(" · ")}
+            {(content?.about.availability.details || profile.about.availability.details).join(" · ")}
           </p>
           <div className="relative z-10 mt-9 border-t border-line pt-6">
             <p className="text-xs font-black uppercase tracking-[0.15em]">{t.contact.directEmail}</p>
@@ -212,7 +207,7 @@ const ContactPage = () => {
           className="contact-form-panel p-5 sm:p-8 lg:p-10"
         >
           <div id="form-status" className="min-h-6" aria-live="polite" aria-atomic="true">
-            {formError && <p className="mb-4 text-sm font-medium text-red-700 dark:text-red-300" role="alert">{formError}</p>}
+            {formError && <p className="mb-4 text-sm font-medium text-red-700 dark:text-red-300" role="alert">{t.contact[formError]}</p>}
             {success && (
               <div
                 className="mb-4 space-y-3 text-sm leading-6 text-green-700 dark:text-green-300"

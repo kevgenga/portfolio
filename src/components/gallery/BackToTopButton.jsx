@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
+import { useLanguage } from "../../i18n/languageContext";
 
 const VISIBILITY_THRESHOLD = 600;
 
 const BackToTopButton = () => {
+  const { t } = useLanguage();
   const [isPastThreshold, setIsPastThreshold] = useState(false);
   const [isFooterVisible, setIsFooterVisible] = useState(false);
 
@@ -55,8 +57,8 @@ const BackToTopButton = () => {
   return (
     <button
       type="button"
-      aria-label="Back to top"
-      title="Back to top"
+      aria-label={t.common.backToTop}
+      title={t.common.backToTop}
       onClick={scrollToTop}
       className="fixed bottom-4 right-4 z-40 grid h-11 w-11 place-items-center border border-paper/30 bg-ink text-paper transition-colors duration-150 hover:bg-[#252525] hover:border-paper/60 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-primary sm:bottom-6 sm:right-6"
     >

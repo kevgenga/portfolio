@@ -1,16 +1,17 @@
 import { Link } from "react-router-dom";
 import { profile } from "./content/profile";
-import { t } from "./content/ui";
+import { useLanguage } from "./i18n/languageContext";
 
-const footerLinks = [
-  { label: t.navigation.about, to: "/" },
-  { label: t.navigation.manga, to: "/mangaka" },
-  { label: t.navigation.illustration, to: "/illustration" },
-  { label: t.navigation.animation, to: "/animation" },
-  { label: t.navigation.contact, to: "/contact" },
-];
-
-const Footer = () => (
+const Footer = () => {
+  const { t, content } = useLanguage();
+  const footerLinks = [
+    { label: t.navigation.about, to: "/" },
+    { label: t.navigation.manga, to: "/mangaka" },
+    { label: t.navigation.illustration, to: "/illustration" },
+    { label: t.navigation.animation, to: "/animation" },
+    { label: t.navigation.contact, to: "/contact" },
+  ];
+  return (
   <footer className="border-t-[3px] border-primary bg-ink text-paper">
     <div className="mx-auto max-w-[100rem] px-5 py-12 sm:px-8 sm:py-16 lg:px-10 lg:py-20">
       <div className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(13rem,0.3fr)] lg:items-end lg:gap-20">
@@ -20,12 +21,12 @@ const Footer = () => (
           </p>
           <span className="mt-7 block h-1 w-10 bg-primary" aria-hidden="true" />
           <p className="mt-8 text-sm font-bold uppercase leading-7 tracking-[0.12em] text-paper/70">
-            {profile.about.roles.map((role) => (
+            {(content?.about.roles || profile.about.roles).map((role) => (
               <span key={role} className="block">{role}</span>
             ))}
           </p>
         </div>
-        <nav className="grid gap-3 border-l border-paper/20 pl-5 text-sm font-black uppercase tracking-[0.12em]" aria-label="Footer">
+        <nav className="grid gap-3 border-l border-paper/20 pl-5 text-sm font-black uppercase tracking-[0.12em]" aria-label={t.footer.navigation}>
           {footerLinks.map((link) => (
             <Link
               key={link.to}
@@ -51,6 +52,7 @@ const Footer = () => (
       </p>
     </div>
   </footer>
-);
+  );
+};
 
 export default Footer;

@@ -11,7 +11,7 @@ import {
   isArtworkPubliclyVisible,
 } from "../content/artworkPresentation";
 import { artworks } from "../content/artworks";
-import { t } from "../content/ui";
+import { useLanguage } from "../i18n/languageContext";
 import { formatPortfolioDate } from "../utils/formatPortfolioDate";
 
 export const ILLUSTRATION_PAGE_SIZE = 24;
@@ -49,6 +49,7 @@ const countArtworksForFilter = (filter) =>
   }, 0);
 
 const Illustration = () => {
+  const { t, locale } = useLanguage();
   const [filter, setFilter] = useState(initialFilter);
   const [sortOrder, setSortOrder] = useState("recent");
   const [visibleCount, setVisibleCount] = useState(ILLUSTRATION_PAGE_SIZE);
@@ -70,7 +71,7 @@ const Illustration = () => {
       ...item,
       count: countArtworksForFilter(item.value),
     })),
-    [hasFeaturedArtwork],
+    [hasFeaturedArtwork, t],
   );
 
   const filteredArtworks = useMemo(() => {
@@ -94,10 +95,10 @@ const Illustration = () => {
       id: artwork.id,
       src: artwork.image,
       thumbSrc: artwork.thumbnail || artwork.image,
-      caption: formatPortfolioDate(artwork.date) || "",
+      caption: formatPortfolioDate(artwork.date, locale) || "",
       alt: artwork.alt || "",
     })),
-    [filteredArtworks],
+    [filteredArtworks, locale],
   );
 
   useEffect(() => {
@@ -134,7 +135,7 @@ const Illustration = () => {
         eyebrow={t.illustration.eyebrow}
         title={t.illustration.title}
         introduction={t.illustration.introduction}
-        backgroundWord="ART"
+        backgroundWord={t.home.artWord}
       />
 
       <div className="mx-auto max-w-[100rem]">
@@ -160,7 +161,7 @@ const Illustration = () => {
         <>
           <PortfolioGrid className="grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5" gapClassName="gap-2 sm:gap-3 lg:gap-4">
             {visibleArtworks.map((artwork) => {
-              const formattedDate = formatPortfolioDate(artwork.date);
+              const formattedDate = formatPortfolioDate(artwork.date, locale);
 
               return (
                 <ArtworkCard

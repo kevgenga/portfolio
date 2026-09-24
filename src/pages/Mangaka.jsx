@@ -7,7 +7,7 @@ import {
   mangaPresentationSettings,
   MANGA_PRESENTATION_SECTIONS,
 } from "../content/mangaPresentation";
-import { t } from "../content/ui";
+import { useLanguage } from "../i18n/languageContext";
 import { getMangaCardImage } from "../utils/mangaCardMedia";
 
 const listVariants = {
@@ -20,7 +20,7 @@ const cardVariants = {
   visible: { opacity: 1, y: 0 },
 };
 
-const MangaCard = ({ manga, index, categoryLabel }) => (
+const MangaCard = ({ manga, index, categoryLabel, t, content }) => (
   <motion.article className="manga-card" variants={cardVariants}>
     <Link to={manga.route} className="manga-card__link">
       <div className="manga-card__media">
@@ -37,7 +37,7 @@ const MangaCard = ({ manga, index, categoryLabel }) => (
       <div className="manga-card__body">
         <p className="manga-card__meta">
           <span>{categoryLabel}</span>
-          {manga.status && <span>{manga.status}</span>}
+          {manga.status && <span>{t.manga.status[manga.status] || manga.status}</span>}
           {manga.genre && <span>{manga.genre}</span>}
         </p>
         <div className="manga-card__heading">
@@ -50,11 +50,13 @@ const MangaCard = ({ manga, index, categoryLabel }) => (
             )}
           </h3>
           <span className="manga-card__pages">
-            {manga.pageCount} pages
+            {t.manga.pageCount(manga.pageCount)}
           </span>
         </div>
         <p className="manga-card__description line-clamp-4">
-          {manga.summary}
+          {content?.mangaSummaries[manga.slug]
+            || (content?.storyboardSummary && /^Sketch storyboard$/i.test(manga.summary)
+              ? content.storyboardSummary : manga.summary)}
         </p>
         <span className="manga-card__cta">
           {t.manga.read} <span aria-hidden="true">→</span>
@@ -64,11 +66,11 @@ const MangaCard = ({ manga, index, categoryLabel }) => (
   </motion.article>
 );
 
-const MangaSection = ({ mangas: sectionMangas, text, index }) => (
+const MangaSection = ({ mangas: sectionMangas, text, index, t, content }) => (
   <section aria-labelledby={`manga-section-${index}`}>
     <header className="manga-section-heading">
       <div>
-        <p className="section-eyebrow">Archive / {index}</p>
+        <p className="section-eyebrow">{t.manga.archive} / {index}</p>
         <h2 id={`manga-section-${index}`} className="mt-2 text-4xl uppercase leading-none sm:text-6xl">
           {text.title}
         </h2>
@@ -89,6 +91,8 @@ const MangaSection = ({ mangas: sectionMangas, text, index }) => (
             manga={manga}
             index={mangaIndex + 1}
             categoryLabel={text.title}
+            t={t}
+            content={content}
           />
         ))}
       </motion.div>
@@ -101,6 +105,7 @@ const MangaSection = ({ mangas: sectionMangas, text, index }) => (
 );
 
 const Mangaka = () => {
+  const { t, content } = useLanguage();
   const publicMangas = mangas.filter((manga) => (manga.visibility || "public") === "public");
   const completedMangas = publicMangas.filter(
     (manga) => getMangaPresentationSection(manga) === MANGA_PRESENTATION_SECTIONS.COMPLETED,
@@ -116,13 +121,13 @@ const Mangaka = () => {
         eyebrow={t.manga.eyebrow}
         title={t.manga.title}
         introduction={t.manga.introduction}
-        backgroundWord="MANGA"
+        backgroundWord={t.home.mangaWord}
       />
 
       <div className="mx-auto max-w-[100rem] space-y-20 sm:space-y-24">
-        <MangaSection mangas={completedMangas} text={t.manga.sections.completed} index="01" />
+        <MangaSection mangas={completedMangas} text={t.manga.sections.completed} index="01" t={t} content={content} />
         {mangaPresentationSettings.showStoryboardSection && (
-          <MangaSection mangas={storyboardMangas} text={t.manga.sections.storyboard} index="02" />
+          <MangaSection mangas={storyboardMangas} text={t.manga.sections.storyboard} index="02" t={t} content={content} />
         )}
       </div>
     </main>

@@ -10,7 +10,7 @@ import { MotionConfig } from "framer-motion";
 import Analytics from "./components/Analytics";
 import Navbar from "./components/Navbar";
 import Footer from "./Footer";
-import { t } from "./content/ui";
+import { useLanguage } from "./i18n/languageContext";
 
 const HomePage = lazy(() => import("./pages/HomePage"));
 const Animation = lazy(() => import("./pages/Animation"));
@@ -30,12 +30,17 @@ const pageTitles = {
 
 const DocumentMetadata = () => {
   const { pathname } = useLocation();
+  const { locale, t } = useLanguage();
 
   useEffect(() => {
-    document.title = pathname.startsWith("/mangas/")
-      ? "Read Manga — KEVGENGA Portfolio"
-      : pageTitles[pathname] || "Page not found — KEVGENGA Portfolio";
-  }, [pathname]);
+    const page = pathname.startsWith("/mangas/") ? t.manga.read
+      : ({ "/": t.navigation.about, "/mangaka": t.navigation.manga,
+        "/illustration": t.navigation.illustration, "/animation": t.navigation.animation,
+        "/contact": t.navigation.contact })[pathname] || t.notFound.title;
+    document.title = locale === "en"
+      ? (pathname.startsWith("/mangas/") ? "Read Manga — KEVGENGA Portfolio" : pageTitles[pathname] || "Page not found — KEVGENGA Portfolio")
+      : `${page} — ${locale === "fr" ? "Portfolio KEVGENGA" : "KEVGENGA Portfolio"}`;
+  }, [pathname, locale, t]);
 
   return null;
 };
@@ -52,7 +57,9 @@ const ScrollToTop = () => {
   return null;
 };
 
-const PageFallback = ({ immersive = false }) => (
+const PageFallback = ({ immersive = false }) => {
+  const { t } = useLanguage();
+  return (
   <div
     className={`min-h-[100dvh] text-center ${
       immersive
@@ -63,7 +70,8 @@ const PageFallback = ({ immersive = false }) => (
   >
     {t.common.loading}
   </div>
-);
+  );
+};
 
 const AppRoutes = () => {
   const { pathname } = useLocation();

@@ -6,12 +6,13 @@ import Lightbox from "../components/gallery/Lightbox";
 import PortfolioGrid from "../components/gallery/PortfolioGrid";
 import PageHero from "../components/PageHero";
 import { animations } from "../content/animations";
-import { t } from "../content/ui";
+import { useLanguage } from "../i18n/languageContext";
 import { formatPortfolioDate } from "../utils/formatPortfolioDate";
 
 const animationCategories = ["court-métrage", "animation 2d", "animation 3d"];
 
 const Animation = () => {
+  const { t, locale, content } = useLanguage();
   const [filter, setFilter] = useState("all");
   const [sortOrder, setSortOrder] = useState("desc");
 
@@ -42,7 +43,7 @@ const Animation = () => {
         eyebrow={t.animation.eyebrow}
         title={t.animation.title}
         introduction={t.animation.introduction}
-        backgroundWord="MOTION"
+        backgroundWord={t.home.motionWord}
       />
 
       <div className="mx-auto max-w-[100rem]">
@@ -65,12 +66,14 @@ const Animation = () => {
       {sortedMedia.length > 0 ? (
         <PortfolioGrid className="grid-cols-1 md:grid-cols-2" gapClassName="gap-5 lg:gap-8">
           {sortedMedia.map((item) => {
-            const formattedDate = formatPortfolioDate(item.date);
+            const formattedDate = formatPortfolioDate(item.date, locale);
 
             return (
               <ArtworkCard
                 key={item.id}
-                item={item}
+                item={content?.animations[item.id]
+                  ? { ...item, title: content.animations[item.id], alt: content.animations[item.id] }
+                  : item}
                 galleryName="animation-gallery"
                 href={item.video}
                 image={item.poster || item.video}

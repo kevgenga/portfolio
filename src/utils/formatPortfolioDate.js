@@ -1,11 +1,11 @@
-const portfolioDateFormatter = new Intl.DateTimeFormat("en-GB", {
+const formatOptions = {
   day: "numeric",
   month: "long",
   year: "numeric",
   timeZone: "UTC",
-});
+};
 
-export const formatPortfolioDate = (value) => {
+export const formatPortfolioDate = (value, locale = "en") => {
   if (typeof value !== "string" || !value.trim()) return "";
 
   const date = value.trim();
@@ -34,5 +34,7 @@ export const formatPortfolioDate = (value) => {
     parsedDate.getUTCMonth() === month - 1 &&
     parsedDate.getUTCDate() === day;
 
-  return isValidDate ? portfolioDateFormatter.format(parsedDate) : "";
+  return isValidDate
+    ? new Intl.DateTimeFormat(locale === "ja" ? "ja-JP" : locale === "fr" ? "fr-FR" : "en-GB", formatOptions).format(parsedDate)
+    : "";
 };

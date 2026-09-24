@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { useReducedMotion } from "framer-motion";
-import { t } from "../../content/ui";
+import { useLanguage } from "../../i18n/languageContext";
 import {
   canStartReaderPointerGesture,
   finishReaderPointerGesture,
@@ -122,6 +122,7 @@ const ReaderToggle = ({ label, value, activeValue, onChange, children }) => (
 );
 
 const LanguageSelector = ({ languages, activeLanguage, onChange }) => {
+  const { t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const [portalTarget, setPortalTarget] = useState(() => document.fullscreenElement || document.body);
   const [menuPosition, setMenuPosition] = useState({
@@ -221,7 +222,7 @@ const LanguageSelector = ({ languages, activeLanguage, onChange }) => {
     return (
       <span
         className="inline-flex min-h-9 items-center justify-center border border-white/20 bg-[#181818] px-2 text-[0.68rem] font-semibold uppercase tracking-[0.1em] text-[#f4f1e8] sm:px-3"
-        aria-label={`Language: ${activeLanguageData.label}`}
+        aria-label={t.mangaReader.languageActive(activeLanguageData.label)}
         data-reader-language-label
       >
         {activeLanguageData.shortLabel}
@@ -264,7 +265,7 @@ const LanguageSelector = ({ languages, activeLanguage, onChange }) => {
       <button
         ref={trigger}
         type="button"
-        aria-label={`Language: ${activeLanguageData.label}`}
+        aria-label={t.mangaReader.languageActive(activeLanguageData.label)}
         aria-haspopup="menu"
         aria-expanded={isOpen}
         onClick={() => setIsOpen((open) => !open)}
@@ -287,14 +288,14 @@ const LanguageSelector = ({ languages, activeLanguage, onChange }) => {
         <div
           ref={menu}
           role="menu"
-          aria-label="Language"
+          aria-label={t.mangaReader.language}
           onKeyDown={handleMenuKeyDown}
           className="fixed z-[9999] max-w-[calc(100vw-1rem)] border border-white/20 bg-[#181818] p-2 text-[#f4f1e8]"
           style={menuPosition}
           data-reader-language-menu
         >
           <p className="px-2 pb-2 text-[0.62rem] font-semibold uppercase tracking-[0.16em] text-[#aaa69d]">
-            Language
+            {t.mangaReader.language}
           </p>
           {languages.map(([code, language], index) => {
             const isActive = code === activeLanguage;
@@ -329,7 +330,7 @@ const LanguageSelector = ({ languages, activeLanguage, onChange }) => {
   );
 };
 
-const MangaPageImage = ({ page, title, eager = false, className = "" }) => (
+const MangaPageImage = ({ page, title, eager = false, className = "", t }) => (
   <img
     src={page.src}
     alt={t.mangaReader.pageAlt(title, page.number)}
@@ -340,7 +341,7 @@ const MangaPageImage = ({ page, title, eager = false, className = "" }) => (
   />
 );
 
-const HorizontalRailPanel = ({ panel, title }) => (
+const HorizontalRailPanel = ({ panel, title, t }) => (
   <div
     className="flex h-full min-h-0 w-full flex-none items-center justify-center overflow-hidden"
     aria-hidden={panel.role !== "current"}
@@ -365,6 +366,7 @@ const HorizontalRailPanel = ({ panel, title }) => (
           <MangaPageImage
             page={page}
             title={title}
+            t={t}
             eager
             className={`m-0 h-full max-h-[100dvh] w-auto flex-none border-0 p-0 object-contain ${
               panel.pages.length > 1 ? "max-w-[50%]" : "max-w-full"
@@ -381,9 +383,10 @@ const ReaderTutorial = ({
   readingDirection,
   readingMode,
   shouldReduceMotion,
+  t,
 }) => {
   const isHorizontal = readingMode === "horizontal";
-  const directionLabel = readingDirection === "rtl" ? "Right to left" : "Left to right";
+  const directionLabel = readingDirection === "rtl" ? t.mangaReader.rightToLeft : t.mangaReader.leftToRight;
 
   return (
     <div
@@ -403,15 +406,15 @@ const ReaderTutorial = ({
         </span>
         <span className="mx-auto mt-4 block h-0.5 w-8 bg-[#ffd500]" aria-hidden="true" />
         <p className="mt-3 text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-[#aaa69d]">
-          {isHorizontal ? directionLabel : "Vertical reading"}
+          {isHorizontal ? directionLabel : t.mangaReader.verticalReading}
         </p>
         <p className="mt-1 text-sm font-bold uppercase tracking-[0.14em] text-[#f4f1e8]">
-          {isHorizontal ? "Horizontal" : "Scroll to read"}
+          {isHorizontal ? t.mangaReader.horizontal : t.mangaReader.scrollToRead}
         </p>
         <p className="mt-3 text-xs leading-relaxed text-[#c8c3ba]">
           {isHorizontal
-            ? "Swipe right for next page"
-            : `${directionLabel} page order`}
+            ? readingDirection === "rtl" ? t.mangaReader.swipeRight : t.mangaReader.swipeLeft
+            : t.mangaReader.pageOrder(directionLabel)}
         </p>
       </div>
     </div>
@@ -423,6 +426,7 @@ const ReaderPagination = ({
   pageCount,
   isVisible,
   interfaceTransition,
+  t,
 }) => (
   <div
     className={`fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.1] bg-[#151515]/95 ${interfaceTransition} ${
@@ -436,7 +440,7 @@ const ReaderPagination = ({
   >
     <p
       className="flex min-h-11 items-center justify-center px-4 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 text-xs font-semibold tracking-[0.14em] text-[#f4f1e8] sm:min-h-12 sm:py-2"
-      aria-label={`Page ${currentPage} of ${pageCount}`}
+      aria-label={t.mangaReader.progress(currentPage, pageCount)}
       dir="ltr"
     >
       {currentPage} / {pageCount}
@@ -445,6 +449,7 @@ const ReaderPagination = ({
 );
 
 const MangaReader = ({ manga }) => {
+  const { t } = useLanguage();
   const { defaultLanguage, id, languages, readingDirection, slug, title } = manga;
   const languageOptions = useMemo(() => Object.entries(languages), [languages]);
   const languageCodes = useMemo(() => languageOptions.map(([code]) => code), [languageOptions]);
@@ -1006,6 +1011,7 @@ const MangaReader = ({ manga }) => {
           readingDirection={readingDirection}
           readingMode={readingMode}
           shouldReduceMotion={shouldReduceMotion}
+          t={t}
         />
       )}
 
@@ -1022,15 +1028,15 @@ const MangaReader = ({ manga }) => {
         <header className="border-b border-white/[0.12] bg-[#151515]/95">
           <div className="mx-auto max-w-[1600px] px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] sm:px-5">
             <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:gap-4">
-              <nav className="flex min-w-0 items-center gap-1 sm:gap-2" aria-label="Reader navigation">
+              <nav className="flex min-w-0 items-center gap-1 sm:gap-2" aria-label={t.mangaReader.navigation}>
                 <Link
                   to="/mangaka"
-                  aria-label="Back to manga gallery"
+                  aria-label={t.mangaReader.back}
                   className="inline-flex min-h-9 items-center gap-1.5 border border-white/25 bg-[#181818] px-2 py-2 text-[0.68rem] font-semibold uppercase tracking-[0.1em] text-[#f4f1e8] transition-colors hover:border-white/45 hover:bg-[#222222] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ffd500] sm:px-3"
                 >
                   <span aria-hidden="true">←</span>
-                  <span className="sm:hidden">Back</span>
-                  <span className="hidden sm:inline">Back to manga</span>
+                  <span className="sm:hidden">{t.mangaReader.backShort}</span>
+                  <span className="hidden sm:inline">{t.mangaReader.back}</span>
                 </Link>
               </nav>
 
@@ -1048,20 +1054,20 @@ const MangaReader = ({ manga }) => {
             </div>
 
             <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-white/10 pt-2">
-              <div className="flex gap-1" role="group" aria-label="Reading mode">
-                <ReaderToggle label="Reading mode" value="vertical" activeValue={readingMode} onChange={selectMode}>Vertical</ReaderToggle>
-                <ReaderToggle label="Reading mode" value="horizontal" activeValue={readingMode} onChange={selectMode}>Horizontal</ReaderToggle>
+              <div className="flex gap-1" role="group" aria-label={t.mangaReader.mode}>
+                <ReaderToggle label={t.mangaReader.mode} value="vertical" activeValue={readingMode} onChange={selectMode}>{t.mangaReader.vertical}</ReaderToggle>
+                <ReaderToggle label={t.mangaReader.mode} value="horizontal" activeValue={readingMode} onChange={selectMode}>{t.mangaReader.horizontal}</ReaderToggle>
               </div>
 
               {supportsFullscreen && (
                 <button
                   type="button"
                   onClick={toggleFullscreen}
-                  aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+                  aria-label={isFullscreen ? t.mangaReader.exitFullscreen : t.mangaReader.enterFullscreen}
                   className="ml-auto flex min-h-9 items-center justify-center gap-2 border border-white/25 bg-[#181818] px-2 text-xs font-semibold uppercase tracking-[0.08em] transition-colors hover:border-white/45 hover:bg-[#222222] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ffd500] sm:px-3"
                 >
                   <span aria-hidden="true">{isFullscreen ? "×" : "⛶"}</span>
-                  <span className="hidden sm:inline">{isFullscreen ? "Exit fullscreen" : "Fullscreen"}</span>
+                  <span className="hidden sm:inline">{isFullscreen ? t.mangaReader.exitFullscreen : t.mangaReader.fullscreen}</span>
                 </button>
               )}
             </div>
@@ -1082,19 +1088,19 @@ const MangaReader = ({ manga }) => {
             <button
               type="button"
               onClick={() => handleZoneAction(goToPrevious)}
-              aria-label="Previous page"
+              aria-label={t.mangaReader.previous}
               className="cursor-n-resize bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#ffd500]"
             />
             <button
               type="button"
               onClick={() => handleZoneAction(toggleInterface)}
-              aria-label={isInterfaceVisible ? "Hide reader interface" : "Show reader interface"}
+              aria-label={isInterfaceVisible ? t.mangaReader.hideInterface : t.mangaReader.showInterface}
               className="cursor-pointer bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#ffd500]"
             />
             <button
               type="button"
               onClick={() => handleZoneAction(goToNext)}
-              aria-label="Next page"
+              aria-label={t.mangaReader.next}
               className="cursor-s-resize bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#ffd500]"
             />
           </div>
@@ -1119,6 +1125,7 @@ const MangaReader = ({ manga }) => {
                   <MangaPageImage
                     page={page}
                     title={title}
+                    t={t}
                     eager={page.number === 1}
                     className="h-auto max-h-[100dvh] w-auto max-w-full"
                   />
@@ -1147,19 +1154,19 @@ const MangaReader = ({ manga }) => {
               <button
                 type="button"
                 onClick={() => handleZoneAction(goToNext)}
-                aria-label="Next page or spread"
+                aria-label={t.mangaReader.nextSpread}
                 className="cursor-w-resize bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#ffd500]"
               />
               <button
                 type="button"
                 onClick={() => handleZoneAction(toggleInterface)}
-                aria-label={isInterfaceVisible ? "Hide reader interface" : "Show reader interface"}
+                aria-label={isInterfaceVisible ? t.mangaReader.hideInterface : t.mangaReader.showInterface}
                 className="cursor-pointer bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#ffd500]"
               />
               <button
                 type="button"
                 onClick={() => handleZoneAction(goToPrevious)}
-                aria-label="Previous page or spread"
+                aria-label={t.mangaReader.previousSpread}
                 className="cursor-e-resize bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#ffd500]"
               />
             </div>
@@ -1169,7 +1176,7 @@ const MangaReader = ({ manga }) => {
               onClick={goToNext}
               disabled={!canGoNext}
               tabIndex={isInterfaceVisible ? 0 : -1}
-              aria-label="Next page or spread"
+              aria-label={t.mangaReader.nextSpread}
               aria-hidden={!isInterfaceVisible}
               className={`absolute left-1 top-1/2 z-20 flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center border border-white/20 bg-[#151515]/90 text-3xl text-[#f4f1e8] transition-[opacity,background-color,border-color,color] hover:border-white/45 hover:bg-[#222222] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ffd500] disabled:cursor-not-allowed disabled:opacity-25 sm:left-3 ${
                 isInterfaceVisible ? "opacity-100" : "pointer-events-none opacity-0"
@@ -1192,6 +1199,7 @@ const MangaReader = ({ manga }) => {
                   key={panel.pageNumbers.join("-") || `empty-${panel.role}`}
                   panel={panel}
                   title={title}
+                  t={t}
                 />
               ))}
             </div>
@@ -1201,7 +1209,7 @@ const MangaReader = ({ manga }) => {
               onClick={goToPrevious}
               disabled={!canGoPrevious}
               tabIndex={isInterfaceVisible ? 0 : -1}
-              aria-label="Previous page or spread"
+              aria-label={t.mangaReader.previousSpread}
               aria-hidden={!isInterfaceVisible}
               className={`absolute right-1 top-1/2 z-20 flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center border border-white/20 bg-[#151515]/90 text-3xl text-[#f4f1e8] transition-[opacity,background-color,border-color,color] hover:border-white/45 hover:bg-[#222222] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ffd500] disabled:cursor-not-allowed disabled:opacity-25 sm:right-3 ${
                 isInterfaceVisible ? "opacity-100" : "pointer-events-none opacity-0"
@@ -1219,6 +1227,7 @@ const MangaReader = ({ manga }) => {
         pageCount={pageCount}
         isVisible={isInterfaceVisible}
         interfaceTransition={interfaceTransition}
+        t={t}
       />
     </main>
   );
