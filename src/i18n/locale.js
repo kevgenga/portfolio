@@ -1,12 +1,13 @@
 import { defaultLocale, uiText } from "../content/ui.js";
+import { getLanguageLabel } from "../utils/languageLabels.js";
 import { fr, frContent } from "./translations/fr.js";
 import { ja, jaContent } from "./translations/ja.js";
 
 const STORAGE_KEY = "portfolio-language";
 export const locales = [
-  { code: "en", label: "English", shortLabel: "EN", flag: "🇬🇧" },
-  { code: "ja", label: "日本語", shortLabel: "日本語", flag: "🇯🇵" },
-  { code: "fr", label: "Français", shortLabel: "FR", flag: "🇫🇷" },
+  { code: "en", label: getLanguageLabel("en"), shortLabel: "EN", flag: "🇬🇧" },
+  { code: "ja", label: getLanguageLabel("ja"), shortLabel: "日本語", flag: "🇯🇵" },
+  { code: "fr", label: getLanguageLabel("fr"), shortLabel: "FR", flag: "🇫🇷" },
 ];
 
 const mergeTranslations = (reference, translation) => Object.fromEntries(

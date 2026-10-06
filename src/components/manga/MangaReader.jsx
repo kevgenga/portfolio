@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { useReducedMotion } from "framer-motion";
 import { useLanguage } from "../../i18n/languageContext";
+import { getLanguageDirection, getLanguageLabel } from "../../utils/languageLabels.js";
 import {
   canStartReaderPointerGesture,
   finishReaderPointerGesture,
@@ -135,7 +136,8 @@ const LanguageSelector = ({ languages, activeLanguage, onChange }) => {
   const menu = useRef(null);
   const optionElements = useRef([]);
   const activeOption = languages.find(([code]) => code === activeLanguage) ?? languages[0];
-  const [, activeLanguageData] = activeOption;
+  const [activeCode, activeLanguageData] = activeOption;
+  const activeLanguageLabel = getLanguageLabel(activeCode, activeLanguageData.label);
 
   const updateMenuPosition = useCallback(() => {
     const triggerElement = trigger.current;
@@ -221,11 +223,11 @@ const LanguageSelector = ({ languages, activeLanguage, onChange }) => {
   if (languages.length === 1) {
     return (
       <span
-        className="inline-flex min-h-9 items-center justify-center border border-white/20 bg-[#181818] px-2 text-[0.68rem] font-semibold uppercase tracking-[0.1em] text-[#f4f1e8] sm:px-3"
-        aria-label={t.mangaReader.languageActive(activeLanguageData.label)}
+        className="inline-flex min-h-9 min-w-0 max-w-[40vw] items-center justify-center whitespace-normal border border-white/20 bg-[#181818] px-2 py-1.5 text-[0.68rem] font-semibold leading-snug text-[#f4f1e8] sm:px-3"
+        aria-label={t.mangaReader.languageActive(activeLanguageLabel)}
         data-reader-language-label
       >
-        {activeLanguageData.shortLabel}
+        <bdi dir={getLanguageDirection(activeCode)} className="min-w-0 break-words">{activeLanguageLabel}</bdi>
       </span>
     );
   }
@@ -265,7 +267,7 @@ const LanguageSelector = ({ languages, activeLanguage, onChange }) => {
       <button
         ref={trigger}
         type="button"
-        aria-label={t.mangaReader.languageActive(activeLanguageData.label)}
+        aria-label={t.mangaReader.languageActive(activeLanguageLabel)}
         aria-haspopup="menu"
         aria-expanded={isOpen}
         onClick={() => setIsOpen((open) => !open)}
@@ -278,10 +280,10 @@ const LanguageSelector = ({ languages, activeLanguage, onChange }) => {
             focusOption(activeIndex >= 0 ? activeIndex : 0);
           });
         }}
-        className="inline-flex min-h-9 min-w-11 items-center justify-center border border-white/25 bg-[#181818] px-2 text-[0.68rem] font-semibold uppercase tracking-[0.1em] text-[#f4f1e8] transition-colors hover:border-white/45 hover:bg-[#222222] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ffd500] sm:px-3"
+        className="inline-flex min-h-9 min-w-0 max-w-[40vw] items-center justify-center whitespace-normal border border-white/25 bg-[#181818] px-2 py-1.5 text-[0.68rem] font-semibold leading-snug text-[#f4f1e8] transition-colors hover:border-white/45 hover:bg-[#222222] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ffd500] sm:px-3"
         data-reader-language-trigger
       >
-        {activeLanguageData.shortLabel}
+        <bdi dir={getLanguageDirection(activeCode)} className="min-w-0 break-words">{activeLanguageLabel}</bdi>
       </button>
 
       {isOpen && portalTarget && createPortal(
@@ -319,7 +321,7 @@ const LanguageSelector = ({ languages, activeLanguage, onChange }) => {
                 <span aria-hidden="true" className="w-3 text-[#ffd500]">
                   {isActive ? "●" : "○"}
                 </span>
-                {language.label}
+                <bdi dir={getLanguageDirection(code)} className="min-w-0 break-words">{getLanguageLabel(code, language.label)}</bdi>
               </button>
             );
           })}

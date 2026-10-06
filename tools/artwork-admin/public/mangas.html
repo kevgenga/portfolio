@@ -73,10 +73,15 @@
               <div class="manga-language-controls">
                 <h3>Langues et pages</h3>
                 <div id="language-tabs" class="language-tabs"></div>
-                <button id="add-language" class="button button-secondary" type="button">Ajouter une langue</button>
+                <button id="add-language" class="button button-secondary" type="button" aria-expanded="false" aria-controls="language-picker">Ajouter une langue</button>
+                <div id="language-picker" class="language-picker" role="group" aria-labelledby="language-picker-label" hidden>
+                  <label class="field"><span id="language-picker-label">Langue à ajouter</span><select id="new-language-code" required disabled></select></label>
+                  <div class="language-actions"><button id="confirm-add-language" class="button button-secondary" type="button">Ajouter</button><button id="cancel-add-language" class="button button-secondary" type="button">Annuler</button></div>
+                </div>
                 <div id="language-summary"></div>
               </div>
-              <div class="page-import"><label class="field"><span>Ajouter plusieurs pages</span><input id="page-files" type="file" multiple accept=".jpg,.jpeg,.png,.webp,.avif,.gif" /></label><label class="field compact"><span>Position</span><input id="page-position" type="number" min="1" /></label><button id="add-pages" class="button button-secondary" type="button">Ajouter les pages</button></div>
+              <p class="muted-copy">L’ordre des pages et les informations attendent « Enregistrer ». Les ajouts, remplacements, duplications et suppressions sont enregistrés immédiatement.</p>
+              <div class="page-import"><label class="field"><span>Ajouter plusieurs pages</span><input id="page-files" form="manga-page-import-form" type="file" multiple accept=".jpg,.jpeg,.png,.webp,.avif,.gif" /></label><label class="field compact"><span>Position</span><input id="page-position" form="manga-page-import-form" type="number" min="1" step="1" required /></label><button id="add-pages" class="button button-secondary" type="button">Ajouter les pages</button></div>
             </div>
             <p class="muted-copy">Glissez les cartes ou utilisez les boutons. Le réordre ne renomme pas les fichiers physiques.</p>
             <div id="page-grid" class="manga-page-grid"></div>
@@ -87,6 +92,7 @@
         </div>
         <div class="dialog-actions split-actions"><button id="delete-manga" class="button button-danger" type="button">Supprimer le manga</button><div><button class="button button-secondary" type="button" data-close>Annuler</button><button class="button button-primary" type="submit">Enregistrer</button></div></div>
       </form>
+      <form id="manga-page-import-form" hidden></form>
     </dialog>
 
     <dialog id="create-dialog" class="dialog compact-dialog">
@@ -96,8 +102,8 @@
         <label class="field"><span>Slug facultatif</span><input name="slug" /></label>
         <label class="field"><span>Section de présentation</span><select name="presentationSection" required><option value="completed">Completed Manga</option><option value="storyboard">Complete Storyboards</option></select></label>
         <label class="field"><span>Type linguistique</span><select name="languageType"><option value="multilingual">Manga avec texte et langues</option><option value="original">Version originale uniquement</option><option value="silent">Manga silencieux</option></select></label>
-        <label class="field" id="initial-language-field"><span>Langue initiale</span><select name="languageCode"><option value="en">English</option><option value="fr">French</option><option value="ja">Japanese</option></select></label>
-        <label class="field"><span>Image de la carte Manga *</span><input name="primaryImage" type="file" required accept="image/*" /><small>Utilisée dans la liste publique. Taille Photoshop idéale : 900 × 1200 px (ratio 3:4).</small></label>
+        <label class="field" id="initial-language-field"><span>Langue initiale</span><select name="languageCode" required></select></label>
+        <label class="field"><span>Image de la carte Manga *</span><input name="primaryImage" type="file" required accept=".jpg,.jpeg,.png,.webp,.avif,.gif" /><small>Utilisée dans la liste publique. Taille Photoshop idéale : 900 × 1200 px (ratio 3:4).</small></label>
         <div id="create-media-review" class="inline-media-review" hidden></div>
         <label class="field"><span>Pages *</span><input name="pages" type="file" multiple required accept=".jpg,.jpeg,.png,.webp,.avif,.gif" /></label>
         <label class="field"><span>Résumé</span><textarea name="summary" rows="3"></textarea></label>
@@ -110,6 +116,15 @@
         <div id="media-review-content"></div>
         <div class="dialog-actions"><button id="cancel-media-review" class="button button-secondary" type="button">Annuler</button><button id="accept-media-review" class="button button-primary" type="button">Utiliser cette image</button></div>
       </div>
+    </dialog>
+    <dialog id="duplicate-page-dialog" class="dialog compact-dialog" aria-labelledby="duplicate-page-title" aria-describedby="duplicate-page-source">
+      <form id="duplicate-page-form" class="dialog-panel">
+        <div class="dialog-heading"><h2 id="duplicate-page-title">Dupliquer la page</h2></div>
+        <p id="duplicate-page-source" class="muted-copy"></p>
+        <label class="field"><span>Nouvelle position</span><input id="duplicate-page-position" type="number" min="1" step="1" required /></label>
+        <p id="duplicate-page-error" class="media-warning" role="alert" hidden></p>
+        <div class="dialog-actions"><button id="cancel-duplicate-page" class="button button-secondary" type="button">Annuler</button><button id="confirm-duplicate-page" class="button button-primary" type="submit">Dupliquer</button></div>
+      </form>
     </dialog>
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
     <script type="module" src="/modules/mangas/manga-admin.js"></script>

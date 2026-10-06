@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { constants } from "node:fs";
 import { copyFile, lstat, mkdir, readFile, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "../sharp-runtime.mjs";
@@ -9,7 +10,6 @@ import {
   getMangaPresentationSection,
   MANGA_PRESENTATION_SECTION_VALUES,
   naturalPageSort,
-  normalizeLanguageCode,
   normalizeStorageFolder,
   parseMangaCatalog,
   serializeMangaCatalog,
@@ -21,16 +21,34 @@ import {
   MANGA_CARD_IMAGE_FIELDS,
   primaryMangaMedia,
 } from "./media-policy.mjs";
+import { getLanguageDetails, normalizeSupportedLanguageCode, supportedMangaLanguages } from "../../../src/utils/languageLabels.js";
 
 const EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".avif", ".gif"]);
-const LANGUAGE_PRESETS = { orig: ["Original", "ORIG"], fr: ["French", "FR"], en: ["English", "ENG"], ja: ["Japanese", "JA"], es: ["Spanish", "ES"], de: ["German", "DE"], it: ["Italian", "IT"], ko: ["Korean", "KO"], zh: ["Chinese", "ZH"] };
 
 export class MangaAdminError extends Error {
   constructor(status, message) { super(message); this.status = status; }
 }
 
 function ensure(condition, message, status = 400) { if (!condition) throw new MangaAdminError(status, message); }
+function newLanguageCode(value) {
+  try { return normalizeSupportedLanguageCode(value); }
+  catch (error) { throw new MangaAdminError(400, error.message); }
+}
 function safeSegment(value) { return slugify(value).slice(0, 80); }
+function validateInput(payload) {
+  ensure(payload && typeof payload === "object" && !Array.isArray(payload), "Données Manga invalides.");
+  for (const field of ["title", "edition", "description", "summary", "genre", "role", "author", "date", "slug"]) {
+    if (payload[field] !== undefined) ensure(typeof payload[field] === "string", `Champ ${field} invalide.`);
+  }
+  if (payload.title !== undefined) ensure(payload.title.trim(), "Titre obligatoire.");
+  for (const [field, values] of Object.entries({ status: ["", "published", "draft", "archived"], visibility: ["public", "private"], readingDirection: ["rtl", "ltr"], defaultReadingMode: ["", "vertical", "horizontal"], languageType: ["multilingual", "original", "silent"] })) {
+    if (payload[field] !== undefined) ensure(values.includes(payload[field]), `Valeur ${field} invalide.`);
+  }
+  if (payload.year !== undefined) ensure(typeof payload.year === "string" || (typeof payload.year === "number" && Number.isFinite(payload.year)), "Année invalide.");
+  if (payload.order !== undefined) ensure(Number.isFinite(Number(payload.order)), "Ordre d’affichage invalide.");
+  if (payload.featured !== undefined) ensure(typeof payload.featured === "boolean", "Valeur featured invalide.");
+  if (payload.tags !== undefined) ensure(Array.isArray(payload.tags) && payload.tags.every((tag) => typeof tag === "string"), "Tags invalides.");
+}
 
 export function createMangaService({
   projectRoot,
@@ -49,6 +67,7 @@ export function createMangaService({
   const trashRoot = path.join(runtimeRoot, "trash/mangas");
   const stagingRoot = path.join(runtimeRoot, "staging/mangas");
   const operationTimestamp = () => now().toISOString().replaceAll(":", "-").replaceAll(".", "-");
+  let mutationQueue = Promise.resolve();
 
   function sectionDirectory(section) {
     ensure(MANGA_PRESENTATION_SECTION_VALUES.includes(section), "Section de présentation invalide.");
@@ -123,6 +142,31 @@ export function createMangaService({
     return `${projectPrefix(manga)}/${folder ? `${folder}/` : ""}${name}`;
   }
 
+  async function resolvePageFile(manga, relative) {
+    ensure(!relative.split(/[\\/]/).some((segment) => segment === "." || segment === ".." || segment.includes("\0")), "Chemin de page source interdit.", 403);
+    const folder = pageStorageFolder(manga, relative);
+    const source = assetFile(relative);
+    await ensureAssetDirectory(path.dirname(source));
+    ensure(!(await lstat(source).catch((error) => {
+      if (error.code === "ENOENT") throw new MangaAdminError(404, "Le fichier source de la page est introuvable.");
+      throw error;
+    })).isSymbolicLink(), "Un lien symbolique ne peut pas être utilisé comme page source.", 403);
+    let actualSource, actualDirectory, actualProject, actualRoot;
+    try {
+      [actualSource, actualDirectory, actualProject, actualRoot] = await Promise.all([
+        realpath(source), realpath(languageDirectory(manga, folder)), realpath(projectDirectory(manga)), realpath(assetRoot),
+      ]);
+    } catch (error) {
+      if (error.code === "ENOENT") throw new MangaAdminError(404, "Le fichier source de la page est introuvable.");
+      throw error;
+    }
+    ensure(isPathInside(actualRoot, actualProject), "Dossier manga hors des assets autorisés.", 403);
+    ensure(actualDirectory === actualProject || isPathInside(actualProject, actualDirectory), "Dossier de langue hors du manga.", 403);
+    ensure(path.dirname(actualSource) === actualDirectory, "La page source sort de son dossier de langue.", 403);
+    ensure((await stat(actualSource)).isFile(), "La page source n’est pas un fichier.");
+    return { folder, source, actualSource, actualDirectory };
+  }
+
   function rewriteProjectPaths(manga, previousPrefix, nextPrefix) {
     for (const field of ["cover", "banner", "thumbnail", "presentation"]) {
       if (manga[field]?.startsWith(`${previousPrefix}/`)) {
@@ -139,22 +183,63 @@ export function createMangaService({
 
   function assetFile(assetPath) {
     ensure(typeof assetPath === "string" && assetPath.startsWith("assets/mangaka/"), "Chemin manga invalide.");
+    ensure(!assetPath.split(/[\\/]/).some((part) => part === "." || part === ".." || part.includes("\0")), "Chemin manga interdit.", 403);
     const target = path.resolve(projectRoot, "public", ...assetPath.split("/"));
     ensure(isPathInside(assetRoot, target), "Le chemin manga sort du dossier autorisé.", 403);
     return target;
   }
 
+  async function ensureAssetDirectory(directory) {
+    ensure(directory === assetRoot || isPathInside(assetRoot, directory), "Dossier hors des assets Manga.", 403);
+    // Check existing ancestors before mkdir/write: reject Windows junctions too.
+    let current = projectRoot;
+    for (const part of path.relative(projectRoot, directory).split(path.sep)) {
+      current = path.join(current, part);
+      let info;
+      try { info = await lstat(current); } catch (error) { if (error.code === "ENOENT") break; throw error; }
+      ensure(info.isDirectory() && !info.isSymbolicLink(), "Dossier Manga invalide ou lié à un autre emplacement.", 403);
+    }
+    return directory;
+  }
+
+  async function scheduleArchiveUnused(catalog, tx, afterSave, manga, relatives, label) {
+    const sources = [];
+    for (const relative of new Set(relatives.filter(Boolean))) {
+      if (catalog.some((entry) => mangaUsesPathElsewhere(entry, relative))) continue;
+      sources.push(await resolvePageFile(manga, relative));
+    }
+    if (!sources.length) return;
+    afterSave.push(async () => {
+      const directory = await generateUniqueUnusedTrashPath(label);
+      for (const { source, actualSource } of sources) {
+        const name = await uniqueDestination(directory, path.basename(source));
+        await tx.move(actualSource, path.join(directory, name));
+      }
+    });
+  }
+
+  function applyPageOrder(manga, code, pages, expectedPages) {
+    ensure(Object.hasOwn(manga.languages, code), "Langue introuvable.", 404);
+    const language = manga.languages[code];
+    if (expectedPages !== undefined) ensure(Array.isArray(expectedPages) && JSON.stringify(expectedPages) === JSON.stringify(language.pages), "Les pages ont changé. Actualisez avant de réessayer.", 409);
+    ensure(Array.isArray(pages) && pages.length === language.pages.length, "Ordre de pages incomplet.");
+    ensure(new Set(pages).size === pages.length && pages.every((page) => language.pages.includes(page)), "Ordre de pages invalide.");
+    language.pages = [...pages];
+  }
+
   async function readCatalog() { return parseMangaCatalog(await readFile(catalogPath, "utf8")); }
   async function writeFileAtomic(file, content) {
     const temporary = `${file}.${randomUUID()}.tmp`;
-    await writeFile(temporary, content, { flag: "wx" });
-    try { await rename(temporary, file); } catch (error) { await rm(temporary, { force: true }); throw error; }
+    try {
+      await writeFile(temporary, content, { flag: "wx" });
+      await rename(temporary, file);
+    } catch (error) { await rm(temporary, { force: true }); throw error; }
   }
   async function writeAtomic(content) { await writeFileAtomic(catalogPath, content); }
   async function backup(operation, slug = "catalog") {
     await mkdir(backupRoot, { recursive: true });
-    const destination = path.join(backupRoot, `${operationTimestamp()}-${safeSegment(operation)}-${safeSegment(slug)}.js`);
-    await copyFile(catalogPath, destination);
+    const destination = path.join(backupRoot, `${operationTimestamp()}-${safeSegment(operation)}-${safeSegment(slug)}-${randomUUID()}.js`);
+    await copyFile(catalogPath, destination, constants.COPYFILE_EXCL);
     return destination;
   }
   function parsePresentationSettings(source) {
@@ -207,19 +292,27 @@ export function createMangaService({
       const paths = [manga.cover, manga.banner, manga.thumbnail, manga.presentation, ...Object.values(manga.languages).flatMap((language) => language.pages)].filter(Boolean);
       for (const relative of paths) {
         const target = assetFile(relative);
-        try { ensure((await stat(target)).isFile(), `Fichier manga invalide : ${relative}.`); }
+        try { await ensureAssetDirectory(path.dirname(target)); ensure((await lstat(target)).isFile(), `Fichier manga invalide : ${relative}.`); }
         catch (error) { if (error.code === "ENOENT") throw new MangaAdminError(400, `Fichier manga manquant : ${relative}.`); throw error; }
       }
     }
   }
-  async function mutate(operation, slug, callback) {
+  function mutate(operation, slug, callback) {
+    // Serialize catalog mutations so simultaneous duplicates cannot lose pages.
+    const result = mutationQueue.then(() => performMutation(operation, slug, callback));
+    mutationQueue = result.catch(() => undefined);
+    return result;
+  }
+  async function performMutation(operation, slug, callback) {
     const original = await readFile(catalogPath, "utf8");
     const catalog = parseMangaCatalog(original);
+    validateMangaCatalog(catalog);
     const transaction = new FileTransaction({ renameImpl });
     const backupPath = await backup(operation, slug);
     let catalogWritten = false;
+    const afterSave = [];
     try {
-      const result = await callback(catalog, transaction);
+      const result = await callback(catalog, transaction, afterSave);
       if (failurePoint === "before-catalog") throw new Error("Échec manga simulé.");
       await validateFiles(catalog);
       const serialized = serializeMangaCatalog(catalog);
@@ -227,15 +320,20 @@ export function createMangaService({
       catalogWritten = true;
       await validateFiles(await readCatalog());
       if (failurePoint === "after-catalog") throw new Error("Échec manga simulé.");
-      transaction.commit();
+      for (const finalize of afterSave) await finalize();
       onMutation?.();
+      transaction.commit();
       return { result, backup: path.relative(projectRoot, backupPath).replaceAll("\\", "/") };
     } catch (error) {
       const rollbackErrors = [];
       if (catalogWritten) {
         try { await writeAtomic(original); } catch (rollbackError) { rollbackErrors.push(rollbackError); }
       }
-      try { await transaction.rollback(); } catch (rollbackError) { rollbackErrors.push(rollbackError); }
+      // Do not delete prepared assets if the on-disk catalog could still refer
+      // to them. Keep files and the backup available for manual recovery.
+      if (!rollbackErrors.length) {
+        try { await transaction.rollback(); } catch (rollbackError) { rollbackErrors.push(rollbackError); }
+      }
       if (rollbackErrors.length) {
         throw new AggregateError([error, ...rollbackErrors], "La transaction Manga Admin a échoué et son rollback est incomplet.");
       }
@@ -357,23 +455,35 @@ export function createMangaService({
       languageVersions: items.reduce((sum, manga) => sum + Object.keys(manga.languages).length, 0),
       totalPages: items.reduce((sum, manga) => sum + manga.totalPages, 0),
       issues,
-      languagePresets: LANGUAGE_PRESETS,
+      languagePresets: Object.fromEntries(supportedMangaLanguages.map((language) => [language.code, [language.label, language.shortLabel]])),
     };
   }
-  async function decodeImage(upload, preferredName) {
-    ensure(upload?.dataBase64 && upload?.fileName, "Image manquante.");
+  async function decodeImage(upload, preferredName, validateContent = true) {
+    ensure(typeof upload?.dataBase64 === "string" && typeof upload?.fileName === "string" && upload.fileName && !upload.fileName.includes("\0"), "Image manquante ou nom invalide.");
     const extension = path.extname(upload.fileName).toLowerCase();
     ensure(EXTENSIONS.has(extension), "Format d’image non autorisé.");
     const buffer = Buffer.from(upload.dataBase64, "base64");
     ensure(buffer.length > 0, "Image vide.");
-    await sharp(buffer, { animated: true }).metadata().catch(() => { throw new MangaAdminError(400, "Fichier image invalide."); });
+    const decoder = sharp(buffer, { animated: true, failOn: "warning" });
+    try {
+      const metadata = await decoder.metadata();
+      if (validateContent) {
+        const formats = { ".jpg": "jpeg", ".jpeg": "jpeg", ".png": "png", ".webp": "webp", ".avif": "heif", ".gif": "gif" };
+        ensure(metadata.format === formats[extension] && (extension !== ".avif" || metadata.compression === "av1"), "L’extension ne correspond pas au format de l’image.");
+        // Decode for validation only; the original upload bytes are saved unchanged.
+        await decoder.stats();
+      }
+    } catch (error) {
+      if (error instanceof MangaAdminError) throw error;
+      throw new MangaAdminError(400, "Fichier image invalide.");
+    } finally { decoder.destroy(); }
     const base = safeSegment(path.basename(preferredName || upload.fileName, path.extname(preferredName || upload.fileName)));
     return { buffer, extension, name: `${base}${extension}`, hash: createHash("sha256").update(buffer).digest("hex") };
   }
   async function uniqueDestination(directory, name) {
     let candidate = name; let index = 2;
     while (true) {
-      try { await stat(path.join(directory, candidate)); candidate = `${path.basename(name, path.extname(name))}-${index++}${path.extname(name)}`; }
+      try { await lstat(path.join(directory, candidate)); candidate = `${path.basename(name, path.extname(name))}-${index++}${path.extname(name)}`; }
       catch (error) { if (error.code === "ENOENT") return candidate; throw error; }
     }
   }
@@ -399,21 +509,23 @@ export function createMangaService({
     fingerprints.set(image.name, hashes);
   }
   async function create(payload) {
+    validateInput(payload);
     const title = String(payload.title || "").trim(); ensure(title, "Titre obligatoire.");
     const presentationSection = payload.presentationSection || "completed";
     const presentationDirectory = sectionDirectory(presentationSection);
-    const current = await readCatalog();
-    let slug = slugify(payload.slug || title); let suffix = 2;
-    while (current.some((manga) => manga.slug === slug || String(manga.id) === slug)) {
-      slug = `${slugify(payload.slug || title)}-${suffix++}`;
-    }
+    const baseSlug = slugify(payload.slug || title);
     const languageType = payload.languageType || "multilingual";
-    const initialCode = languageType === "multilingual" ? normalizeLanguageCode(payload.languageCode || "en") : "orig";
-    const preset = LANGUAGE_PRESETS[initialCode] || [initialCode.toUpperCase(), initialCode.toUpperCase()];
-    const uploads = naturalPageSort(payload.pages || []).map((upload) => upload);
+    const initialCode = languageType === "multilingual" ? newLanguageCode(payload.languageCode || "en") : "orig";
+    const preset = getLanguageDetails(initialCode);
+    ensure(Array.isArray(payload.pages), "Liste de pages invalide.");
+    const uploads = naturalPageSort(payload.pages).map((upload) => upload);
     ensure(uploads.length > 0, "Ajoutez au moins une page.");
-    return mutate("create", slug, async (catalog, tx) => {
+    return mutate("create", baseSlug, async (catalog, tx) => {
+      let slug = baseSlug, suffix = 2;
+      await ensureAssetDirectory(path.join(assetRoot, presentationDirectory));
+      while (catalog.some((manga) => manga.slug === slug || String(manga.id) === slug) || await destinationExists(path.join(assetRoot, presentationDirectory, slug))) slug = `${baseSlug}-${suffix++}`;
       const projectRootDirectory = path.join(assetRoot, presentationDirectory, slug);
+      await ensureAssetDirectory(projectRootDirectory);
       const directory = path.join(projectRootDirectory, initialCode);
       const pagePaths = []; const fingerprints = new Map();
       for (const upload of uploads) {
@@ -437,15 +549,20 @@ export function createMangaService({
         presentationSection,
         summary: String(payload.summary || ""), genre: "", role: "", year: payload.year || "",
         readingDirection: payload.readingDirection === "ltr" ? "ltr" : "rtl", defaultLanguage: initialCode,
-        languages: { [initialCode]: { label: languageType === "silent" ? "Original / Silent manga" : preset[0], shortLabel: preset[1], storageFolder: initialCode, pages: pagePaths } },
+        languages: { [initialCode]: { label: languageType === "silent" ? "Original / Silent manga" : preset.label, shortLabel: preset.shortLabel, storageFolder: initialCode, pages: pagePaths } },
         featured: false, status: payload.status || "draft", visibility: payload.visibility || "private",
       };
       catalog.push(manga); return manga;
     });
   }
   async function update(id, payload) {
+    validateInput(payload);
     return mutate("update", id, async (catalog, tx) => {
       const manga = findManga(catalog, id);
+      if (payload.pageOrder !== undefined) {
+        ensure(payload.pageOrder && typeof payload.pageOrder === "object", "Ordre de pages invalide.");
+        applyPageOrder(manga, payload.pageOrder.language, payload.pageOrder.pages, payload.pageOrder.expectedPages);
+      }
       if (payload.presentationSection !== undefined) {
         const nextSection = payload.presentationSection;
         const nextDirectoryName = sectionDirectory(nextSection);
@@ -454,6 +571,8 @@ export function createMangaService({
         if (previousPrefix !== nextPrefix) {
           const sourceDirectory = projectDirectory(manga);
           const destinationDirectory = path.join(assetRoot, nextDirectoryName, manga.slug);
+          await ensureAssetDirectory(sourceDirectory);
+          await ensureAssetDirectory(destinationDirectory);
           const actualSource = await realpath(sourceDirectory).catch(() => {
             throw new MangaAdminError(404, "Dossier physique du manga introuvable.");
           });
@@ -474,48 +593,79 @@ export function createMangaService({
       }
       if (payload.tags !== undefined) manga.tags = Array.isArray(payload.tags) ? payload.tags : [];
       if (payload.featured !== undefined) manga.featured = Boolean(payload.featured);
-      if (payload.defaultLanguage !== undefined) { ensure(manga.languages[payload.defaultLanguage], "Langue par défaut absente."); manga.defaultLanguage = payload.defaultLanguage; }
+      if (payload.defaultLanguage !== undefined) { ensure(Object.hasOwn(manga.languages, payload.defaultLanguage), "Langue par défaut absente."); manga.defaultLanguage = payload.defaultLanguage; }
       if (payload.order !== undefined) manga.order = Number(payload.order) || 0;
       return manga;
     });
   }
   async function addLanguage(id, payload) {
-    const code = normalizeLanguageCode(payload.code);
+    validateInput(payload);
+    const code = newLanguageCode(payload.code);
     return mutate("add-language", id, async (catalog) => {
-      const manga = findManga(catalog, id); ensure(!manga.languages[code], "Cette langue existe déjà.", 409);
-      const preset = LANGUAGE_PRESETS[code] || [payload.label || code.toUpperCase(), payload.shortLabel || code.toUpperCase()];
-      manga.languages[code] = { label: payload.label || preset[0], shortLabel: payload.shortLabel || preset[1], storageFolder: code, pages: [] };
+      const manga = findManga(catalog, id);
+      ensure(!Object.keys(manga.languages).some((existing) => (getLanguageDetails(existing)?.code || existing) === code), "Cette langue existe déjà.", 409);
+      const preset = getLanguageDetails(code);
+      manga.languages[code] = { label: preset.label, shortLabel: preset.shortLabel, storageFolder: code, pages: [] };
       return manga;
     });
   }
   async function deleteLanguage(id, code) {
-    return mutate("delete-language", id, async (catalog, tx) => {
-      const manga = findManga(catalog, id); ensure(manga.languages[code], "Langue introuvable.", 404);
+    return mutate("delete-language", id, async (catalog, tx, afterSave) => {
+      const manga = findManga(catalog, id); ensure(Object.hasOwn(manga.languages, code), "Langue introuvable.", 404);
       ensure(Object.keys(manga.languages).length > 1, "Impossible de supprimer la seule langue.");
       ensure(manga.defaultLanguage !== code, "Choisissez d’abord une autre langue par défaut.");
-      for (const page of manga.languages[code].pages) {
-        const source = assetFile(page); const destination = path.join(trashRoot, `${operationTimestamp()}-${safeSegment(manga.slug)}-${code}`, path.basename(source));
-        await tx.move(source, destination);
-      }
-      delete manga.languages[code]; return manga;
+      const sourceManga = structuredClone(manga);
+      const pages = [...manga.languages[code].pages];
+      delete manga.languages[code];
+      await scheduleArchiveUnused(catalog, tx, afterSave, sourceManga, pages, `${manga.slug}-${code}-delete-language`);
+      return manga;
     });
   }
   async function addPages(id, code, payload) {
+    validateInput(payload);
     return mutate("add-pages", id, async (catalog, tx) => {
-      const manga = findManga(catalog, id); const language = manga.languages[code]; ensure(language, "Langue introuvable.", 404);
+      const manga = findManga(catalog, id); ensure(Object.hasOwn(manga.languages, code), "Langue introuvable.", 404); const language = manga.languages[code];
+      ensure(Array.isArray(payload.files), "Liste de pages invalide.");
+      const requestedPosition = Number(payload.position ?? language.pages.length + 1);
+      ensure(Number.isSafeInteger(requestedPosition) && requestedPosition >= 1, "Position d’insertion invalide.");
       const uploads = naturalPageSort(payload.files || []); ensure(uploads.length, "Aucune page fournie.");
       const storage = analyzeLanguageStorage(manga, code);
       ensure(!storage.ambiguous, `Dossier physique ambigu pour ${manga.title}/${code} : ${storage.candidates.join(", ")}.`, 409);
       const directory = languageDirectory(manga, storage.folder); const additions = [];
+      await ensureAssetDirectory(directory);
       const fingerprints = await registeredPageFingerprints(language);
       for (const upload of uploads) {
         const image = await decodeImage(upload); ensureNewPage(fingerprints, image, upload.fileName);
         const name = await uniqueDestination(directory, image.name); const destination = path.join(directory, name);
         await tx.writeExclusive(destination, image.buffer); additions.push(languagePagePath(manga, storage.folder, name));
       }
-      const position = Math.min(Math.max(Number(payload.position) || language.pages.length + 1, 1), language.pages.length + 1);
+      const position = Math.min(requestedPosition, language.pages.length + 1);
       language.pages.splice(position - 1, 0, ...additions);
       language.storageFolder = storage.folder;
+      return manga;
+    });
+  }
+  async function duplicatePage(id, code, index, payload = {}) {
+    ensure(payload && typeof payload === "object" && !Array.isArray(payload), "Demande de duplication invalide.");
+    return mutate("duplicate-page", id, async (catalog, tx) => {
+      validateMangaCatalog(catalog);
+      const manga = findManga(catalog, id);
+      ensure(Object.hasOwn(manga.languages, code), "Langue introuvable.", 404);
+      const language = manga.languages[code];
+      ensure(Number.isSafeInteger(index) && index >= 0 && index < language.pages.length, "Page source introuvable.", 404);
+      const position = Number(payload.position ?? language.pages.length + 1);
+      ensure(Number.isSafeInteger(position) && position >= 1 && position <= language.pages.length + 1, "Position d’insertion invalide.");
+      const relative = language.pages[index];
+      ensure(payload.source === undefined || payload.source === relative, "La page source a changé. Actualisez la liste avant de réessayer.", 409);
+      const { folder, source, actualSource, actualDirectory } = await resolvePageFile(manga, relative);
+      const extension = path.extname(source);
+      ensure(EXTENSIONS.has(extension.toLowerCase()), "Format de page non pris en charge.");
+      const name = await uniqueDestination(actualDirectory, `${path.basename(source, extension)}-copy${extension}`);
+      const destination = path.join(actualDirectory, name);
+      ensure(isPathInside(actualDirectory, destination), "Destination de copie interdite.", 403);
+      // No decodeImage/Sharp: write the exact source bytes, exclusively.
+      await tx.writeExclusive(destination, await readFile(actualSource));
+      language.pages.splice(position - 1, 0, languagePagePath(manga, folder, name));
       return manga;
     });
   }
@@ -527,14 +677,16 @@ export function createMangaService({
       const storage = analyzeLanguageStorage(manga, code);
       ensure(!storage.ambiguous, `Dossier physique ambigu pour ${manga.title}/${code} : ${storage.candidates.join(", ")}.`, 409);
       const directory = languageDirectory(manga, storage.folder);
+      await ensureAssetDirectory(directory);
       const moved = [];
       for (let index = 0; index < language.pages.length; index += 1) {
         const currentPath = language.pages[index];
         if (pageStorageFolder(manga, currentPath) === storage.folder) continue;
-        const source = assetFile(currentPath);
+        const { actualSource: source } = await resolvePageFile(manga, currentPath);
         const name = await uniqueDestination(directory, path.basename(source));
         const destination = path.join(directory, name);
-        await tx.move(source, destination);
+        if (mangaUsesPathElsewhere(manga, currentPath, { languageCode: code, pageIndex: index })) await tx.writeExclusive(destination, await readFile(source));
+        else await tx.move(source, destination);
         const nextPath = languagePagePath(manga, storage.folder, name);
         language.pages[index] = nextPath;
         moved.push({ index, from: currentPath, to: nextPath });
@@ -545,42 +697,57 @@ export function createMangaService({
   }
   async function reorderPages(id, code, pages) {
     return mutate("reorder-pages", id, async (catalog) => {
-      const manga = findManga(catalog, id); const language = manga.languages[code]; ensure(language, "Langue introuvable.", 404);
-      ensure(Array.isArray(pages) && pages.length === language.pages.length, "Ordre de pages incomplet.");
-      ensure(new Set(pages).size === pages.length && pages.every((page) => language.pages.includes(page)), "Ordre de pages invalide.");
-      language.pages = [...pages]; return manga;
+      const manga = findManga(catalog, id); applyPageOrder(manga, code, pages); return manga;
     });
   }
-  async function deletePage(id, code, index) {
-    return mutate("delete-page", id, async (catalog, tx) => {
-      const manga = findManga(catalog, id); const language = manga.languages[code]; ensure(language, "Langue introuvable.", 404);
+  async function deletePage(id, code, index, payload = {}) {
+    validateInput(payload);
+    return mutate("delete-page", id, async (catalog, tx, afterSave) => {
+      const manga = findManga(catalog, id); ensure(Object.hasOwn(manga.languages, code), "Langue introuvable.", 404); const language = manga.languages[code];
       ensure(language.pages.length > 1, "Une langue doit conserver au moins une page.");
-      ensure(index >= 0 && index < language.pages.length, "Page introuvable.", 404);
-      const [relative] = language.pages.splice(index, 1); const source = assetFile(relative);
-      await tx.move(source, path.join(trashRoot, `${operationTimestamp()}-${safeSegment(manga.slug)}-${code}`, path.basename(source)));
+      ensure(Number.isSafeInteger(index) && index >= 0 && index < language.pages.length, "Page introuvable.", 404);
+      ensure(payload.source === undefined || payload.source === language.pages[index], "La page source a changé. Actualisez avant de réessayer.", 409);
+      const sourceManga = structuredClone(manga);
+      const [relative] = language.pages.splice(index, 1);
+      await scheduleArchiveUnused(catalog, tx, afterSave, sourceManga, [relative], `${manga.slug}-${code}-delete-page`);
       return manga;
     });
   }
   async function replacePage(id, code, index, payload) {
-    return mutate("replace-page", id, async (catalog, tx) => {
-      const manga = findManga(catalog, id); const language = manga.languages[code]; ensure(language, "Langue introuvable.", 404);
-      ensure(index >= 0 && index < language.pages.length, "Page introuvable.", 404);
-      const oldRelative = language.pages[index]; const oldFile = assetFile(oldRelative); const image = await decodeImage(payload.file, payload.keepName ? path.basename(oldFile, path.extname(oldFile)) : undefined);
-      const directory = path.dirname(oldFile); const shared = mangaUsesPathElsewhere(manga, oldRelative, { languageCode: code, pageIndex: index });
+    ensure(payload && typeof payload === "object" && !Array.isArray(payload), "Demande de remplacement invalide.");
+    return mutate("replace-page", id, async (catalog, tx, afterSave) => {
+      validateMangaCatalog(catalog);
+      const manga = findManga(catalog, id);
+      ensure(Object.hasOwn(manga.languages, code), "Langue introuvable.", 404);
+      const language = manga.languages[code];
+      ensure(Number.isSafeInteger(index) && index >= 0 && index < language.pages.length, "Page introuvable.", 404);
+      const oldRelative = language.pages[index];
+      ensure(payload.source === undefined || payload.source === oldRelative, "La page source a changé. Actualisez la liste avant de réessayer.", 409);
+      const { folder, source: oldFile, actualDirectory } = await resolvePageFile(manga, oldRelative);
+      const image = await decodeImage(payload.file, payload.keepName ? path.basename(oldFile, path.extname(oldFile)) : undefined, true);
       const requestedName = payload.keepName ? `${path.basename(oldFile, path.extname(oldFile))}${image.extension}` : image.name;
-      const name = shared || !payload.keepName ? await uniqueDestination(directory, requestedName) : requestedName;
-      const destination = path.join(directory, name); const trash = path.join(trashRoot, `${operationTimestamp()}-${safeSegment(manga.slug)}-${code}`, path.basename(oldFile));
-      if (!shared) await tx.move(oldFile, trash); await tx.writeExclusive(destination, image.buffer);
-      language.pages[index] = `assets/mangaka/${path.relative(assetRoot, destination).replaceAll("\\", "/")}`; return manga;
+      // A new unique path keeps the old page usable until the catalog is saved,
+      // avoids overwrites and makes browser thumbnails refresh without cache hacks.
+      const name = await uniqueDestination(actualDirectory, requestedName);
+      const destination = path.join(actualDirectory, name);
+      ensure(isPathInside(actualDirectory, destination), "Destination de remplacement interdite.", 403);
+      await tx.writeExclusive(destination, image.buffer);
+      language.pages[index] = languagePagePath(manga, folder, name);
+      await scheduleArchiveUnused(catalog, tx, afterSave, manga, [oldRelative], `${manga.slug}-${code}-replace-page`);
+      return manga;
     });
   }
   async function replaceMedia(id, field, payload) {
+    validateInput(payload);
     ensure(["cover", "banner", "thumbnail", "presentation"].includes(field), "Type de média invalide.");
-    return mutate(`replace-${field}`, id, async (catalog, tx) => {
+    return mutate(`replace-${field}`, id, async (catalog, tx, afterSave) => {
       const manga = findManga(catalog, id); const image = await decodeImage(payload.file, field); const directory = projectDirectory(manga);
+      await ensureAssetDirectory(directory);
+      const sourceManga = structuredClone(manga), previous = manga[field];
       const name = await uniqueDestination(directory, image.name); const destination = path.join(directory, name);
-      if (manga[field] && !mangaUsesPathElsewhere(manga, manga[field], { mediaField: field })) await tx.move(assetFile(manga[field]), path.join(trashRoot, `${operationTimestamp()}-${safeSegment(manga.slug)}-${field}`, path.basename(manga[field])));
-      await tx.writeExclusive(destination, image.buffer); manga[field] = `${projectPrefix(manga)}/${name}`; return manga;
+      await tx.writeExclusive(destination, image.buffer); manga[field] = `${projectPrefix(manga)}/${name}`;
+      await scheduleArchiveUnused(catalog, tx, afterSave, sourceManga, [previous], `${manga.slug}-${field}`);
+      return manga;
     });
   }
   async function replacePrimaryMedia(id, payload) {
@@ -593,8 +760,9 @@ export function createMangaService({
     ensure(confirmation === manga.slug || confirmation === manga.title, "Confirmation incorrecte.");
     const expectedSection = getMangaPresentationSection(manga);
     const expectedDirectory = sectionDirectory(expectedSection);
-    const expectedRoot = path.join(assetRoot, expectedDirectory);
-    const expectedPrefix = `assets/mangaka/${expectedDirectory}/${manga.slug}/`;
+    const expectedPrefix = `${projectPrefix(manga)}/`;
+    const legacy = expectedPrefix === `assets/mangaka/${manga.slug}/`;
+    const expectedRoot = legacy ? assetRoot : path.join(assetRoot, expectedDirectory);
     const references = [
       manga.cover,
       manga.banner,
@@ -604,6 +772,7 @@ export function createMangaService({
     ].filter(Boolean);
     ensure(references.every((relative) => relative.startsWith(expectedPrefix)), "Suppression refusée : un média sort du dossier de section attendu.", 403);
     const directory = projectDirectory(manga);
+    await ensureAssetDirectory(directory);
     ensure(isPathInside(expectedRoot, directory), "Suppression refusée : dossier hors de la section attendue.", 403);
     const actualRoot = await realpath(expectedRoot).catch((error) => {
       if (error.code === "ENOENT") throw new MangaAdminError(404, "Suppression impossible : la section physique du manga n’existe plus.");
@@ -631,11 +800,16 @@ export function createMangaService({
     });
   }
   async function reveal(id, descriptor) {
+    validateInput(descriptor);
     const catalog = await readCatalog(); const manga = findManga(catalog, id); let relative;
-    if (descriptor.type === "page") relative = manga.languages[descriptor.language]?.pages?.[Number(descriptor.index)];
+    if (descriptor.type === "page") {
+      ensure(Number.isSafeInteger(descriptor.index) && descriptor.index >= 0 && Object.hasOwn(manga.languages, descriptor.language), "Page manga invalide.");
+      relative = manga.languages[descriptor.language].pages[descriptor.index];
+    }
     else if (descriptor.type === "primary") relative = primaryMangaMedia(manga).path;
     else if (["cover", "banner", "thumbnail", "presentation"].includes(descriptor.type)) relative = manga[descriptor.type];
     ensure(relative, "Média manga introuvable.", 404);
+    await resolvePageFile(manga, relative);
     const candidate = assetFile(relative); const actual = await realpath(candidate).catch(() => { throw new MangaAdminError(404, "Fichier manga introuvable."); });
     ensure(isPathInside(assetRoot, actual), "Fichier manga hors projet.", 403);
     const command = buildRevealCommand(actual);
@@ -643,6 +817,6 @@ export function createMangaService({
     return disableReveal ? { ...command, filePath: actual, simulated: true } : launchReveal(actual);
   }
   async function initialize() { await Promise.all([mkdir(backupRoot, { recursive: true }), mkdir(trashRoot, { recursive: true }), mkdir(stagingRoot, { recursive: true })]); }
-  async function readAsset(relative) { return { content: await readFile(assetFile(relative)), extension: path.extname(relative).toLowerCase() }; }
-  return { initialize, report, create, update, addLanguage, deleteLanguage, addPages, repairLanguageStorage, reorderPages, deletePage, replacePage, replaceMedia, replacePrimaryMedia, removeManga, reveal, readAsset, readCatalog, readPresentationSettings, updatePresentationSettings, validateFiles, paths: { catalogPath, presentationSettingsPath, assetRoot, backupRoot, trashRoot, stagingRoot } };
+  async function readAsset(relative) { const file = assetFile(relative); await ensureAssetDirectory(path.dirname(file)); ensure((await lstat(file)).isFile(), "Fichier manga invalide.", 403); return { content: await readFile(file), extension: path.extname(relative).toLowerCase() }; }
+  return { initialize, report, create, update, addLanguage, deleteLanguage, addPages, duplicatePage, repairLanguageStorage, reorderPages, deletePage, replacePage, replaceMedia, replacePrimaryMedia, removeManga, reveal, readAsset, readCatalog, readPresentationSettings, updatePresentationSettings, validateFiles, paths: { catalogPath, presentationSettingsPath, assetRoot, backupRoot, trashRoot, stagingRoot } };
 }

@@ -47,12 +47,18 @@ export async function handleMangaRoute(request, response, url, { service, readJs
   if (pages && request.method === "PUT") {
     const output = await service.reorderPages(decodeURIComponent(pages[1]), decodeURIComponent(pages[2]), (await readJson(request)).pages); sendJson(response, 200, { ...output, message: "Ordre des pages enregistré." }); return true;
   }
+  const duplicate = url.pathname.match(/^\/api\/mangas\/([^/]+)\/languages\/([^/]+)\/pages\/(\d+)\/duplicate$/);
+  if (duplicate && request.method === "POST") {
+    const output = await service.duplicatePage(decodeURIComponent(duplicate[1]), decodeURIComponent(duplicate[2]), Number(duplicate[3]), await readJson(request));
+    sendJson(response, 201, { ...output, message: "Page dupliquée." }); return true;
+  }
   const page = url.pathname.match(/^\/api\/mangas\/([^/]+)\/languages\/([^/]+)\/pages\/(\d+)$/);
   if (page && request.method === "PUT") {
     const output = await service.replacePage(decodeURIComponent(page[1]), decodeURIComponent(page[2]), Number(page[3]), await readJson(request)); sendJson(response, 200, { ...output, message: "Page remplacée ; ancienne image placée dans la corbeille." }); return true;
   }
   if (page && request.method === "DELETE") {
-    const output = await service.deletePage(decodeURIComponent(page[1]), decodeURIComponent(page[2]), Number(page[3])); sendJson(response, 200, { ...output, message: "Page déplacée dans la corbeille." }); return true;
+    const emptyBody = request.headers && !Number(request.headers["content-length"]) && !request.headers["transfer-encoding"];
+    const output = await service.deletePage(decodeURIComponent(page[1]), decodeURIComponent(page[2]), Number(page[3]), emptyBody ? {} : await readJson(request)); sendJson(response, 200, { ...output, message: "Page retirée ; fichier partagé conservé si nécessaire." }); return true;
   }
   const media = url.pathname.match(/^\/api\/mangas\/([^/]+)\/media\/(cover|banner|thumbnail|presentation)$/);
   if (media && request.method === "PUT") {

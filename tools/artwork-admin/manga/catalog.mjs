@@ -29,6 +29,8 @@ export function serializeMangaCatalog(mangas) {
 }
 
 export function normalizeLanguageCode(code) {
+  // Validate existing legacy keys without migrating them. New entries use the
+  // shared registry's stricter normalizeSupportedLanguageCode in service.mjs.
   const value = String(code || "").trim().toLowerCase();
   if (!/^[a-z][a-z0-9-]{1,11}$/.test(value)) throw new Error("Code de langue invalide.");
   return value;

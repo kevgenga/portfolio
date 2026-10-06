@@ -1457,8 +1457,12 @@ async function pipeLocalFile(response, file, options) {
 
 async function serveStatic(response, pathname) {
   const relative = pathname === "/" ? "index.html" : pathname.replace(/^\/+/, "");
-  const target = path.resolve(PUBLIC_DIR, relative);
-  assert(target === PUBLIC_DIR || isInside(PUBLIC_DIR, target), "Fichier interdit.", 403);
+  // Expose only this shared display helper, not arbitrary portfolio source files.
+  const sharedLanguageLabels = pathname === "/shared/language-labels.js";
+  const target = sharedLanguageLabels
+    ? path.resolve(ADMIN_DIR, "../../src/utils/languageLabels.js")
+    : path.resolve(PUBLIC_DIR, relative);
+  assert(sharedLanguageLabels || target === PUBLIC_DIR || isInside(PUBLIC_DIR, target), "Fichier interdit.", 403);
   const content = await readFile(target);
   response.writeHead(200, {
     "Content-Type": MIME_TYPES[path.extname(target).toLowerCase()] || "application/octet-stream",

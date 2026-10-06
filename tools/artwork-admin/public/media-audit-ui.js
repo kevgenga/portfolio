@@ -1,3 +1,5 @@
+import { getLanguageLabel } from "/shared/language-labels.js";
+
 const MODULE_LABELS = {
   artwork: "Illustration",
   animation: "Animation",
@@ -46,7 +48,7 @@ function facts(item) {
     ["Chemin", item.path || "—"],
     ["Dossier", item.directory || item.category || "—"],
     ["Catégorie / type supposé", item.category || item.type || "—"],
-    ["Langue supposée", item.languageLabel || item.language || ""],
+    ["Langue supposée", getLanguageLabel(item.language, item.languageLabel)],
     ["Format", item.format || item.extension?.replace(".", "").toUpperCase() || "—"],
     ["Dimensions", item.width && item.height ? `${item.width} × ${item.height} px` : "—"],
     ["Poids", formatBytes(item.size)],

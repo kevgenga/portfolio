@@ -34,12 +34,13 @@ export class FileTransaction {
   async writeExclusive(destination, content) {
     await mkdir(path.dirname(destination), { recursive: true });
     const handle = await open(destination, "wx");
+    // Register as soon as we own the new file, including partial-write failures.
+    this.#rollbacks.push(() => rm(destination, { force: true }));
     try {
       await handle.writeFile(content);
     } finally {
       await handle.close();
     }
-    this.#rollbacks.push(() => rm(destination, { force: true }));
   }
 
   commit() {

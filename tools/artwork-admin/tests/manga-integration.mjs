@@ -9,6 +9,7 @@ import sharp from "sharp";
 import { naturalPageSort, parseMangaCatalog, serializeMangaCatalog } from "../manga/catalog.mjs";
 import { analyzeMangaCardMedia, primaryMangaMedia } from "../manga/media-policy.mjs";
 import { createMangaService } from "../manga/service.mjs";
+import { getLanguageDetails, getLanguageLabel, supportedMangaLanguages } from "../../../src/utils/languageLabels.js";
 import {
   getMangaPresentationSection,
   isMangaPresentationSectionVisible,
@@ -303,6 +304,45 @@ try {
   let translated = (await service.report()).mangas.find((manga) => manga.id === multilingual.result.id);
   assert.equal(translated.defaultLanguage, "en"); assert.equal(translated.languages.fr.pageCount, 0);
 
+  await service.addLanguage(multilingual.result.id, { code: "ja" });
+  translated = (await service.report()).mangas.find((manga) => manga.id === multilingual.result.id);
+  assert.equal(`${getLanguageLabel("ja", translated.languages.ja.label)} (${translated.languages.ja.pageCount})`, "日本語 (0)");
+  const japanesePages = [];
+  for (let index = 1; index <= 23; index += 1) japanesePages.push(await image(`${String(index).padStart(2, "0")}.jpg`, { r: 60, g: index * 5, b: 130 }));
+  await service.addPages(multilingual.result.id, "ja", { files: japanesePages, position: 1 });
+  translated = (await service.report()).mangas.find((manga) => manga.id === multilingual.result.id);
+  assert.equal(`${getLanguageLabel("ja", translated.languages.ja.label)} (${translated.languages.ja.pageCount})`, "日本語 (23)");
+  assert.deepEqual(Object.keys(translated.languages), ["en", "fr", "ja"]);
+  assert.ok(translated.languages.ja.pages.every((page) => page.includes("/ja/")));
+  assert.deepEqual(translated.languages.ja.pages.map((page) => path.basename(page)), japanesePages.map((page) => page.fileName));
+  const persistedJapanese = (await service.readCatalog()).find((manga) => manga.id === multilingual.result.id).languages.ja;
+  assert.equal(persistedJapanese.storageFolder, "ja");
+  assert.equal(persistedJapanese.label, "日本語");
+  assert.equal(getLanguageLabel("fr", translated.languages.fr.label), "Français");
+  assert.equal(getLanguageLabel("en", translated.languages.en.label), "English");
+
+  const beforeInvalidLanguage = hash(await readFile(path.join(root, "src/content/mangas.js")));
+  for (const code of ["ESPAGNOL", "JAPANESE", "FRANCAIS", "日本語", "Español", "العربية", "zh", "zh--Hans"]) {
+    await assert.rejects(service.addLanguage(multilingual.result.id, { code }), (error) => error.status === 400);
+  }
+  await assert.rejects(service.create({ title: "Invalid language", languageCode: "ESPAGNOL" }), (error) => error.status === 400);
+  assert.equal(hash(await readFile(path.join(root, "src/content/mangas.js"))), beforeInvalidLanguage);
+  for (const language of supportedMangaLanguages.filter((item) => !["en", "fr", "ja", "orig"].includes(item.code))) {
+    await service.addLanguage(multilingual.result.id, { code: language.code.toUpperCase(), label: "Not a code or label to persist" });
+    const added = (await service.readCatalog()).find((manga) => manga.id === multilingual.result.id).languages[language.code];
+    assert.equal(added.label, language.label);
+    assert.equal(added.storageFolder, language.code);
+    assert.equal(added.pages.length, 0);
+  }
+  await service.addPages(multilingual.result.id, "zh-Hans", { files: [await image("01.jpg", "#010203")], position: 1 });
+  await service.addPages(multilingual.result.id, "zh-Hant", { files: [await image("01.jpg", "#030201")], position: 1 });
+  const chineseVersions = (await service.readCatalog()).find((manga) => manga.id === multilingual.result.id).languages;
+  assert.ok(chineseVersions["zh-Hans"].pages[0].includes("/zh-Hans/"));
+  assert.ok(chineseVersions["zh-Hant"].pages[0].includes("/zh-Hant/"));
+  assert.equal(chineseVersions.ja.pages.length, 23);
+  await assert.rejects(service.addLanguage(multilingual.result.id, { code: "ZH-HANS" }), (error) => error.status === 409);
+  assert.equal(getLanguageDetails("english").code, "en");
+
   const thirty = [];
   for (let index = 30; index >= 1; index -= 1) thirty.push(await image(`page${index}.jpg`, { r: index * 3, g: 80, b: 120 }));
   await service.addPages(multilingual.result.id, "fr", { files: thirty, position: 1 });
@@ -500,9 +540,31 @@ try {
     const adminPage = await fetch(`${runningAdmin.origin}/mangas.html`);
     assert.equal(adminPage.status, 200);
     await adminPage.text();
+    const sharedLabelsResponse = await fetch(`${runningAdmin.origin}/shared/language-labels.js`);
+    assert.equal(sharedLabelsResponse.status, 200);
+    assert.match(sharedLabelsResponse.headers.get("content-type"), /javascript/);
+    assert.equal(await sharedLabelsResponse.text(), await readFile(path.join(PROJECT_DIR, "src/utils/languageLabels.js"), "utf8"));
     const reportResponse = await fetch(`${runningAdmin.origin}/api/mangas`);
     assert.equal(reportResponse.status, 200);
-    const activeReport = await reportResponse.json();
+    await reportResponse.json();
+    for (const code of ["es", "it", "vi", "ar", "zh-Hans", "zh-Hant"]) {
+      const addedResponse = await fetch(`${runningAdmin.origin}/api/mangas/server-completed/languages`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }),
+      });
+      assert.equal(addedResponse.status, 201);
+      const added = (await addedResponse.json()).result.languages[code];
+      assert.equal(added.label, getLanguageLabel(code));
+      assert.equal(added.storageFolder, code);
+      assert.equal(added.pages.length, 0);
+    }
+    const beforeBadApiCode = hash(await readFile(activeServer.catalogPath));
+    const invalidLanguageResponse = await fetch(`${runningAdmin.origin}/api/mangas/server-completed/languages`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: "ESPAGNOL" }),
+    });
+    assert.equal(invalidLanguageResponse.status, 400);
+    assert.match((await invalidLanguageResponse.json()).error, /sélecteur/);
+    assert.equal(hash(await readFile(activeServer.catalogPath)), beforeBadApiCode);
+    const activeReport = await (await fetch(`${runningAdmin.origin}/api/mangas`)).json();
     const settingsResponse = await fetch(`${runningAdmin.origin}/api/manga-presentation-settings`);
     assert.equal(settingsResponse.status, 200);
     assert.deepEqual(await settingsResponse.json(), { showStoryboardSection: false });
@@ -539,6 +601,15 @@ try {
     assert.equal(completedAfterReplacement.route, completedBeforeReplacement.route);
     assert.equal(completedAfterReplacement.defaultLanguage, completedBeforeReplacement.defaultLanguage);
     assert.deepEqual(completedAfterReplacement.languages, completedBeforeReplacement.languages);
+    const originalPage = completedAfterReplacement.languages.orig.pages[0];
+    const duplicateResponse = await fetch(`${runningAdmin.origin}/api/mangas/server-completed/languages/orig/pages/0/duplicate`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source: originalPage, position: 2 }),
+    });
+    assert.equal(duplicateResponse.status, 201);
+    const duplicatePage = (await duplicateResponse.json()).result.languages.orig.pages[1];
+    assert.notEqual(duplicatePage, originalPage);
+    const getPageBytes = async (relative) => Buffer.from(await (await fetch(`${runningAdmin.origin}/api/manga-image/${encodeURIComponent(relative)}`)).arrayBuffer());
+    assert.deepEqual(await getPageBytes(duplicatePage), await getPageBytes(originalPage));
     const removalResponse = await fetch(`${runningAdmin.origin}/api/mangas/${encodeURIComponent(activeServer.manga.id)}`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
@@ -603,7 +674,7 @@ try {
   assert.match(await readFile(path.join(PROJECT_DIR, "src/pages/HomePage.jsx"), "utf8"), /sitePresentation/);
   assert.match(readerSource, /languages\.length === 1/);
   console.log("Manga Admin — tests d’intégration réussis");
-  console.log("serveur actif + aperçu WebP + suppression, orig, silent, en/fr, 30 pages, ordre, corbeille, collisions, erreurs Windows et rollback vérifiés");
+  console.log("serveur actif + langues centralisées, faux codes refusés, ja (23 pages), codes chinois, orig, silent, en/fr, ordre, corbeille et rollback vérifiés");
 } finally {
   await rm(temp, { recursive: true, force: true });
 }
