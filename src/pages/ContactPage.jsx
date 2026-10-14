@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { profile } from "../content/profile";
 import { useLanguage } from "../i18n/languageContext";
+import { sitePresentation } from "../content/sitePresentation";
 import {
   ContactSubmissionError,
   submitContactForm,
@@ -37,7 +38,7 @@ const fieldMessage = (t, field, code) => {
 };
 
 const ContactPage = () => {
-  const { t, content } = useLanguage();
+  const { t, content, locale } = useLanguage();
   const [formData, setFormData] = useState(emptyForm);
   const [honeypots, setHoneypots] = useState(emptyHoneypots);
   const [fieldErrors, setFieldErrors] = useState({});
@@ -175,12 +176,16 @@ const ContactPage = () => {
           transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
         >
           <p className="page-kicker relative z-10 text-muted">{t.contact.eyebrow}</p>
-          <h1 className="contact-display__title">{t.contact.ctaTitle}</h1>
+          <h1 className="contact-display__title">
+            {locale === "ja" ? t.contact.ctaTitle : t.contact.ctaTitle.split(/\s+/).map((word, index) => (
+              <span className="contact-display__word" key={`${index}-${word}`}>{word}{" "}</span>
+            ))}
+          </h1>
           <p className="relative z-10 mt-7 max-w-lg text-base font-semibold leading-7 text-muted">
             {t.contact.introduction}
           </p>
           <div className="relative z-10 mt-8 flex flex-wrap gap-2" aria-label={t.contact.servicesLabel}>
-            {t.contact.services.map((service) => (
+            {t.contact.services.filter((_, index) => sitePresentation.showAnimationSection || index !== 2).map((service) => (
               <span key={service} className="border border-foreground bg-page px-3 py-2 text-xs font-black uppercase tracking-[0.12em]">
                 {service}
               </span>

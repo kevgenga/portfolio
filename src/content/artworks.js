@@ -11,6 +11,7 @@ export const artworks = [
     year: 2018,
     alt: "03",
     featured: false,
+    productionTime: {"minutes":90,"kind":"actual"},
     orientation: "",
   },
   {
@@ -23,6 +24,7 @@ export const artworks = [
     year: 2018,
     alt: "04",
     featured: false,
+    productionTime: {"minutes":90,"kind":"actual"},
     orientation: "",
   },
   {
@@ -35,6 +37,7 @@ export const artworks = [
     year: 2022,
     alt: "05",
     featured: false,
+    productionTime: {"minutes":150,"kind":"actual"},
     orientation: "",
   },
   {
@@ -47,6 +50,7 @@ export const artworks = [
     year: 2022,
     alt: "07",
     featured: false,
+    productionTime: {"minutes":105,"kind":"actual"},
     orientation: "",
   },
   {
@@ -59,6 +63,7 @@ export const artworks = [
     year: 2022,
     alt: "14",
     featured: false,
+    productionTime: {"minutes":30,"kind":"actual"},
     orientation: "",
   },
   {
@@ -71,6 +76,7 @@ export const artworks = [
     year: 2022,
     alt: "15",
     featured: false,
+    productionTime: {"minutes":45,"kind":"actual"},
     orientation: "",
   },
   {
@@ -83,6 +89,7 @@ export const artworks = [
     year: 2022,
     alt: "19",
     featured: false,
+    productionTime: {"minutes":120,"kind":"actual"},
     orientation: "",
   },
   {
@@ -95,6 +102,7 @@ export const artworks = [
     year: 2019,
     alt: "42",
     featured: false,
+    productionTime: {"minutes":30,"kind":"actual"},
     orientation: "",
   },
   {
@@ -107,6 +115,7 @@ export const artworks = [
     year: 2024,
     alt: "BD",
     featured: false,
+    productionTime: {"minutes":120,"kind":"actual"},
     orientation: "",
   },
   {
@@ -119,6 +128,7 @@ export const artworks = [
     year: 2023,
     alt: "DOC 240522 24052022172137.pdf 11",
     featured: false,
+    productionTime: {"minutes":30,"kind":"actual"},
     orientation: "",
   },
   {
@@ -131,6 +141,7 @@ export const artworks = [
     year: 2024,
     alt: "DOC 270522 (5).pdf 1",
     featured: false,
+    productionTime: {"minutes":60,"kind":"actual"},
     orientation: "",
   },
   {
@@ -143,6 +154,7 @@ export const artworks = [
     year: 2022,
     alt: "DOC 270522 (6).pdf 1",
     featured: false,
+    productionTime: {"minutes":60,"kind":"actual"},
     orientation: "",
   },
   {
@@ -155,6 +167,7 @@ export const artworks = [
     year: 2022,
     alt: "DOC 270522 (7).pdf 1",
     featured: false,
+    productionTime: {"minutes":60,"kind":"actual"},
     orientation: "",
   },
   {
@@ -167,6 +180,7 @@ export const artworks = [
     year: 2023,
     alt: "DOC 270522 (8).pdf 1",
     featured: false,
+    productionTime: {"minutes":60,"kind":"actual"},
     orientation: "",
   },
   {
@@ -179,6 +193,7 @@ export const artworks = [
     year: 2022,
     alt: "DOC 270522 (9).pdf 1",
     featured: false,
+    productionTime: {"minutes":120,"kind":"actual"},
     orientation: "",
   },
   {
@@ -191,6 +206,7 @@ export const artworks = [
     year: 2024,
     alt: "Illustration 10",
     featured: false,
+    productionTime: {"minutes":60,"kind":"actual"},
     orientation: "",
   },
   {
@@ -203,6 +219,7 @@ export const artworks = [
     year: 2024,
     alt: "Illustration 11",
     featured: false,
+    productionTime: {"minutes":90,"kind":"actual"},
     orientation: "",
   },
   {
@@ -215,6 +232,7 @@ export const artworks = [
     year: 2024,
     alt: "Illustration 13",
     featured: false,
+    productionTime: {"minutes":90,"kind":"actual"},
     orientation: "",
   },
   {
@@ -227,6 +245,7 @@ export const artworks = [
     year: 2025,
     alt: "Illustration 17 2 BQ",
     featured: false,
+    productionTime: {"minutes":90,"kind":"actual"},
     orientation: "",
   },
   {
@@ -239,6 +258,7 @@ export const artworks = [
     year: 2024,
     alt: "Illustration 21 (3)",
     featured: false,
+    productionTime: {"minutes":180,"kind":"actual"},
     orientation: "",
   },
   {
@@ -251,6 +271,7 @@ export const artworks = [
     year: 2025,
     alt: "Illustration 25",
     featured: false,
+    productionTime: {"minutes":90,"kind":"actual"},
     orientation: "",
   },
   {
@@ -263,6 +284,7 @@ export const artworks = [
     year: 2022,
     alt: "Illustration 27",
     featured: false,
+    productionTime: {"minutes":120,"kind":"actual"},
     orientation: "",
   },
   {
@@ -275,6 +297,7 @@ export const artworks = [
     year: 2025,
     alt: "Illustration 30 5 BQ",
     featured: false,
+    productionTime: {"minutes":150,"kind":"actual"},
     orientation: "",
   },
   {
@@ -287,6 +310,7 @@ export const artworks = [
     year: 2025,
     alt: "Illustration 39 2",
     featured: false,
+    productionTime: {"minutes":60,"kind":"actual"},
     orientation: "",
   },
   {
@@ -299,6 +323,7 @@ export const artworks = [
     year: 2025,
     alt: "Illustration 40 2",
     featured: false,
+    productionTime: {"minutes":60,"kind":"actual"},
     orientation: "",
   },
   {
@@ -311,6 +336,7 @@ export const artworks = [
     year: 2025,
     alt: "Illustration 41 6",
     featured: false,
+    productionTime: {"minutes":60,"kind":"actual"},
     orientation: "",
   },
   {
@@ -323,6 +349,7 @@ export const artworks = [
     year: 2025,
     alt: "Illustration 44 2",
     featured: false,
+    productionTime: {"minutes":150,"kind":"actual"},
     orientation: "",
   },
   {
@@ -335,6 +362,7 @@ export const artworks = [
     year: 2026,
     alt: "Illustration 62 5",
     featured: false,
+    productionTime: {"minutes":270,"kind":"actual"},
     orientation: "",
   },
   {
@@ -347,6 +375,7 @@ export const artworks = [
     year: 2026,
     alt: "Illustration 67 3 BQ",
     featured: false,
+    productionTime: {"minutes":300,"kind":"actual"},
     orientation: "",
   },
   {
@@ -359,6 +388,7 @@ export const artworks = [
     year: 2024,
     alt: "Illustration",
     featured: false,
+    productionTime: {"minutes":60,"kind":"actual"},
     orientation: "",
   },
   {
@@ -371,18 +401,20 @@ export const artworks = [
     year: 2020,
     alt: "IMG 167 V 10",
     featured: false,
+    productionTime: {"minutes":240,"kind":"actual"},
     orientation: "",
   },
   {
     id: "l-organisation-criminelle-des-animistes-oca",
     title: "",
-    image: assetPath("assets/illustration/illustrations/l'organisation criminelle des animistes (OCA).jpg"),
+    image: assetPath("assets/illustration/illustrations/l-organisation-criminelle-des-animistes-OCA.jpg"),
     thumbnail: "",
     category: ["illustrations"],
     date: "23-06-2022",
     year: 2022,
     alt: "L'organisation Criminelle Des Animistes (OCA)",
     featured: false,
+    productionTime: {"minutes":100,"kind":"actual"},
     orientation: "",
   },
   {
@@ -395,6 +427,7 @@ export const artworks = [
     year: 2022,
     alt: "Les Catastrophes Surnaturelles",
     featured: false,
+    productionTime: {"minutes":110,"kind":"actual"},
     orientation: "",
   },
   {
@@ -407,6 +440,7 @@ export const artworks = [
     year: 2022,
     alt: "Page 1 V 8 BQ",
     featured: false,
+    productionTime: {"minutes":300,"kind":"actual"},
     orientation: "",
   },
   {
@@ -419,18 +453,7 @@ export const artworks = [
     year: 2019,
     alt: "Planche 01",
     featured: false,
-    orientation: "",
-  },
-  {
-    id: "planche-02",
-    title: "",
-    image: assetPath("assets/illustration/illustrations/planche-02.jpg"),
-    thumbnail: "",
-    category: ["illustrations"],
-    date: "05-05-2019",
-    year: 2019,
-    alt: "Planche 02",
-    featured: false,
+    productionTime: {"minutes":240,"kind":"actual"},
     orientation: "",
   },
   {
@@ -443,6 +466,7 @@ export const artworks = [
     year: 2019,
     alt: "Planche 03",
     featured: false,
+    productionTime: {"minutes":120,"kind":"actual"},
     orientation: "",
   },
   {
@@ -455,6 +479,7 @@ export const artworks = [
     year: 2019,
     alt: "Planche 04",
     featured: false,
+    productionTime: {"minutes":240,"kind":"actual"},
     orientation: "",
   },
   {
@@ -467,6 +492,7 @@ export const artworks = [
     year: 2022,
     alt: "Versus",
     featured: false,
+    productionTime: {"minutes":120,"kind":"actual"},
     orientation: "",
   },
   {
@@ -479,6 +505,7 @@ export const artworks = [
     year: 2022,
     alt: "06",
     featured: false,
+    productionTime: {"minutes":80,"kind":"actual"},
     orientation: "",
   },
   {
@@ -491,6 +518,7 @@ export const artworks = [
     year: 2022,
     alt: "08 2",
     featured: false,
+    productionTime: {"minutes":90,"kind":"actual"},
     orientation: "",
   },
   {
@@ -503,6 +531,7 @@ export const artworks = [
     year: 2018,
     alt: "009",
     featured: false,
+    productionTime: {"minutes":105,"kind":"actual"},
     orientation: "",
   },
   {
@@ -515,6 +544,7 @@ export const artworks = [
     year: 2022,
     alt: "09",
     featured: false,
+    productionTime: {"minutes":90,"kind":"actual"},
     orientation: "",
   },
   {
@@ -527,6 +557,7 @@ export const artworks = [
     year: 2025,
     alt: "99999",
     featured: false,
+    productionTime: {"minutes":210,"kind":"actual"},
     orientation: "",
   },
   {
@@ -539,6 +570,7 @@ export const artworks = [
     year: 2023,
     alt: "DOC 250522 250520221725533",
     featured: false,
+    productionTime: {"minutes":180,"kind":"actual"},
     orientation: "",
   },
   {
@@ -551,6 +583,7 @@ export const artworks = [
     year: 2024,
     alt: "DOC 270522 (63).pdf 1",
     featured: false,
+    productionTime: {"minutes":180,"kind":"actual"},
     orientation: "",
   },
   {
@@ -563,6 +596,7 @@ export const artworks = [
     year: 2024,
     alt: "DOC 270522 (64).pdf 1",
     featured: false,
+    productionTime: {"minutes":90,"kind":"actual"},
     orientation: "",
   },
   {
@@ -575,6 +609,7 @@ export const artworks = [
     year: 2022,
     alt: "DOC 270522 (65).pdf 1",
     featured: false,
+    productionTime: {"minutes":85,"kind":"actual"},
     orientation: "",
   },
   {
@@ -587,6 +622,7 @@ export const artworks = [
     year: 2024,
     alt: "DOC 270522 (66).pdf 1",
     featured: false,
+    productionTime: {"minutes":120,"kind":"actual"},
     orientation: "",
   },
   {
@@ -599,6 +635,7 @@ export const artworks = [
     year: 2024,
     alt: "DOC 270522 (67).pdf 1",
     featured: false,
+    productionTime: {"minutes":150,"kind":"actual"},
     orientation: "",
   },
   {
@@ -611,6 +648,7 @@ export const artworks = [
     year: 2024,
     alt: "DOC 270522 (69).pdf 1",
     featured: false,
+    productionTime: {"minutes":120,"kind":"actual"},
     orientation: "",
   },
   {
@@ -623,6 +661,7 @@ export const artworks = [
     year: 2024,
     alt: "DOC 270522 27052022165647.pdf 1",
     featured: false,
+    productionTime: {"minutes":180,"kind":"actual"},
     orientation: "",
   },
   {
@@ -635,6 +674,7 @@ export const artworks = [
     year: 2023,
     alt: "DOC 270522 27052022170052.pdf 1",
     featured: false,
+    productionTime: {"minutes":90,"kind":"actual"},
     orientation: "",
   },
   {
@@ -647,6 +687,7 @@ export const artworks = [
     year: 2025,
     alt: "Illustration 28 3 1",
     featured: false,
+    productionTime: {"minutes":240,"kind":"actual"},
     orientation: "",
   },
   {
@@ -659,6 +700,7 @@ export const artworks = [
     year: 2019,
     alt: "Illustration A 4 Klao V 2 7",
     featured: false,
+    productionTime: {"minutes":140,"kind":"actual"},
     orientation: "",
   },
   {
@@ -671,6 +713,7 @@ export const artworks = [
     year: 2020,
     alt: "IMG 156 V 3",
     featured: false,
+    productionTime: {"minutes":150,"kind":"actual"},
     orientation: "",
   },
   {
@@ -683,6 +726,7 @@ export const artworks = [
     year: 2020,
     alt: "IMG 190",
     featured: false,
+    productionTime: {"minutes":120,"kind":"actual"},
     orientation: "",
   },
   {
@@ -695,6 +739,7 @@ export const artworks = [
     year: 2025,
     alt: "Luo Forme V 1",
     featured: false,
+    productionTime: {"minutes":60,"kind":"actual"},
     orientation: "",
   },
   {
@@ -707,6 +752,7 @@ export const artworks = [
     year: 2018,
     alt: "Bg 1",
     featured: false,
+    productionTime: {"minutes":150,"kind":"actual"},
     orientation: "",
   },
   {
@@ -719,6 +765,7 @@ export const artworks = [
     year: 2018,
     alt: "Bg 2",
     featured: false,
+    productionTime: {"minutes":240,"kind":"actual"},
     orientation: "",
   },
   {
@@ -731,6 +778,7 @@ export const artworks = [
     year: 2019,
     alt: "IMG 092",
     featured: false,
+    productionTime: {"minutes":90,"kind":"actual"},
     orientation: "",
   },
   {
@@ -743,6 +791,7 @@ export const artworks = [
     year: 2019,
     alt: "IMG 093",
     featured: false,
+    productionTime: {"minutes":90,"kind":"actual"},
     orientation: "",
   },
   {
@@ -755,6 +804,7 @@ export const artworks = [
     year: 2019,
     alt: "IMG 094",
     featured: false,
+    productionTime: {"minutes":90,"kind":"actual"},
     orientation: "",
   },
   {
@@ -767,6 +817,7 @@ export const artworks = [
     year: 2022,
     alt: "03",
     featured: false,
+    productionTime: {"minutes":120,"kind":"actual"},
     orientation: "",
   },
   {
@@ -779,6 +830,7 @@ export const artworks = [
     year: 2022,
     alt: "004",
     featured: false,
+    productionTime: {"minutes":90,"kind":"actual"},
     orientation: "",
   },
   {
@@ -791,6 +843,7 @@ export const artworks = [
     year: 2024,
     alt: "04",
     featured: false,
+    productionTime: {"minutes":70,"kind":"actual"},
     orientation: "",
   },
   {
@@ -803,6 +856,7 @@ export const artworks = [
     year: 2019,
     alt: "B BQ",
     featured: false,
+    productionTime: {"minutes":90,"kind":"actual"},
     orientation: "",
   },
   {
@@ -815,6 +869,7 @@ export const artworks = [
     year: 2019,
     alt: "Chara Design Forgeron V 2",
     featured: false,
+    productionTime: {"minutes":210,"kind":"actual"},
     orientation: "",
   },
   {
@@ -827,6 +882,7 @@ export const artworks = [
     year: 2019,
     alt: "Chara Design Petit Singe Assistant Forgeron V 2",
     featured: false,
+    productionTime: {"minutes":210,"kind":"actual"},
     orientation: "",
   },
   {
@@ -839,6 +895,7 @@ export const artworks = [
     year: 2024,
     alt: "Illustration 19",
     featured: false,
+    productionTime: {"minutes":80,"kind":"actual"},
     orientation: "",
   },
   {
@@ -851,6 +908,7 @@ export const artworks = [
     year: 2024,
     alt: "Illustration 20",
     featured: false,
+    productionTime: {"minutes":30,"kind":"actual"},
     orientation: "",
   },
   {
@@ -863,6 +921,7 @@ export const artworks = [
     year: 2024,
     alt: "Illustration 27 V 2",
     featured: false,
+    productionTime: {"minutes":90,"kind":"actual"},
     orientation: "",
   },
   {
@@ -875,6 +934,7 @@ export const artworks = [
     year: 2019,
     alt: "IMG 20190426 16344279",
     featured: false,
+    productionTime: {"minutes":240,"kind":"actual"},
     orientation: "",
   },
   {
@@ -887,6 +947,7 @@ export const artworks = [
     year: 2019,
     alt: "IMG 20190426 16371083",
     featured: false,
+    productionTime: {"minutes":240,"kind":"actual"},
     orientation: "",
   },
   {
@@ -899,6 +960,7 @@ export const artworks = [
     year: 2023,
     alt: "Kanibal",
     featured: false,
+    productionTime: {"minutes":150,"kind":"actual"},
     orientation: "",
   },
   {
@@ -911,6 +973,7 @@ export const artworks = [
     year: 2019,
     alt: "OC 1",
     featured: false,
+    productionTime: {"minutes":90,"kind":"actual"},
     orientation: "",
   },
   {
@@ -923,6 +986,7 @@ export const artworks = [
     year: 2019,
     alt: "OC 2",
     featured: false,
+    productionTime: {"minutes":90,"kind":"actual"},
     orientation: "",
   },
   {
@@ -947,6 +1011,7 @@ export const artworks = [
     year: 2024,
     alt: "01 4",
     featured: false,
+    productionTime: {"minutes":40,"kind":"estimated"},
     orientation: "",
   },
   {
@@ -1055,6 +1120,7 @@ export const artworks = [
     year: 2022,
     alt: "DOC 270522 (17).pdf 1",
     featured: false,
+    productionTime: {"minutes":45,"kind":"actual"},
     orientation: "",
   },
   {
@@ -1163,6 +1229,7 @@ export const artworks = [
     year: 2023,
     alt: "DOC 270522 (41).pdf 1",
     featured: false,
+    productionTime: {"minutes":150,"kind":"actual"},
     orientation: "",
   },
   {
@@ -1175,6 +1242,7 @@ export const artworks = [
     year: 2022,
     alt: "DOC 270522 (45).pdf 1",
     featured: false,
+    productionTime: {"minutes":60,"kind":"actual"},
     orientation: "",
   },
   {
@@ -1199,6 +1267,7 @@ export const artworks = [
     year: 2022,
     alt: "DOC 270522 (52).pdf 1",
     featured: false,
+    productionTime: {"minutes":120,"kind":"actual"},
     orientation: "",
   },
   {
@@ -1235,6 +1304,7 @@ export const artworks = [
     year: 2023,
     alt: "DOC 270522 27052022165855.pdf 1",
     featured: false,
+    productionTime: {"minutes":90,"kind":"actual"},
     orientation: "",
   },
   {
@@ -1247,6 +1317,7 @@ export const artworks = [
     year: 2024,
     alt: "DOC 270522 27052022165921.pdf 1",
     featured: false,
+    productionTime: {"minutes":90,"kind":"actual"},
     orientation: "",
   },
   {
@@ -1259,6 +1330,7 @@ export const artworks = [
     year: 2022,
     alt: "DOC 270522 27052022170012.pdf 1",
     featured: false,
+    productionTime: {"minutes":120,"kind":"actual"},
     orientation: "",
   },
   {
@@ -1271,6 +1343,7 @@ export const artworks = [
     year: 2022,
     alt: "DOC 270522 27052022170835.pdf 1",
     featured: false,
+    productionTime: {"minutes":150,"kind":"actual"},
     orientation: "",
   },
   {
@@ -1283,6 +1356,7 @@ export const artworks = [
     year: 2025,
     alt: "Illustration 3",
     featured: false,
+    productionTime: {"minutes":150,"kind":"actual"},
     orientation: "",
   },
   {
@@ -1367,6 +1441,7 @@ export const artworks = [
     year: 2024,
     alt: "Illustration 22 2",
     featured: false,
+    productionTime: {"minutes":60,"kind":"actual"},
     orientation: "",
   },
   {
@@ -1379,6 +1454,7 @@ export const artworks = [
     year: 2024,
     alt: "Illustration 24",
     featured: false,
+    productionTime: {"minutes":90,"kind":"actual"},
     orientation: "",
   },
   {
@@ -1403,6 +1479,7 @@ export const artworks = [
     year: 2022,
     alt: "Illustration 33",
     featured: false,
+    productionTime: {"minutes":120,"kind":"actual"},
     orientation: "",
   },
   {
@@ -1427,6 +1504,7 @@ export const artworks = [
     year: 2023,
     alt: "Illustration 36",
     featured: false,
+    productionTime: {"minutes":120,"kind":"actual"},
     orientation: "",
   },
   {
@@ -1439,6 +1517,7 @@ export const artworks = [
     year: 2023,
     alt: "Illustration 37",
     featured: false,
+    productionTime: {"minutes":90,"kind":"actual"},
     orientation: "",
   },
   {
@@ -1487,6 +1566,7 @@ export const artworks = [
     year: 2025,
     alt: "Illustration 46 3",
     featured: false,
+    productionTime: {"minutes":180,"kind":"actual"},
     orientation: "",
   },
   {
@@ -1511,6 +1591,7 @@ export const artworks = [
     year: 2025,
     alt: "Illustration 46 5",
     featured: false,
+    productionTime: {"minutes":60,"kind":"actual"},
     orientation: "",
   },
   {
@@ -1787,6 +1868,7 @@ export const artworks = [
     year: 2023,
     alt: "IMG 163 V 2",
     featured: false,
+    productionTime: {"minutes":90,"kind":"actual"},
     orientation: "",
   },
   {
@@ -1811,6 +1893,7 @@ export const artworks = [
     year: 2019,
     alt: "IMG 20190426 16325270",
     featured: false,
+    productionTime: {"minutes":90,"kind":"actual"},
     orientation: "",
   },
   {
@@ -1871,6 +1954,7 @@ export const artworks = [
     year: 2024,
     alt: "Kin (20231228013839)",
     featured: false,
+    productionTime: {"minutes":90,"kind":"actual"},
     orientation: "",
   },
   {
@@ -1883,6 +1967,7 @@ export const artworks = [
     year: 2024,
     alt: "Luo (20231228023449)",
     featured: false,
+    productionTime: {"minutes":90,"kind":"actual"},
     orientation: "",
   },
   {
@@ -1919,6 +2004,7 @@ export const artworks = [
     year: 2022,
     alt: "Penup 07 02 2022",
     featured: false,
+    productionTime: {"minutes":90,"kind":"actual"},
     orientation: "",
   },
   {
@@ -2447,6 +2533,7 @@ export const artworks = [
     year: 2021,
     alt: "Penup 26 07 2021",
     featured: false,
+    productionTime: {"minutes":90,"kind":"actual"},
     orientation: "",
   },
   {
@@ -4043,6 +4130,7 @@ export const artworks = [
     year: 2025,
     alt: "Projet (20251225125803)",
     featured: false,
+    productionTime: {"minutes":90,"kind":"actual"},
     orientation: "",
   },
   {
@@ -4175,6 +4263,7 @@ export const artworks = [
     year: 2022,
     alt: "DOC270522 27052022170012.pdf 1 Copie",
     featured: false,
+    productionTime: {"minutes":30,"kind":"actual"},
     orientation: "",
   },
   {
@@ -4187,6 +4276,7 @@ export const artworks = [
     year: 2022,
     alt: "DOC270522 27052022165921.pdf 1 Copie",
     featured: false,
+    productionTime: {"minutes":60,"kind":"actual"},
     orientation: "",
   },
   {
@@ -4199,6 +4289,7 @@ export const artworks = [
     year: 2025,
     alt: "Illustration34",
     featured: false,
+    productionTime: {"minutes":60,"kind":"actual"},
     orientation: "",
   },
   {
@@ -4211,6 +4302,7 @@ export const artworks = [
     year: 2026,
     alt: "Illustration68",
     featured: false,
+    productionTime: {"minutes":240,"kind":"actual"},
     orientation: "",
   },
   {
@@ -4223,6 +4315,7 @@ export const artworks = [
     year: 2026,
     alt: "Fish eye perspective ruler et quelque test background 3d",
     featured: false,
+    productionTime: {"minutes":60,"kind":"actual"},
     orientation: "",
   },
   {
@@ -4235,6 +4328,7 @@ export const artworks = [
     year: 2026,
     alt: "Illustration2",
     featured: false,
+    productionTime: {"minutes":60,"kind":"actual"},
     orientation: "",
   },
 ];

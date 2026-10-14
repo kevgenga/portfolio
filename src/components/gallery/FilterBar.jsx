@@ -22,7 +22,7 @@ const FilterBar = ({
         aria-pressed={activeFilter === value}
       >
         <span>{label}</span>
-        {Number.isInteger(count) && <span className="text-[0.62rem] opacity-60">({count})</span>}
+        {Number.isInteger(count) && <span className="filter-count">({count})</span>}
       </button>
     ))}
   </div>

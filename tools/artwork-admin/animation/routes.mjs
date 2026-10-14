@@ -22,6 +22,13 @@ async function pipeAsset(response, file, options) {
 }
 
 export async function handleAnimationRoute(request, response, url, { service, readJson, sendJson }) {
+  if (url.pathname === "/api/animation-presentation-settings" && request.method === "GET") {
+    sendJson(response, 200, await service.readPresentationSettings()); return true;
+  }
+  if (url.pathname === "/api/animation-presentation-settings" && request.method === "PUT") {
+    const settings = await service.updatePresentationSettings(await readJson(request));
+    sendJson(response, 200, { ...settings, message: settings.showAnimationSection ? "Animation est visible sur le portfolio." : "Animation est masquée sur le portfolio. Les médias restent conservés." }); return true;
+  }
   if (request.method === "GET" && url.pathname === "/api/animations") {
     sendJson(response, 200, await service.report()); return true;
   }

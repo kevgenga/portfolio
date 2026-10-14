@@ -33,7 +33,7 @@ html.dark {
 }
 
 html[lang="ja"] {
-  --font-japanese: "Yu Gothic", "YuGothic", "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Meiryo", sans-serif;
+  --font-japanese: "Noto Sans JP", "Noto Sans CJK JP", "Yu Gothic", "YuGothic", "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Meiryo", sans-serif;
   font-family: var(--font-japanese);
 }
 
@@ -232,6 +232,7 @@ a {
 
 .page-hero {
   position: relative;
+  container-type: inline-size;
   isolation: isolate;
   max-width: 100rem;
   margin: 0 auto 3rem;
@@ -277,6 +278,14 @@ a {
   font-size: clamp(1rem, 1.4vw, 1.2rem);
   font-weight: 650;
   line-height: 1.7;
+}
+
+@media (max-width: 767px) {
+  html:not([lang="ja"]) .page-hero .page-title {
+    font-size: clamp(2rem, 17cqi, 5.2rem);
+    line-height: 1.05;
+    overflow-wrap: normal;
+  }
 }
 
 .page-hero__word {
@@ -651,16 +660,6 @@ html[lang="ja"] .about-signature {
   transform: rotate(2deg);
 }
 
-.recognition-seal--blue::before {
-  position: absolute;
-  right: 1rem;
-  bottom: 0.8rem;
-  left: 1rem;
-  height: 3px;
-  background: var(--color-secondary);
-  content: "";
-}
-
 .recognition-manga-link {
   display: inline-block;
   max-width: 100%;
@@ -831,6 +830,43 @@ html[lang="ja"] .about-signature {
   font-weight: 700;
 }
 
+/* Shared, text-only professional profile; do not affect other capability layouts. */
+.portfolio-footer__inner { padding-block: 1.5rem 1rem; }
+.portfolio-footer__grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem; }
+.portfolio-footer__grid > * { min-width: 0; }
+.portfolio-footer__name { font-size: clamp(2.6rem, 4vw, 4rem); line-height: 0.95; letter-spacing: -0.035em; }
+.portfolio-footer__roles { display: flex; flex-wrap: wrap; gap: 0.2rem 0.6rem; margin-top: 0.75rem; font-size: 0.75rem; line-height: 1.8; letter-spacing: 0.06em; }
+.portfolio-footer__navigation { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.3rem 1rem; margin-top: 1.25rem; font-size: 0.75rem; letter-spacing: 0.06em; }
+.portfolio-footer__navigation a { display: inline-flex; align-items: center; min-height: 32px; max-width: 100%; overflow-wrap: anywhere; }
+.portfolio-footer__experience, .portfolio-footer__tools { border-top: 1px solid rgb(244 241 232 / 24%); padding-top: 1rem; scroll-margin-top: 88px; }
+.portfolio-footer__title { margin: 0 0 1rem; color: var(--color-primary); font-family: var(--font-japanese, var(--font-body)); font-size: 0.85rem; font-weight: 900; line-height: 1.5; letter-spacing: 0.08em; text-transform: uppercase; }
+.portfolio-footer__role { margin: 0; font-family: var(--font-japanese, var(--font-body)); font-size: 1rem; font-weight: 800; line-height: 1.4; text-transform: uppercase; scroll-margin-top: 88px; }
+.portfolio-footer__period { margin: 0.3rem 0 1rem; color: var(--color-paper); opacity: 0.8; font-size: 0.75rem; font-weight: 700; }
+.portfolio-footer__groups { display: grid; gap: 0.75rem; }
+.portfolio-footer .capability-block { padding: 0; border: 0; }
+.portfolio-footer .capability-block::before, .portfolio-footer .capability-block__index { display: none; }
+.portfolio-footer .capability-block__title { margin: 0; font-family: var(--font-japanese, var(--font-body)); font-size: 0.8rem; font-weight: 800; line-height: 1.5; color: var(--color-paper); }
+.portfolio-footer .capability-block__list { margin-top: 0.5rem; gap: 0.35rem; }
+.portfolio-footer .capability-block__list li { min-width: 0; max-width: 100%; padding: 0.2rem 0.5rem; border-color: rgb(244 241 232 / 24%); background: rgb(244 241 232 / 4%); color: var(--color-paper); font-size: 0.75rem; font-weight: 500; line-height: 1.5; overflow-wrap: break-word; hyphens: auto; }
+.portfolio-footer__copyright { margin: 1.75rem 0 0; padding-top: 1rem; line-height: 1.6; }
+@media (min-width: 360px) and (max-width: 767px) {
+  .portfolio-footer__navigation { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (min-width: 768px) {
+  .portfolio-footer__inner { padding-block: 2rem 1.25rem; }
+  .portfolio-footer__roles { display: block; margin-top: 1rem; }
+  .portfolio-footer__grid { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 2rem; }
+  .portfolio-footer__identity { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 2rem; }
+  .portfolio-footer__navigation { margin-top: 0; align-content: start; }
+}
+@media (min-width: 1200px) {
+  .portfolio-footer__grid { grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.55fr) minmax(0, 1fr); }
+  .portfolio-footer__identity { grid-column: auto; display: block; }
+  .portfolio-footer__navigation { margin-top: 1.25rem; grid-template-columns: minmax(0, 1fr); }
+  .portfolio-footer__experience, .portfolio-footer__tools { padding: 0 0 0 1.5rem; border-top: 0; border-left: 1px solid rgb(244 241 232 / 24%); }
+  .portfolio-footer__copyright { text-align: right; }
+}
+
 .manga-section-heading {
   display: flex;
   align-items: flex-end;
@@ -924,7 +960,7 @@ html[lang="ja"] .about-signature {
   gap: 0.25rem 0.75rem;
   margin: 0 0 0.7rem;
   color: var(--color-muted);
-  font-size: 0.62rem;
+  font-size: 0.8125rem;
   font-weight: 900;
   letter-spacing: 0.12em;
   line-height: 1.4;
@@ -933,6 +969,7 @@ html[lang="ja"] .about-signature {
 
 .manga-card__heading {
   display: flex;
+  flex-wrap: wrap;
   min-width: 0;
   align-items: flex-start;
   justify-content: space-between;
@@ -947,7 +984,7 @@ html[lang="ja"] .about-signature {
   margin: 0;
   font-size: 1.875rem;
   line-height: 0.92;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
   text-transform: uppercase;
 }
 
@@ -956,7 +993,7 @@ html[lang="ja"] .about-signature {
   margin-top: 0.5rem;
   color: var(--color-muted);
   font-family: var(--font-body);
-  font-size: 0.65rem;
+  font-size: 0.8125rem;
   font-weight: 900;
   letter-spacing: 0.13em;
   line-height: 1.35;
@@ -968,7 +1005,7 @@ html[lang="ja"] .about-signature {
   padding: 0.25rem 0.5rem;
   background: var(--color-ink);
   color: var(--color-paper);
-  font-size: 0.62rem;
+  font-size: 0.8125rem;
   font-weight: 900;
   letter-spacing: 0.12em;
   line-height: 1.25;
@@ -1044,12 +1081,14 @@ html[lang="ja"] .about-signature {
   background: var(--color-page);
   padding: 0.55rem 0.8rem;
   color: var(--color-muted);
-  font-size: 0.66rem;
+  font-size: 0.875rem;
   font-weight: 900;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   transition: background-color 130ms ease, border-color 130ms ease, color 130ms ease;
 }
+
+.filter-count { font-size: 0.8125rem; }
 
 .filter-button:hover {
   border-color: var(--color-text);
@@ -1134,6 +1173,11 @@ html[lang="ja"] .about-signature {
   background: var(--color-surface);
 }
 
+/* Illustration dates only: existing font, padding and row height are retained.
+   Full-width text stays centered even with an optional metadata badge. */
+.artwork-card--illustration .artwork-card__metadata { justify-content:center; text-align:center; }
+.artwork-card--illustration .artwork-card__metadata > p { flex-basis:100%; }
+
 .artwork-card--cinematic {
   border: 3px solid var(--color-text);
 }
@@ -1167,7 +1211,8 @@ html[lang="ja"] .about-signature {
 
 .contact-display {
   position: relative;
-  overflow: hidden;
+  min-width: 0;
+  container-type: inline-size;
   border: 3px solid var(--color-text);
   background: var(--color-surface);
   color: var(--color-text);
@@ -1184,6 +1229,9 @@ html[lang="ja"] .about-signature {
   border-radius: 50%;
   content: "";
   opacity: 0.6;
+  /* Clip the decoration only, never the heading or its glyphs. */
+  clip-path: inset(0 5rem 7rem 0);
+  pointer-events: none;
 }
 
 .contact-display::before {
@@ -1201,11 +1249,57 @@ html[lang="ja"] .about-signature {
   z-index: 1;
   margin: 1.2rem 0 0;
   font-family: var(--font-display);
-  font-size: clamp(4rem, 9vw, 8.5rem);
-  letter-spacing: -0.035em;
-  line-height: 0.8;
+  font-size: clamp(2rem, 4.5vw, 6rem);
+  font-size: clamp(2rem, 18cqi, 6rem);
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  overflow-wrap: normal;
+  word-break: normal;
   text-transform: uppercase;
 }
+
+.contact-display__word { display: block; }
+html[lang="fr"] .contact-display__title { font-size: clamp(2rem, 14cqi, 6rem); }
+html[lang="ja"] .contact-display__title {
+  font-size: clamp(1.75rem, 10cqi, 3.4rem);
+  line-height: 1.45;
+  white-space: pre-line;
+  letter-spacing: 0.01em;
+  overflow-wrap: normal;
+  line-break: strict;
+  text-wrap: balance;
+}
+
+/* Informational text, not decorative display typography. */
+.artwork-card__metadata p { font-size: 0.8125rem; }
+html[lang="ja"] :is(.section-eyebrow, .page-kicker, .section-label__text, .section-label__note, .nav-link, .button-primary, .button-secondary, .manga-card__cta) {
+  font-size: 0.875rem;
+  line-height: 1.65;
+  letter-spacing: 0.025em;
+}
+html[lang="ja"] :is(.manga-card__meta, .manga-card__edition, .manga-card__pages, .filter-button) {
+  font-family: var(--font-japanese);
+  line-height: 1.6;
+  letter-spacing: 0.015em;
+}
+html[lang="ja"] .manga-card__description { font-size: 1rem; line-height: 1.8; }
+html[lang="ja"] .about-hero__summary { font-size: 1rem; line-height: 1.8; }
+html[lang="ja"] .professional-status p { font-size: 0.875rem; line-height: 1.65; letter-spacing: 0.025em; }
+html[lang="ja"] .about-hero__meta { font-size: 0.8125rem; line-height: 1.6; letter-spacing: 0.025em; }
+html[lang="ja"] .home-cta { font-size: 0.875rem; line-height: 1.6; }
+html[lang="ja"] .home-text-link { font-size: 0.875rem; line-height: 1.6; }
+html[lang="ja"] :is([data-reader-header] button, [data-reader-header] a, [data-reader-pagination] p, [data-reader-tutorial] p) { font-size: 0.875rem; line-height: 1.6; letter-spacing: 0.025em; }
+html[lang="ja"] [data-reader-language-menu] p { font-size: 0.8125rem; line-height: 1.6; letter-spacing: 0.025em; }
+html[lang="ja"] :is(.contact-display .text-xs, .contact-form-panel label) { font-size: 0.875rem; line-height: 1.65; letter-spacing: 0.025em; }
+html[lang="ja"] :is(.contact-form-panel .text-sm, .contact-display > p:not(.page-kicker)) { font-size: 1rem; line-height: 1.8; }
+html[lang="ja"] :is(.portfolio-footer__roles, .portfolio-footer__navigation, .portfolio-footer__period, .portfolio-footer__copyright, .portfolio-footer .capability-block__list li) { font-size: 0.875rem; line-height: 1.65; letter-spacing: 0.015em; }
+html[lang="ja"] .portfolio-footer .capability-block__title { font-size: 0.875rem; }
+html[lang="ja"] .recognition-seal__award { font-family: var(--font-japanese); font-size: 1.25rem; line-height: 1.3; letter-spacing: 0.02em; }
+html[lang="ja"] .recognition-seal__distinction { font-size: 0.8125rem; line-height: 1.5; letter-spacing: 0.025em; }
+html[lang="ja"] :is(.recognition-entry > div > p:not(.section-eyebrow), .manga-section-heading > div > p:not(.section-eyebrow)) { font-size: 1rem; line-height: 1.8; }
+html[lang="ja"] [aria-labelledby="sketchbook-title"] h2 + p { font-size: 1rem; line-height: 1.8; }
+html[lang="ja"] [aria-labelledby="sketchbook-title"] [role="status"] p { font-size: 0.875rem; line-height: 1.65; }
+html[lang="ja"] #mobile-navigation a { font-family: var(--font-japanese); font-size: clamp(1.75rem, 8vw, 3rem); line-height: 1.35; }
 
 .contact-form-panel {
   border: 3px solid var(--color-text);
@@ -1344,6 +1438,69 @@ html[lang="ja"] .about-signature {
   .recognition-entry {
     padding: 1.25rem;
   }
+}
+
+/* Focused manga landing page; existing public cards and theme tokens are reused. */
+.manga-home-hero {
+  /* Desktop section includes the measured fixed header's overlaid area.
+     Available content height is the viewport BELOW that header. */
+  --home-header-height: 0px; /* replaced before paint by Home's measurement */
+  --home-hero-viewport: 100vh;
+  --home-hero-max-desktop-height: 84rem; /* bound empty space on very tall screens */
+  --home-hero-desktop-min-height: calc(min(var(--home-hero-viewport), var(--home-hero-max-desktop-height)) - var(--home-header-height));
+  --home-hero-space-block: clamp(1rem, 2.5vh, 2rem);
+  --home-hero-align: center;
+  min-height: calc(var(--home-hero-desktop-min-height) + var(--home-header-height));
+  grid-template-columns: minmax(0, 0.27fr) minmax(0, 0.73fr);
+  align-items: var(--home-hero-align);
+  gap: clamp(1.5rem, 2.5vw, 3rem);
+  padding: calc(var(--home-header-height) + var(--home-hero-space-block)) max(1.25rem, calc((100vw - 100rem) / 2)) var(--home-hero-space-block);
+}
+@supports (height: 100svh) {
+  .manga-home-hero { --home-hero-viewport: 100svh; }
+}
+.manga-home-hero .hero-art-cards {
+  --hero-max-height: 52rem;
+  --hero-height: calc(var(--home-hero-desktop-min-height) - 2 * var(--home-hero-space-block));
+}
+.manga-home-hero .about-hero__copy { min-width: 0; padding: 1.5rem 0; }
+.manga-home-hero .page-kicker { font-size: 0.65rem; }
+.manga-home-hero .about-hero__name { font-size: clamp(3rem, 5.2vw, 5.8rem); }
+.manga-home-hero .about-hero__roles { margin-top: 1.2rem; font-size: clamp(1.6rem, 2.2vw, 2.65rem); }
+.manga-home-hero .about-hero__meta { gap: 0.4rem 0.7rem; margin-top: 1rem; font-size: 0.6rem; }
+.manga-home-hero .about-hero__summary { margin-top: 1rem; max-width: 35rem; font-size: 0.8rem; line-height: 1.7; }
+.manga-home-hero .professional-status { margin-top: 1.1rem; }
+.manga-home-hero__actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1.2rem; }
+.home-cta { display: inline-flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 48px; padding: 0.8rem 1rem; border: 2px solid var(--color-paper); color: var(--color-paper); font-size: 0.75rem; font-weight: 900; text-transform: uppercase; }
+.home-cta--primary { border-color: var(--color-primary); background: var(--color-primary); color: var(--color-ink); }
+.home-cta:hover { box-shadow: 3px 3px 0 var(--color-secondary); }
+.home-cta:focus-visible, .home-text-link:focus-visible { outline: 3px solid var(--color-primary); outline-offset: 4px; }
+.manga-home-hero .home-cta { padding: 0.75rem; gap: 0.65rem; font-size: 0.63rem; }
+.home-selection { scroll-margin-top: 88px; }
+.home-selection .section-title { font-size: clamp(2.5rem, 5.5vw, 6rem); }
+.home-selection__heading { display: flex; justify-content: space-between; align-items: end; flex-wrap: wrap; gap: 1.25rem; margin-block: 2rem; }
+/* The unlayered h2 margin reset neutralizes Tailwind's former mt-* utilities.
+   Match the Manga heading's actual top gap; never clip the Latin accents. */
+#sketchbook-title { margin-top:2rem; }
+.home-text-link { font-size: 0.8rem; font-weight: 900; text-transform: uppercase; border-bottom: 3px solid var(--color-primary); padding-block: 0.5rem; }
+.home-manga-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.25rem; }
+.home-manga-grid .manga-card__heading { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+.home-manga-grid .manga-card__title { font-size: clamp(1.5rem, 2.5vw, 2.25rem); }
+@media (max-width: 1279px) {
+  .manga-home-hero { min-height:auto; grid-template-columns: minmax(0, 1fr); gap: 1rem; padding-top:4.8rem; padding-bottom: 1.5rem; }
+  .manga-home-hero .about-hero__copy { max-width: 52rem; }
+}
+@media (max-width: 767px) {
+  .manga-home-hero { display: grid; padding-inline: 1.25rem; }
+  .manga-home-hero .about-hero__copy { padding: 1.25rem 0 0.5rem; }
+  .manga-home-hero .about-hero__name { font-size: clamp(3rem, 16vw, 4.3rem); }
+  .manga-home-hero .about-hero__roles { font-size: clamp(1.6rem, 5.8vw, 2rem); }
+  .home-manga-grid { grid-template-columns: minmax(0, 1fr); gap: 1.5rem; }
+  .home-manga-grid .manga-card__link { display: grid; grid-template-columns: minmax(0, 0.4fr) minmax(0, 0.6fr); }
+  .home-manga-grid .manga-card__media { height: 100%; min-height: 16rem; }
+  .home-manga-grid .manga-card__body { border-top: 0; border-left: 3px solid var(--color-text); padding: 0.75rem; }
+  .home-manga-grid .manga-card__heading { flex-direction: column; align-items: start; }
+  .home-manga-grid .manga-card__title { font-size: clamp(1.2rem, 5.5vw, 2rem); }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -31,7 +31,21 @@ const Lightbox = ({
   const { locale } = useLanguage();
   useEffect(() => {
     const lightboxText = locale === "ja" ? ja.lightbox : locale === "fr" ? fr.lightbox : null;
-    const localizedOptions = lightboxText ? { ...options, l10n: lightboxText } : options;
+    const localizedOptions = lightboxText ? {
+      ...options,
+      l10n: lightboxText,
+      Carousel: {
+        ...options.Carousel,
+        l10n: { ...options.Carousel?.l10n, ...lightboxText },
+      },
+      Images: {
+        ...options.Images,
+        Panzoom: {
+          ...options.Images?.Panzoom,
+          l10n: { ...options.Images?.Panzoom?.l10n, ...lightboxText },
+        },
+      },
+    } : options;
     if (slides && galleryName) {
       let active = true;
       let instance = null;

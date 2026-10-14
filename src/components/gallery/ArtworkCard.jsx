@@ -1,4 +1,6 @@
 import { motion } from "framer-motion";
+import ProductionTimeBadge from "../ProductionTimeBadge";
+import { getProductionTimeBadgeAppearance } from "../../utils/publicProductionTime";
 
 const ArtworkCard = ({
   item,
@@ -12,10 +14,14 @@ const ArtworkCard = ({
   mediaClassName = "aspect-[4/5]",
   variant = "wall",
   showPlayIndicator = false,
+  showProductionTime = false,
 }) => {
   const imageDimensions = {};
   if (item.width) imageDimensions.width = item.width;
   if (item.height) imageDimensions.height = item.height;
+  const badgeAppearance = showProductionTime && getProductionTimeBadgeAppearance(item.productionTime);
+  const metadataBadge = badgeAppearance?.placement === "metadata";
+  const productionBadge = badgeAppearance && <ProductionTimeBadge time={item.productionTime} variant="artwork" appearance={badgeAppearance} />;
 
   return (
     <motion.article
@@ -43,13 +49,15 @@ const ArtworkCard = ({
             <span className="ml-0.5 text-lg">▶</span>
           </span>
         )}
+        {!metadataBadge && productionBadge}
       </a>
 
-      {(item.title || metadata || (metadata === undefined && item.category)) && (
+      {(item.title || metadata || (metadata === undefined && item.category) || metadataBadge) && (
         <div className="artwork-card__metadata">
           {item.title && <h2 className="font-display text-xl uppercase leading-none text-foreground">{item.title}</h2>}
           {metadata && <p className="mt-1 text-[0.68rem] font-bold uppercase tracking-[0.12em]">{metadata}</p>}
           {metadata === undefined && item.category && <p>{item.category}</p>}
+          {metadataBadge && productionBadge}
         </div>
       )}
     </motion.article>

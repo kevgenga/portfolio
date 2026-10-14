@@ -1,4 +1,19 @@
 export const ja = {
+  productionTime: {
+    compact: {
+      individual: { actual: "制作時間", estimated: "推定制作時間" },
+      manga: { actual: "総制作時間", estimated: "推定総制作時間" },
+      page: { actual: "制作時間", estimated: "推定制作時間" },
+    },
+    units: { hour: "時間", minute: "分" },
+    individual: { actual: "制作時間", estimated: "推定制作時間" },
+    manga: { actual: "マンガ全体の制作時間", estimated: "マンガ全体の推定制作時間" },
+    page: { actual: "ページの制作時間", estimated: "ページの推定制作時間" },
+    group: { actual: "作品群の総制作時間", estimated: "作品群の推定総制作時間" },
+    measured: "実測", estimated: "推定", approximate: "約", separator: "：",
+    pageNumber: (number) => `${number}ページ`, memberCount: (count) => `${count}作品`,
+    groupSummary: (count) => `作品群の総制作時間（${count}件）`,
+  },
   common: {
     all: "すべて", loading: "読み込み中…", loadMore: "さらに表示",
     noResults: "条件に一致する作品はありません。", sortLabel: "並び替え",
@@ -14,6 +29,10 @@ export const ja = {
     TOGGLE_ZOOM: "拡大・縮小", TOGGLE_THUMBS: "サムネイルの表示切り替え",
     TOGGLE_SLIDESHOW: "スライドショーの切り替え", TOGGLE_FULLSCREEN: "全画面の切り替え",
     DOWNLOAD: "ダウンロード",
+    GOTO: "%d枚目の画像を表示",
+    TOGGLEZOOM: "拡大・縮小",
+    TOGGLE1TO1: "拡大・縮小",
+    ITERATEZOOM: "拡大・縮小",
   },
   navigation: {
     manga: "マンガ", illustration: "イラスト", animation: "アニメーション",
@@ -23,7 +42,7 @@ export const ja = {
     selectLanguage: "言語を選択", english: "English", japanese: "日本語",
   },
   footer: {
-    role: "漫画家・イラストレーター・2Dアニメーター",
+    role: "漫画家・マンガ制作・漫画アシスタント",
     copyright: (year) => `© ${year} KEVGENGA. 無断転載を禁じます。`,
     navigation: "フッターナビゲーション",
   },
@@ -69,6 +88,8 @@ export const ja = {
     next: "次のページ", previousSpread: "前のページまたは見開き",
     nextSpread: "次のページまたは見開き", navigation: "マンガリーダーの操作",
     mode: "表示モード", vertical: "縦読み", horizontal: "横読み",
+    verticalReader: (title) => `${title}の縦読みリーダー`,
+    horizontalReader: (title) => `${title}の横読みリーダー`,
     fullscreen: "全画面", exitFullscreen: "全画面を終了",
     enterFullscreen: "全画面にする",
     hideInterface: "操作パネルを隠す", showInterface: "操作パネルを表示",
@@ -79,7 +100,7 @@ export const ja = {
     swipeLeft: "左へスワイプして次へ",
   },
   contact: {
-    eyebrow: "ご相談・ご依頼", title: "お問い合わせ", ctaTitle: "一緒に作品をつくりましょう。",
+    eyebrow: "ご相談・ご依頼", title: "お問い合わせ", ctaTitle: "一緒に作品を\nつくりましょう。",
     introduction: "制作のご相談やお仕事のご依頼は、フォームまたはメールでお問い合わせください。",
     servicesLabel: "対応可能な制作分野", services: ["マンガ", "イラスト", "2Dアニメーション"],
     directEmail: "メールで直接連絡", name: "お名前", email: "メールアドレス",
@@ -114,14 +135,28 @@ export const ja = {
   },
   home: {
     kicker: "漫画家のポートフォリオ / 2026", signature: "物語に命を吹き込む。",
-    artworkLabel: "まずは作品から", artworkNote: "マンガ・キャラクター・アクション",
-    artworkTitle: "線、動き、キャラクター。",
+    artworkLabel: "作品セレクション", artworkNote: "マンガ制作を支える技術",
+    artworkTitle: "キャラクター、世界、アクション。",
+    viewManga: "マンガを読む", viewWorks: "作画を見る",
+    heroSummary: "フランス・リヨンを拠点に活動する独学の漫画家。人物描写、アクション、物語表現に取り組み、日本・海外でのマンガ制作やアシスタント業務のお仕事を募集しています。",
+    heroCategories: "ジャンル別の作画作品",
+    openCategory: (category) => `${category}の作品を見る`,
+    selectedMangaLabel: "オリジナルマンガ", selectedMangaNote: "各作品を全ページ公開",
+    selectedMangaTitle: "物語を読む。", allManga: "マンガ一覧",
+    workAlt: (category) => `KEVGENGAによる${category}の作品`,
+    workDescriptions: {
+      sketches: "人物やポーズのスケッチ、描写の習作。",
+      paintings: "色彩、光、キャラクターの彩色表現。",
+      "character-design": "人物の造形、表情、デザイン。",
+      backgrounds: "背景、パース、ペンによる描写。",
+      illustrations: "マンガイラスト、アクション、構図。",
+    },
     recognitionLabel: "主な受賞・選出歴",
     recognitionNote: "国際的なマンガ・イラストコンテスト",
     experienceLabel: "制作経験", experienceNote: "制作分野と技術",
     toolsLabel: "使用ツール", toolsNote: "デジタル・アナログ",
-    sketchbookLabel: "スケッチブック", sketchbookTitle: "最近の作品。",
-    sketchbookDescription: "Instagramで公開しているスケッチ、習作、マンガ作品。",
+    sketchbookLabel: "世界とのつながり", sketchbookTitle: "SNS",
+    sketchbookDescription: "Instagramで作品やマンガ制作の近況、最新情報を発信しています。",
     sketchbookLoading: "作品を読み込み中",
     officialResults: (title) => `${title}の公式結果（新しいタブで開きます）`,
     heroAlt: "KEVGENGAによるカラーのマンガイラスト",
@@ -138,10 +173,10 @@ export const ja = {
 
 export const jaContent = {
   about: {
-    roles: ["漫画家", "イラストレーター", "2Dアニメーター"],
+    roles: ["漫画家", "マンガ制作", "漫画アシスタント"],
     experienceLabel: "15年以上の作画経験",
-    summary: "フランス・リヨンを拠点に活動する独学の漫画家。マンガ、イラスト、2Dアニメーションを制作しています。15年以上にわたり絵を描き続け、表情豊かなキャラクター、躍動感のあるアクション、絵による物語表現を追求しています。",
-    availability: { label: "お仕事のご依頼を承っています", details: ["フリーランス", "リモート", "海外案件対応"] },
+    summary: "フランス・リヨンを拠点に活動する独学の漫画家。表情豊かな人物、躍動感のあるアクション、絵による物語表現を追求しています。日本および海外でのマンガ制作・アシスタント業務のお仕事を募集しています。",
+    availability: { label: "マンガ制作のお仕事を募集しています", details: ["フリーランス", "リモート", "海外案件対応"] },
   },
   recognition: {
     "mangadraft-first-prize-2022": {

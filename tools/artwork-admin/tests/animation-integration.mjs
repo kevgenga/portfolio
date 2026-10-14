@@ -248,7 +248,7 @@ try {
   const adminHtml = await readFile(path.join(PROJECT_DIR, "tools/artwork-admin/public/animations.html"), "utf8");
   const adminJs = await readFile(path.join(PROJECT_DIR, "tools/artwork-admin/public/modules/animations/animation-admin.js"), "utf8");
   assert.match(adminHtml, /Ajouter une animation/); assert.match(adminHtml, /Informations/); assert.match(adminHtml, /Média/); assert.match(adminHtml, /Poster/);
-  assert.match(adminHtml, /Date \(JJ-MM-AAAA\)/); assert.match(adminHtml, /Ordre interne du catalogue/); assert.match(adminHtml, /position 1 fournit actuellement le visuel Animation/); assert.match(adminHtml, /Personnaliser le texte alternatif/);
+  assert.match(adminHtml, /Date \(JJ-MM-AAAA\)/); assert.match(adminHtml, /Ordre interne du catalogue/); assert.match(adminHtml, /Visibilité publique de la catégorie Animation/); assert.match(adminHtml, /Personnaliser le texte alternatif/);
   assert.match(adminHtml, /create-existing-media-review/); assert.match(adminHtml, /create-existing-poster-select/);
   assert.match(adminJs, /dataTransfer/); assert.match(adminJs, /nameMode/); assert.match(adminJs, /portfolio\/animation/); assert.match(adminJs, /useTitleAsAlt/); assert.match(adminJs, /animation 3d/);
   assert.match(adminJs, /reference-existing/); assert.doesNotMatch(adminJs, /auditItemAsFile/);
@@ -257,7 +257,7 @@ try {
   const publicAnimationPage = await readFile(path.join(PROJECT_DIR, "src/pages/Animation.jsx"), "utf8");
   const publicUi = await readFile(path.join(PROJECT_DIR, "src/content/ui.js"), "utf8");
   assert.match(publicAnimationPage, /"animation 3d"/); assert.match(publicUi, /title: "Animation"/); assert.match(publicUi, /"animation 3d": "3D Animation"/);
-  assert.match(await readFile(path.join(PROJECT_DIR, "src/pages/HomePage.jsx"), "utf8"), /animations\[0\]\.poster/);
+  assert.match(await readFile(path.join(PROJECT_DIR, "src/App.jsx"), "utf8"), /sitePresentation\.showAnimationSection/);
   assert.equal(parseAnimationCatalog(await readFile(realPaths[0], "utf8")).length, realAnimationCount);
   for (const [file, expected] of realHashes) assert.equal(hash(await readFile(file)), expected, `${path.basename(file)} réel a été modifié`);
   console.log("Animation Admin — tests d’intégration réussis");

@@ -1,0 +1,116 @@
+/* HERO CARD DESIGN SETTINGS — edit this block; see docs/HOME-HERO-CARDS.md. */
+.hero-art-cards {
+  --hero-angle: 8deg;
+  --hero-height: clamp(29rem, 40vw, 39rem);
+  --hero-max-height: 42rem; /* Home overrides the ceiling, not the safeguards. */
+  --hero-gap: 1px;
+  --hero-border-width: 3px;
+  --hero-border-color: color-mix(in srgb, var(--color-paper) 70%, var(--color-ink));
+  --hero-hover-border: var(--color-paper);
+  --hero-expand: 5px;
+  --hero-min-card-width: 112px;
+  --hero-duration: 320ms;
+  --hero-easing: cubic-bezier(0.22, 1, 0.36, 1);
+  --hero-inactive-opacity: 0.58;
+  --hero-active-opacity: 1;
+  --hero-card-bg: var(--color-ink);
+  --hero-image-bg: #000000;
+  --hero-title-color: var(--color-paper);
+  --hero-label-color: var(--color-primary);
+  --hero-description-color: var(--color-paper);
+  --hero-title-size: 0.8125rem;
+  --hero-caption-height: 124px;
+  --hero-description-lines: 2;
+  --hero-tablet-card-height: 19rem;
+  --hero-mobile-card-height: 12rem;
+  /* Derived safeguards: all angles and expansion widths stay inside the group. */
+  --hero-effective-angle: clamp(0deg, var(--hero-angle), 12deg);
+  --hero-effective-height: clamp(24rem, var(--hero-height), var(--hero-max-height));
+  --hero-effective-gap: clamp(0px, var(--hero-gap), 16px);
+  --hero-effective-border: clamp(0px, var(--hero-border-width), 6px);
+  --hero-slant: calc(tan(var(--hero-effective-angle)) * var(--hero-effective-height));
+  --hero-edge-space: calc(var(--hero-slant) / 2 + var(--hero-effective-border) + 3px);
+  --hero-expand-enabled: 1;
+  min-width: 0;
+  width: 100%;
+  padding-inline: var(--hero-edge-space);
+  scroll-margin-top: 88px;
+}
+
+.hero-art-cards__track {
+  display: flex;
+  gap: var(--hero-effective-gap);
+  height: var(--hero-effective-height);
+  min-width: 0;
+  --hero-total-gap: calc((var(--hero-card-count) - 1) * var(--hero-effective-gap));
+}
+
+.hero-art-card {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 calc((100% - var(--hero-total-gap)) / var(--hero-card-count) + var(--hero-card-extra));
+  min-width: 0;
+  height: 100%;
+  border: var(--hero-effective-border) solid var(--hero-border-color);
+  background: var(--hero-card-bg);
+  color: var(--hero-title-color);
+  overflow: hidden;
+  cursor: pointer;
+  transform: skewX(calc(-1 * var(--hero-effective-angle)));
+  transition: flex-basis var(--hero-duration) var(--hero-easing), border-color var(--hero-duration) var(--hero-easing);
+}
+
+.hero-art-card[data-active="true"] { border-color: var(--hero-hover-border); }
+.hero-art-card:focus-visible { outline: 3px solid var(--hero-label-color); outline-offset: -7px; }
+.hero-art-card__media { position: relative; flex: 1; min-height: 0; overflow: hidden; background: var(--hero-image-bg); }
+.hero-art-card__image-plane {
+  position: absolute;
+  inset-block: 0;
+  left: calc(var(--hero-slant) / -2);
+  width: calc(100% + var(--hero-slant));
+  transform: skewX(var(--hero-effective-angle));
+}
+.hero-art-card__image-plane img {
+  width: 100%;
+  height: 100%;
+  object-fit: var(--hero-image-fit, cover);
+  object-position: var(--hero-image-position, center);
+  opacity: var(--hero-active-opacity);
+  transition: opacity var(--hero-duration) var(--hero-easing);
+}
+.hero-art-cards[data-interacting="true"] .hero-art-card:not([data-active="true"]) img { opacity: var(--hero-inactive-opacity); }
+.hero-art-card__caption {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 var(--hero-caption-height);
+  min-width: 0;
+  min-height: 0;
+  height: var(--hero-caption-height);
+  padding: 12px calc(10px + tan(var(--hero-effective-angle)) * var(--hero-caption-height) / 2);
+  transform: skewX(var(--hero-effective-angle));
+}
+.hero-art-card__markers { display: flex; flex-shrink: 0; justify-content: space-between; gap: 4px; color: var(--hero-label-color); font-size: 0.8125rem; font-weight: 900; }
+.hero-art-card__title { display: block; flex-shrink: 0; margin-top: 5px; color: var(--hero-title-color); font-size: var(--hero-title-size); font-weight: 900; line-height: 1.35; text-transform: uppercase; }
+.hero-art-card__description { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: var(--hero-description-lines); min-height: 0; overflow: hidden; text-overflow: ellipsis; margin-top: 7px; color: var(--hero-description-color); font-size: 0.8125rem; line-height: 1.5; }
+.hero-art-card[data-active="true"] .hero-art-card__description { display: block; -webkit-line-clamp: unset; overflow: auto; overscroll-behavior: contain; }
+
+@media (max-width: 1279px) {
+  .hero-art-cards { --hero-effective-angle: 0deg; --hero-slant: 0px; --hero-edge-space: 0px; --hero-expand-enabled: 0; }
+  .hero-art-cards__track { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); height: auto; gap: 12px; }
+  .hero-art-card { height: var(--hero-tablet-card-height); }
+}
+
+@media (max-width: 767px) {
+  .hero-art-cards__track { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .hero-art-card { height: var(--hero-mobile-card-height); }
+  .hero-art-card:last-child { grid-column: 1 / -1; }
+  .hero-art-card__caption { padding: 8px; }
+  .hero-art-card__title { margin-top: 4px; }
+}
+
+html[lang="ja"] .hero-art-cards { --hero-title-size: 0.875rem; --hero-caption-height: 132px; }
+html[lang="ja"] .hero-art-card__description { font-size: 0.84375rem; line-height: 1.6; }
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-art-card, .hero-art-card img, .hero-art-card__description { transition: none; }
+}

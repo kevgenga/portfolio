@@ -4,6 +4,7 @@ import { copyFile, lstat, mkdir, readFile, realpath, rename, rm, stat, writeFile
 import path from "node:path";
 import sharp from "../sharp-runtime.mjs";
 import { FileTransaction } from "../file-transaction.mjs";
+import { createPresentationSettingsStore } from "../presentation-settings.mjs";
 import { buildRevealCommand, isPathInside, launchReveal } from "../reveal-file.mjs";
 import {
   getMangaPresentationDirectory,
@@ -22,6 +23,9 @@ import {
   primaryMangaMedia,
 } from "./media-policy.mjs";
 import { getLanguageDetails, normalizeSupportedLanguageCode, supportedMangaLanguages } from "../../../src/utils/languageLabels.js";
+import { associateDrawings, dissociateDrawing, duplicateProductionDrawing, forgetProductionPaths, getProductionDrawing, moveProductionPath, replaceProductionDrawing, setPageTime, setProjectTime } from "./production-time.mjs";
+import { prepareMangaProductionBatch } from "./production-time.mjs";
+import { verifyProductionConfirmation } from "../production-groups.mjs";
 
 const EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".avif", ".gif"]);
 
@@ -179,6 +183,9 @@ export function createMangaService({
           ? `${nextPrefix}${page.slice(previousPrefix.length)}`
           : page);
     }
+    for (const binding of manga.productionTime?.bindings || []) {
+      if (binding.path.startsWith(`${previousPrefix}/`)) binding.path = `${nextPrefix}${binding.path.slice(previousPrefix.length)}`;
+    }
   }
 
   function assetFile(assetPath) {
@@ -228,53 +235,25 @@ export function createMangaService({
   }
 
   async function readCatalog() { return parseMangaCatalog(await readFile(catalogPath, "utf8")); }
-  async function writeFileAtomic(file, content) {
+  async function writeFileAtomic(file, content, beforeCommit = async () => {}) {
     const temporary = `${file}.${randomUUID()}.tmp`;
     try {
       await writeFile(temporary, content, { flag: "wx" });
+      await beforeCommit();
       await rename(temporary, file);
     } catch (error) { await rm(temporary, { force: true }); throw error; }
   }
-  async function writeAtomic(content) { await writeFileAtomic(catalogPath, content); }
+  async function writeAtomic(content, beforeCommit) { await writeFileAtomic(catalogPath, content, beforeCommit); }
+  const revision = (source) => createHash("sha256").update(source).digest("hex");
   async function backup(operation, slug = "catalog") {
     await mkdir(backupRoot, { recursive: true });
     const destination = path.join(backupRoot, `${operationTimestamp()}-${safeSegment(operation)}-${safeSegment(slug)}-${randomUUID()}.js`);
     await copyFile(catalogPath, destination, constants.COPYFILE_EXCL);
     return destination;
   }
-  function parsePresentationSettings(source) {
-    const matches = [...source.matchAll(/showStoryboardSection\s*:\s*(true|false)/g)];
-    ensure(matches.length === 1, "Configuration de présentation Manga invalide.", 500);
-    return { showStoryboardSection: matches[0][1] === "true" };
-  }
-  async function readPresentationSettings() {
-    return parsePresentationSettings(await readFile(presentationSettingsPath, "utf8"));
-  }
-  async function updatePresentationSettings(payload) {
-    ensure(typeof payload?.showStoryboardSection === "boolean", "Valeur de visibilité Storyboards invalide.");
-    const original = await readFile(presentationSettingsPath, "utf8");
-    const current = parsePresentationSettings(original);
-    if (current.showStoryboardSection === payload.showStoryboardSection) return current;
-    const next = original.replace(
-      /(showStoryboardSection\s*:\s*)(true|false)/,
-      `$1${payload.showStoryboardSection}`,
-    );
-    ensure(parsePresentationSettings(next).showStoryboardSection === payload.showStoryboardSection, "Impossible de préparer la configuration Manga.", 500);
-    await mkdir(backupRoot, { recursive: true });
-    const backupPath = path.join(backupRoot, `${operationTimestamp()}-presentation-settings-${randomUUID()}.js`);
-    await copyFile(presentationSettingsPath, backupPath);
-    let written = false;
-    try {
-      await writeFileAtomic(presentationSettingsPath, next);
-      written = true;
-      const saved = await readPresentationSettings();
-      ensure(saved.showStoryboardSection === payload.showStoryboardSection, "La configuration Manga enregistrée est incohérente.", 500);
-      return saved;
-    } catch (error) {
-      if (written) await writeFileAtomic(presentationSettingsPath, original);
-      throw error;
-    }
-  }
+  const { read: readPresentationSettings, update: updatePresentationSettings } = createPresentationSettingsStore({
+    file: presentationSettingsPath, backupRoot, key: "showStoryboardSection", label: "Manga",
+  });
   function findManga(catalog, id) {
     const manga = catalog.find((entry) => String(entry.id) === String(id));
     ensure(manga, "Manga introuvable.", 404);
@@ -297,37 +276,46 @@ export function createMangaService({
       }
     }
   }
-  function mutate(operation, slug, callback) {
+  function mutate(operation, slug, callback, options = {}) {
     // Serialize catalog mutations so simultaneous duplicates cannot lose pages.
-    const result = mutationQueue.then(() => performMutation(operation, slug, callback));
+    const result = mutationQueue.then(() => performMutation(operation, slug, callback, options));
     mutationQueue = result.catch(() => undefined);
     return result;
   }
-  async function performMutation(operation, slug, callback) {
+  async function performMutation(operation, slug, callback, { metadataOnly = false, expectedRevision } = {}) {
     const original = await readFile(catalogPath, "utf8");
+    if (expectedRevision !== undefined) ensure(expectedRevision === revision(original), "Le catalogue Manga a changé. Actualisez avant de réenregistrer.", 409);
     const catalog = parseMangaCatalog(original);
     validateMangaCatalog(catalog);
+    const initialData = JSON.stringify(catalog);
     const transaction = new FileTransaction({ renameImpl });
-    const backupPath = await backup(operation, slug);
+    let backupPath = metadataOnly ? null : await backup(operation, slug);
     let catalogWritten = false;
+    let writtenSource;
     const afterSave = [];
     try {
       const result = await callback(catalog, transaction, afterSave);
+      validateMangaCatalog(catalog);
+      if (metadataOnly && JSON.stringify(catalog) === initialData) return { result, catalogRevision: revision(original), unchanged: true };
+      if (metadataOnly) backupPath = await backup(operation, slug);
       if (failurePoint === "before-catalog") throw new Error("Échec manga simulé.");
-      await validateFiles(catalog);
+      if (!metadataOnly) await validateFiles(catalog);
       const serialized = serializeMangaCatalog(catalog);
-      await writeAtomic(failurePoint === "invalid-catalog" ? "export const mangas = [;\n" : serialized);
+      validateMangaCatalog(parseMangaCatalog(serialized));
+      writtenSource = failurePoint === "invalid-catalog" ? "export const mangas = [;\n" : serialized;
+      await writeAtomic(writtenSource, async () => ensure(revision(await readFile(catalogPath, "utf8")) === revision(original), "Le catalogue Manga a changé pendant l’opération. Actualisez avant de réessayer.", 409));
       catalogWritten = true;
-      await validateFiles(await readCatalog());
+      if (metadataOnly) validateMangaCatalog(await readCatalog());
+      else await validateFiles(await readCatalog());
       if (failurePoint === "after-catalog") throw new Error("Échec manga simulé.");
       for (const finalize of afterSave) await finalize();
-      onMutation?.();
+      if (!metadataOnly) onMutation?.();
       transaction.commit();
-      return { result, backup: path.relative(projectRoot, backupPath).replaceAll("\\", "/") };
+      return { result, catalogRevision: revision(serialized), backup: path.relative(projectRoot, backupPath).replaceAll("\\", "/") };
     } catch (error) {
       const rollbackErrors = [];
       if (catalogWritten) {
-        try { await writeAtomic(original); } catch (rollbackError) { rollbackErrors.push(rollbackError); }
+        try { await writeAtomic(original, async () => ensure(await readFile(catalogPath, "utf8") === writtenSource, "Restauration automatique refusée : modification extérieure du catalogue. Conservez les fichiers et restaurez la sauvegarde manuellement.", 409)); } catch (rollbackError) { rollbackErrors.push(rollbackError); }
       }
       // Do not delete prepared assets if the on-disk catalog could still refer
       // to them. Keep files and the backup available for manual recovery.
@@ -418,7 +406,8 @@ export function createMangaService({
     }
   }
   async function report() {
-    const catalog = await readCatalog();
+    const source = await readFile(catalogPath, "utf8");
+    const catalog = parseMangaCatalog(source);
     const issues = [];
     const items = [];
     for (const manga of catalog) {
@@ -446,6 +435,7 @@ export function createMangaService({
       });
     }
     return {
+      catalogRevision: revision(source),
       mangas: items,
       count: items.length,
       sectionCounts: Object.fromEntries(MANGA_PRESENTATION_SECTION_VALUES.map((section) => [
@@ -553,7 +543,7 @@ export function createMangaService({
         featured: false, status: payload.status || "draft", visibility: payload.visibility || "private",
       };
       catalog.push(manga); return manga;
-    });
+    }, { expectedRevision: payload.catalogRevision });
   }
   async function update(id, payload) {
     validateInput(payload);
@@ -596,7 +586,7 @@ export function createMangaService({
       if (payload.defaultLanguage !== undefined) { ensure(Object.hasOwn(manga.languages, payload.defaultLanguage), "Langue par défaut absente."); manga.defaultLanguage = payload.defaultLanguage; }
       if (payload.order !== undefined) manga.order = Number(payload.order) || 0;
       return manga;
-    });
+    }, { expectedRevision: payload.catalogRevision });
   }
   async function addLanguage(id, payload) {
     validateInput(payload);
@@ -607,9 +597,9 @@ export function createMangaService({
       const preset = getLanguageDetails(code);
       manga.languages[code] = { label: preset.label, shortLabel: preset.shortLabel, storageFolder: code, pages: [] };
       return manga;
-    });
+    }, { expectedRevision: payload.catalogRevision });
   }
-  async function deleteLanguage(id, code) {
+  async function deleteLanguage(id, code, payload = {}) {
     return mutate("delete-language", id, async (catalog, tx, afterSave) => {
       const manga = findManga(catalog, id); ensure(Object.hasOwn(manga.languages, code), "Langue introuvable.", 404);
       ensure(Object.keys(manga.languages).length > 1, "Impossible de supprimer la seule langue.");
@@ -617,9 +607,10 @@ export function createMangaService({
       const sourceManga = structuredClone(manga);
       const pages = [...manga.languages[code].pages];
       delete manga.languages[code];
+      forgetProductionPaths(manga, pages);
       await scheduleArchiveUnused(catalog, tx, afterSave, sourceManga, pages, `${manga.slug}-${code}-delete-language`);
       return manga;
-    });
+    }, { expectedRevision: payload.catalogRevision });
   }
   async function addPages(id, code, payload) {
     validateInput(payload);
@@ -643,7 +634,7 @@ export function createMangaService({
       language.pages.splice(position - 1, 0, ...additions);
       language.storageFolder = storage.folder;
       return manga;
-    });
+    }, { expectedRevision: payload.catalogRevision });
   }
   async function duplicatePage(id, code, index, payload = {}) {
     ensure(payload && typeof payload === "object" && !Array.isArray(payload), "Demande de duplication invalide.");
@@ -665,11 +656,13 @@ export function createMangaService({
       ensure(isPathInside(actualDirectory, destination), "Destination de copie interdite.", 403);
       // No decodeImage/Sharp: write the exact source bytes, exclusively.
       await tx.writeExclusive(destination, await readFile(actualSource));
-      language.pages.splice(position - 1, 0, languagePagePath(manga, folder, name));
+      const copyPath = languagePagePath(manga, folder, name);
+      language.pages.splice(position - 1, 0, copyPath);
+      duplicateProductionDrawing(manga, relative, copyPath);
       return manga;
-    });
+    }, { expectedRevision: payload.catalogRevision });
   }
-  async function repairLanguageStorage(id, code) {
+  async function repairLanguageStorage(id, code, payload = {}) {
     return mutate("repair-language-storage", id, async (catalog, tx) => {
       const manga = findManga(catalog, id);
       const language = manga.languages[code];
@@ -689,16 +682,17 @@ export function createMangaService({
         else await tx.move(source, destination);
         const nextPath = languagePagePath(manga, storage.folder, name);
         language.pages[index] = nextPath;
+        moveProductionPath(manga, currentPath, nextPath);
         moved.push({ index, from: currentPath, to: nextPath });
       }
       language.storageFolder = storage.folder;
       return { manga, storageFolder: storage.folder, moved };
-    });
+    }, { expectedRevision: payload.catalogRevision });
   }
-  async function reorderPages(id, code, pages) {
+  async function reorderPages(id, code, pages, payload = {}) {
     return mutate("reorder-pages", id, async (catalog) => {
       const manga = findManga(catalog, id); applyPageOrder(manga, code, pages); return manga;
-    });
+    }, { expectedRevision: payload.catalogRevision });
   }
   async function deletePage(id, code, index, payload = {}) {
     validateInput(payload);
@@ -709,9 +703,10 @@ export function createMangaService({
       ensure(payload.source === undefined || payload.source === language.pages[index], "La page source a changé. Actualisez avant de réessayer.", 409);
       const sourceManga = structuredClone(manga);
       const [relative] = language.pages.splice(index, 1);
+      forgetProductionPaths(manga, [relative]);
       await scheduleArchiveUnused(catalog, tx, afterSave, sourceManga, [relative], `${manga.slug}-${code}-delete-page`);
       return manga;
-    });
+    }, { expectedRevision: payload.catalogRevision });
   }
   async function replacePage(id, code, index, payload) {
     ensure(payload && typeof payload === "object" && !Array.isArray(payload), "Demande de remplacement invalide.");
@@ -723,6 +718,7 @@ export function createMangaService({
       ensure(Number.isSafeInteger(index) && index >= 0 && index < language.pages.length, "Page introuvable.", 404);
       const oldRelative = language.pages[index];
       ensure(payload.source === undefined || payload.source === oldRelative, "La page source a changé. Actualisez la liste avant de réessayer.", 409);
+      if (getProductionDrawing(manga, oldRelative)) ensure(["keep", "new"].includes(payload.productionIdentity), "Choisissez de conserver l’identité du dessin ou de créer un nouveau dessin sans durée.");
       const { folder, source: oldFile, actualDirectory } = await resolvePageFile(manga, oldRelative);
       const image = await decodeImage(payload.file, payload.keepName ? path.basename(oldFile, path.extname(oldFile)) : undefined, true);
       const requestedName = payload.keepName ? `${path.basename(oldFile, path.extname(oldFile))}${image.extension}` : image.name;
@@ -733,9 +729,10 @@ export function createMangaService({
       ensure(isPathInside(actualDirectory, destination), "Destination de remplacement interdite.", 403);
       await tx.writeExclusive(destination, image.buffer);
       language.pages[index] = languagePagePath(manga, folder, name);
+      replaceProductionDrawing(manga, oldRelative, language.pages[index], payload.productionIdentity);
       await scheduleArchiveUnused(catalog, tx, afterSave, manga, [oldRelative], `${manga.slug}-${code}-replace-page`);
       return manga;
-    });
+    }, { expectedRevision: payload.catalogRevision });
   }
   async function replaceMedia(id, field, payload) {
     validateInput(payload);
@@ -748,7 +745,7 @@ export function createMangaService({
       await tx.writeExclusive(destination, image.buffer); manga[field] = `${projectPrefix(manga)}/${name}`;
       await scheduleArchiveUnused(catalog, tx, afterSave, sourceManga, [previous], `${manga.slug}-${field}`);
       return manga;
-    });
+    }, { expectedRevision: payload.catalogRevision });
   }
   async function replacePrimaryMedia(id, payload) {
     return replaceMedia(id, MANGA_CARD_IMAGE_FIELDS.canonical, payload);
@@ -786,7 +783,7 @@ export function createMangaService({
     return { manga, actualDirectory, expectedSection };
   }
 
-  async function removeManga(id, confirmation) {
+  async function removeManga(id, confirmation, payload = {}) {
     const preparedCatalog = await readCatalog();
     const prepared = await inspectMangaRemoval(preparedCatalog, id, confirmation);
     await ensureMangaTrashRoot();
@@ -797,7 +794,7 @@ export function createMangaService({
       const index = catalog.findIndex((manga) => String(manga.id) === String(id));
       catalog.splice(index, 1);
       return current.manga;
-    });
+    }, { expectedRevision: payload.catalogRevision });
   }
   async function reveal(id, descriptor) {
     validateInput(descriptor);
@@ -817,6 +814,37 @@ export function createMangaService({
     return disableReveal ? { ...command, filePath: actual, simulated: true } : launchReveal(actual);
   }
   async function initialize() { await Promise.all([mkdir(backupRoot, { recursive: true }), mkdir(trashRoot, { recursive: true }), mkdir(stagingRoot, { recursive: true })]); }
+  async function editProduction(id, action, payload) {
+    const allowed = { total: ["total"], page: ["path", "time"], associate: ["path", "targetPath", "resolution", "confirmGroups"], separate: ["path", "mode"] };
+    ensure(Object.hasOwn(allowed, action), "Opération de production inconnue.");
+    ensure(payload && typeof payload === "object" && !Array.isArray(payload), "Requête de production invalide.");
+    ensure(Object.keys(payload).every(key => [...allowed[action], "catalogRevision"].includes(key)), "Champ de production inconnu.");
+    ensure(typeof payload.catalogRevision === "string", "Actualisez le catalogue avant de modifier les temps.", 409);
+    return mutate(`production-${action}`, id, (catalog) => {
+      const manga = findManga(catalog, id);
+      try { ({ total: setProjectTime, page: setPageTime, associate: associateDrawings, separate: dissociateDrawing })[action](manga, payload); }
+      catch (error) { throw new MangaAdminError(400, error.message); }
+      return manga;
+    }, { metadataOnly: true, expectedRevision: payload.catalogRevision });
+  }
   async function readAsset(relative) { const file = assetFile(relative); await ensureAssetDirectory(path.dirname(file)); ensure((await lstat(file)).isFile(), "Fichier manga invalide.", 403); return { content: await readFile(file), extension: path.extname(relative).toLowerCase() }; }
-  return { initialize, report, create, update, addLanguage, deleteLanguage, addPages, duplicatePage, repairLanguageStorage, reorderPages, deletePage, replacePage, replaceMedia, replacePrimaryMedia, removeManga, reveal, readAsset, readCatalog, readPresentationSettings, updatePresentationSettings, validateFiles, paths: { catalogPath, presentationSettingsPath, assetRoot, backupRoot, trashRoot, stagingRoot } };
+  async function productionBatch(id, payload, commit = false) {
+    ensure(typeof payload?.catalogRevision === "string", "Actualisez le catalogue avant l’opération groupée.", 409);
+    if (!commit) {
+      const source = await readFile(catalogPath, "utf8");
+      ensure(revision(source) === payload.catalogRevision, "Le catalogue Manga a changé. Actualisez.", 409);
+      const catalog = parseMangaCatalog(source); validateMangaCatalog(catalog);
+      try { return { plan: prepareMangaProductionBatch(findManga(catalog, id), payload, payload.catalogRevision) }; }
+      catch (error) { throw new MangaAdminError(400, error.message); }
+    }
+    let plan;
+    const result = await mutate("production-batch", id, catalog => {
+      const manga = findManga(catalog, id);
+      try { plan = prepareMangaProductionBatch(manga, payload, payload.catalogRevision); verifyProductionConfirmation(payload, plan); }
+      catch (error) { throw new MangaAdminError(400, error.message); }
+      return manga;
+    }, { metadataOnly: true, expectedRevision: payload.catalogRevision });
+    return { ...result, plan };
+  }
+  return { productionBatch, initialize, report, create, update, editProduction, addLanguage, deleteLanguage, addPages, duplicatePage, repairLanguageStorage, reorderPages, deletePage, replacePage, replaceMedia, replacePrimaryMedia, removeManga, reveal, readAsset, readCatalog, readPresentationSettings, updatePresentationSettings, validateFiles, paths: { catalogPath, presentationSettingsPath, assetRoot, backupRoot, trashRoot, stagingRoot } };
 }

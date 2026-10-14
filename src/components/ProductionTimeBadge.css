@@ -1,0 +1,119 @@
+/* Illustration badge palette. Fully opaque by default so image colors cannot
+   affect text contrast. Opacity applies to the background only (0–1).
+   Functional thresholds/mode/placement: content/productionTimeBadgeSettings.js. */
+:root {
+  --work-badge-short-bg: #e5efe5;
+  --work-badge-short-text: #1f4b33;
+  --work-badge-short-border: #73927a;
+  --work-badge-medium-bg: #f6ecd5;
+  --work-badge-medium-text: #684713;
+  --work-badge-medium-border: #ad8b51;
+  --work-badge-long-bg: #f0e1e5;
+  --work-badge-long-text: #733644;
+  --work-badge-long-border: #aa747f;
+  --work-badge-neutral-bg: var(--color-surface);
+  --work-badge-neutral-text: var(--color-text);
+  --work-badge-neutral-border: var(--color-muted);
+  --work-badge-bg-opacity: 1;
+  --work-badge-padding-block: .3rem;
+  --work-badge-padding-inline: .45rem;
+  --work-badge-max-width: 10rem;
+  --work-badge-font-size: .8125rem;
+  --work-badge-font-size-ja: .875rem;
+  --work-badge-line-height: 1.35;
+  --work-badge-icon-size: .85rem;
+  --work-badge-radius: 0px;
+  --work-badge-border-width: 1px;
+  --work-badge-edge-gap: .45rem;
+}
+.dark {
+  --work-badge-short-bg: #20382b;
+  --work-badge-short-text: #d3ecd9;
+  --work-badge-short-border: #568769;
+  --work-badge-medium-bg: #3a3020;
+  --work-badge-medium-text: #f5dfad;
+  --work-badge-medium-border: #a28751;
+  --work-badge-long-bg: #3d282f;
+  --work-badge-long-text: #f3d8df;
+  --work-badge-long-border: #a16c7a;
+}
+.production-time {
+  display: inline-flex;
+  align-items: baseline;
+  gap: .35rem;
+  max-width: 100%;
+  min-width: 0;
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: .8125rem;
+  font-weight: 650;
+  line-height: 1.5;
+  letter-spacing: normal;
+  text-transform: none;
+  overflow-wrap: anywhere;
+}
+.production-time__clock { align-self: center; width: .9rem; height: .9rem; flex: 0 0 auto; }
+.production-time__label { display: block; font-weight: 750; }
+.production-time__value { display: block; }
+.artwork-card__metadata .production-time { margin-top: .3rem; }
+.artwork-card__metadata:has(.production-time) { flex-wrap: wrap; gap: .2rem .6rem; }
+.manga-card__body > .production-time { margin-top: .45rem; }
+.portfolio-lightbox-metadata { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: .5rem 1.25rem; }
+.portfolio-lightbox-metadata .production-time { color: #f4f1e8; text-align: center; }
+.portfolio-lightbox-metadata__groups { display: flex; flex-wrap: wrap; justify-content: center; gap: .5rem 1.25rem; width: 100%; }
+.portfolio-lightbox-metadata__group-details { width:100%; font-size:.8125rem; line-height:1.5; color:#f4f1e8; }
+.portfolio-lightbox-metadata__group-details summary { cursor:pointer; }
+.portfolio-lightbox-metadata__group-details summary:focus-visible { outline:2px solid var(--color-primary); outline-offset:3px; }
+.portfolio-lightbox-metadata__group-details[open] summary { margin-bottom:.5rem; }
+html[lang="ja"] .portfolio-lightbox-metadata__group-details { font-family:var(--font-japanese); font-size:.875rem; }
+.portfolio-lightbox-metadata__groups .production-time { border-top: 1px solid #625f57; padding-top: .4rem; }
+.reader-production-times { display: inline-flex; flex-wrap: wrap; justify-content: center; gap: .25rem .8rem; min-width: 0; max-width: 100%; }
+.reader-production-times__page { display: inline-flex; flex-wrap: wrap; justify-content: center; align-items: baseline; gap: .3rem; letter-spacing: normal; }
+.reader-production-times .production-time { color: #f4f1e8; }
+[data-reader-pagination] > p:has(.reader-production-times) { flex-wrap: wrap; column-gap: .8rem; row-gap: .25rem; }
+html[lang="ja"] .production-time { font-family: var(--font-japanese); font-size: .875rem; line-height: 1.6; }
+
+/* Only Illustration's explicit artwork variant receives colored/placed badges.
+   Manga totals, Reader pages and collective Lightbox metadata stay neutral. */
+.work-badge {
+  --work-badge-bg: var(--work-badge-neutral-bg);
+  --work-badge-text: var(--work-badge-neutral-text);
+  --work-badge-border: var(--work-badge-neutral-border);
+  display: inline-flex;
+  width: max-content;
+  max-width: min(var(--work-badge-max-width), calc(100% - 2 * var(--work-badge-edge-gap)));
+  border: var(--work-badge-border-width) solid var(--work-badge-border);
+  border-radius: var(--work-badge-radius);
+  padding: var(--work-badge-padding-block) var(--work-badge-padding-inline);
+  background: var(--work-badge-bg);
+  background: color-mix(in srgb, var(--work-badge-bg) calc(var(--work-badge-bg-opacity) * 100%), transparent);
+  color: var(--work-badge-text);
+  font-size: var(--work-badge-font-size);
+  line-height: var(--work-badge-line-height);
+  overflow-wrap: normal;
+  pointer-events: none;
+}
+.work-badge--short { --work-badge-bg:var(--work-badge-short-bg); --work-badge-text:var(--work-badge-short-text); --work-badge-border:var(--work-badge-short-border); }
+.work-badge--medium { --work-badge-bg:var(--work-badge-medium-bg); --work-badge-text:var(--work-badge-medium-text); --work-badge-border:var(--work-badge-medium-border); }
+.work-badge--long { --work-badge-bg:var(--work-badge-long-bg); --work-badge-text:var(--work-badge-long-text); --work-badge-border:var(--work-badge-long-border); }
+.work-badge[data-badge-placement="top-right"],
+.work-badge[data-badge-placement="bottom-right"] {
+  position: absolute;
+  right: var(--work-badge-edge-gap);
+  z-index: 1;
+}
+.work-badge[data-badge-placement="top-right"] { top:var(--work-badge-edge-gap); }
+.work-badge[data-badge-placement="bottom-right"] { bottom:var(--work-badge-edge-gap); }
+.work-badge[data-badge-placement="metadata"] { position:static; margin-top:0; }
+.work-badge__copy { min-width:0; width:100%; text-align:right; }
+.work-badge__label { display:block; font-weight:750; text-transform:uppercase; text-wrap:balance; }
+.work-badge__duration { display:flex; justify-content:flex-end; align-items:baseline; gap:.3rem; margin-top:.15rem; font-weight:800; }
+.work-badge .production-time__clock { width:var(--work-badge-icon-size); height:var(--work-badge-icon-size); }
+html[lang="ja"] .work-badge { font-size:var(--work-badge-font-size-ja); line-height:var(--work-badge-line-height); }
+
+/* Narrow two-column phone cards: trim spacing rather than shrink the duration.
+   Japanese keeps 14px; Latin labels never fall below 12.5px. */
+@media (max-width: 375px) {
+  .work-badge { padding:calc(var(--work-badge-padding-block) * .75) calc(var(--work-badge-padding-inline) * .75); }
+  html:not([lang="ja"]) .work-badge__label { font-size:max(.78125rem, calc(var(--work-badge-font-size) * .96)); }
+}

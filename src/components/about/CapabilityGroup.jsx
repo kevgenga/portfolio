@@ -1,5 +1,5 @@
-const CapabilityGroup = ({ label, items, index = 1 }) => {
-  const headingId = `capability-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+const CapabilityGroup = ({ label, items, index = 1, headingId: suppliedHeadingId }) => {
+  const headingId = suppliedHeadingId || `capability-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
 
   return (
     <section className="capability-block" aria-labelledby={headingId}>

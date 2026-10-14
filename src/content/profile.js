@@ -2,17 +2,17 @@ import { assetPath } from "../utils/assetPath";
 
 export const profile = {
   name: "KEVGENGA",
-  role: "Manga Artist, Illustrator & 2D Animator",
+  role: "Mangaka, Manga Artist & Manga Assistant",
   image: assetPath("assets/illustration/profil 150921.jpg"),
   about: {
     location: "Lyon, France",
     headline: ["Drawing stories", "into life."],
-    roles: ["Manga Artist", "Illustrator", "2D Animator"],
+    roles: ["Mangaka", "Manga Artist", "Manga Assistant"],
     experienceLabel: "15+ years drawing experience",
     summary:
-      "Self-taught manga artist based in Lyon, France, working across manga, illustration and 2D animation. 15+ years of drawing practice, with a focus on expressive characters, dynamic action and visual storytelling.",
+      "Self-taught manga artist based in Lyon, France. Expressive characters, dynamic action and visual storytelling — seeking manga production and assistant opportunities in Japan and internationally.",
     availability: {
-      label: "Available for work",
+      label: "Available for manga work",
       details: ["Freelance", "Remote", "International"],
     },
   },

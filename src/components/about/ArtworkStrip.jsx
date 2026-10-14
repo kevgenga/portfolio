@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 
-const ArtworkStrip = ({ artworks }) => (
-  <div className="artwork-strip">
+const ArtworkStrip = ({ artworks, categories = false }) => (
+  <div className={`artwork-strip${categories ? " artwork-strip--categories" : ""}`}>
     {artworks.map((artwork, index) => (
       <Link
         key={artwork.id}
@@ -14,6 +14,7 @@ const ArtworkStrip = ({ artworks }) => (
           {artwork.label}
           <span aria-hidden="true">↗</span>
         </span>
+        {artwork.description && <span className="artwork-strip__description">{artwork.description}</span>}
       </Link>
     ))}
   </div>

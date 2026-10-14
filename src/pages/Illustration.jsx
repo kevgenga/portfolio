@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import ArtworkCard from "../components/gallery/ArtworkCard";
 import BackToTopButton from "../components/gallery/BackToTopButton";
 import EmptyState from "../components/gallery/EmptyState";
@@ -10,19 +11,17 @@ import {
   isArtworkCategoryVisible,
   isArtworkPubliclyVisible,
 } from "../content/artworkPresentation";
-import { artworks } from "../content/artworks";
+import * as artworkCatalog from "../content/artworks";
+import { getPublicArtworkProductionGroups } from "../utils/publicProductionTime";
+import { createProductionTimeCaption } from "../utils/productionTimeCaption";
 import { useLanguage } from "../i18n/languageContext";
 import { formatPortfolioDate } from "../utils/formatPortfolioDate";
+import { illustrationCategories, resolveIllustrationFilter } from "../utils/illustrationFilters";
 
 export const ILLUSTRATION_PAGE_SIZE = 24;
-
-const illustrationCategories = [
-  "illustrations",
-  "sketches",
-  "paintings",
-  "character-design",
-  "backgrounds",
-];
+const { artworks } = artworkCatalog;
+// Optional export in historical catalogs; no migration or copied duration file.
+const productionGroups = Reflect.get(artworkCatalog, "artworkProductionGroups");
 
 const parseArtworkDate = (date) => {
   const [day, month, year] = date.split("-").map(Number);
@@ -32,14 +31,11 @@ const parseArtworkDate = (date) => {
 const publicArtworks = artworks.filter((artwork) =>
   isArtworkPubliclyVisible(artwork),
 );
+const groupsByArtwork = new Map(publicArtworks.map(artwork => [artwork.id, getPublicArtworkProductionGroups(productionGroups, artwork.id, publicArtworks)]));
 
 const visibleIllustrationCategories = illustrationCategories.filter((category) =>
   isArtworkCategoryVisible(category),
 );
-
-const initialFilter = visibleIllustrationCategories.includes("illustrations")
-  ? "illustrations"
-  : "all";
 
 const countArtworksForFilter = (filter) =>
   publicArtworks.reduce((count, artwork) => {
@@ -50,13 +46,14 @@ const countArtworksForFilter = (filter) =>
 
 const Illustration = () => {
   const { t, locale } = useLanguage();
-  const [filter, setFilter] = useState(initialFilter);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const hasFeaturedArtwork = publicArtworks.some((artwork) => artwork.featured);
+  const filter = resolveIllustrationFilter(searchParams.get("category"), visibleIllustrationCategories, hasFeaturedArtwork);
   const [sortOrder, setSortOrder] = useState("recent");
   const [visibleCount, setVisibleCount] = useState(ILLUSTRATION_PAGE_SIZE);
   const loadSentinelRef = useRef(null);
   const loadingNextBatchRef = useRef(false);
 
-  const hasFeaturedArtwork = publicArtworks.some((artwork) => artwork.featured);
   const filters = useMemo(
     () => [
       { value: "all", label: t.common.all },
@@ -95,10 +92,10 @@ const Illustration = () => {
       id: artwork.id,
       src: artwork.image,
       thumbSrc: artwork.thumbnail || artwork.image,
-      caption: formatPortfolioDate(artwork.date, locale) || "",
+      caption: createProductionTimeCaption(formatPortfolioDate(artwork.date, locale) || "", artwork.productionTime, groupsByArtwork.get(artwork.id), locale, t.productionTime),
       alt: artwork.alt || "",
     })),
-    [filteredArtworks, locale],
+    [filteredArtworks, locale, t.productionTime],
   );
 
   useEffect(() => {
@@ -119,7 +116,7 @@ const Illustration = () => {
   }, [filteredArtworks.length, remainingCount, visibleCount]);
 
   const changeFilter = (nextFilter) => {
-    setFilter(nextFilter);
+    setSearchParams((current) => { const next = new URLSearchParams(current); next.set("category", nextFilter); return next; }, { replace: true });
     setVisibleCount(ILLUSTRATION_PAGE_SIZE);
   };
 
@@ -171,7 +168,9 @@ const Illustration = () => {
                   lightboxId={artwork.id}
                   caption={formattedDate}
                   metadata={formattedDate}
+                  className="artwork-card--illustration"
                   variant="wall"
+                  showProductionTime
                 />
               );
             })}

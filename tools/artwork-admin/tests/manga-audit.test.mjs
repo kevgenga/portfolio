@@ -225,7 +225,7 @@ const adminSource = await readFile(new URL("../public/modules/mangas/manga-admin
 function uiContext() {
   const state = { dirty: false, language: "ja", currentId: "example", workingPages: ["a", "b"], savedPages: ["a", "b"] }, notices = [], requests = [], refreshes = [];
   const dialog = { inert: false };
-  const context = vm.createContext({ state, dialog, message: (...args) => notices.push(args), reloadEditor: async (...args) => refreshes.push(args), api: async (...args) => requests.push(args), confirm: () => true, reveal: (value) => requests.push(value), renderPages() {}, setDirty() {} });
+  const context = vm.createContext({ productionUI: { isDirty: () => false, isBusy: () => false, closePage() {} }, state, dialog, message: (...args) => notices.push(args), reloadEditor: async (...args) => refreshes.push(args), api: async (...args) => requests.push(args), confirm: () => true, reveal: (value) => requests.push(value), renderPages() {}, setDirty() {} });
   const helpers = adminSource.slice(adminSource.indexOf("function requireSavedEditor("), adminSource.indexOf("function switchEditorTab("));
   const actions = adminSource.slice(adminSource.indexOf("function movePage("), adminSource.indexOf("function replacePageImage("));
   vm.runInContext(`let editorMutationPending = false, pageReplacementPending = false, duplicateSubmitting = false;\n${helpers}\n${actions}`, context);

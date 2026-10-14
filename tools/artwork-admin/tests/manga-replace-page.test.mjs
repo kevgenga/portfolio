@@ -253,6 +253,7 @@ async function uiFixture() {
   const state = { dirty: false, currentId: "example", language: "ja", workingPages: ["pages/01.jpg", "pages/0000.jpg", "pages/03.jpg"] };
   const dialog = { inert: false }, requests = [], notices = [], confirmations = [], callbacks = [];
   const context = vm.createContext({
+    productionUI: { drawing: () => undefined },
     state, dialog, message: (text) => notices.push(text), chooseFile: (callback) => callbacks.push(callback), confirm: (text) => { confirmations.push(text); return true; },
     filePayload: async (file) => ({ fileName: file.name, dataBase64: "image" }),
     api: async (url, options) => { assert.equal(dialog.inert, true); requests.push({ url, body: JSON.parse(options.body) }); },
@@ -268,6 +269,17 @@ test("replacement UI identifies the source and keeps Japanese selection after a 
   assert.equal(f.requests[0].url, "/api/mangas/example/languages/ja/pages/1"); assert.equal(f.requests[0].body.source, "pages/0000.jpg");
   assert.equal(f.state.language, "ja"); assert.equal(f.dialog.inert, false);
   assert.ok(f.source.includes('data-action="replace" title="Remplacer cette page" aria-label="Remplacer cette page"'));
+});
+
+test("replacement UI requires a clear keep/new decision for a tracked drawing", async () => {
+  for (const decision of ["keep", "new", null]) {
+    const f = await uiFixture(); f.context.productionUI.drawing = () => ({ id: "drawing-tracked" });
+    f.context.prompt = () => decision;
+    f.context.replacePageImage(1); await f.callbacks[0]({ name: "corrected.jpg" });
+    if (decision === null) assert.equal(f.requests.length, 0);
+    else assert.equal(f.requests[0].body.productionIdentity, decision);
+    assert.equal(f.dialog.inert, false);
+  }
 });
 
 test("unsaved changes, changed context, cancellation and unsupported files trigger no replacement requests", async () => {

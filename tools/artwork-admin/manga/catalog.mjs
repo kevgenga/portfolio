@@ -1,4 +1,5 @@
 import vm from "node:vm";
+import { validateMangaProductionTime } from "./production-time.mjs";
 import {
   getMangaPresentationDirectory,
   getMangaPresentationSection,
@@ -90,6 +91,7 @@ export function validateMangaCatalog(mangas) {
       if (value && (typeof value !== "string" || !value.startsWith(ASSET_PREFIX))) throw new Error(`${field} invalide pour ${manga.title}.`);
       if (value && !pathBelongsToProject(value)) throw new Error(`${field} hors du dossier de section pour ${manga.title}.`);
     }
+    validateMangaProductionTime(manga);
   }
   return true;
 }

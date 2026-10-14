@@ -1,4 +1,19 @@
 export const fr = {
+  productionTime: {
+    compact: {
+      individual: { actual: "Temps de travail", estimated: "Temps estimé" },
+      manga: { actual: "Temps total", estimated: "Temps total estimé" },
+      page: { actual: "Temps de réalisation", estimated: "Temps estimé" },
+    },
+    units: { hour: "h", minute: "min" },
+    individual: { actual: "Temps de réalisation", estimated: "Temps estimé" },
+    manga: { actual: "Temps de réalisation du manga", estimated: "Temps estimé du manga" },
+    page: { actual: "Temps de réalisation de la planche", estimated: "Temps estimé de la planche" },
+    group: { actual: "Temps total de l’ensemble", estimated: "Temps total estimé de l’ensemble" },
+    measured: "Mesuré", estimated: "Estimé", approximate: "≈ ", separator: " : ",
+    pageNumber: (number) => `Planche ${number}`, memberCount: (count) => `${count} œuvre${count === 1 ? "" : "s"}`,
+    groupSummary: (count) => `Temps totaux des ensembles (${count})`,
+  },
   common: {
     all: "Tout", loading: "Chargement…", loadMore: "Afficher plus",
     noResults: "Aucune œuvre ne correspond à ces filtres.", sortLabel: "Trier par",
@@ -14,6 +29,10 @@ export const fr = {
     TOGGLE_ZOOM: "Activer ou désactiver le zoom", TOGGLE_THUMBS: "Afficher ou masquer les miniatures",
     TOGGLE_SLIDESHOW: "Lancer ou arrêter le diaporama", TOGGLE_FULLSCREEN: "Activer ou quitter le plein écran",
     DOWNLOAD: "Télécharger",
+    GOTO: "Afficher l’image %d",
+    TOGGLEZOOM: "Activer ou désactiver le zoom",
+    TOGGLE1TO1: "Activer ou désactiver le zoom",
+    ITERATEZOOM: "Activer ou désactiver le zoom",
   },
   navigation: {
     manga: "Manga", illustration: "Illustration", animation: "Animation",
@@ -23,7 +42,7 @@ export const fr = {
     selectLanguage: "Choisir la langue", english: "English", japanese: "日本語", french: "Français",
   },
   footer: {
-    role: "Mangaka, illustrateur et animateur 2D",
+    role: "Mangaka, artiste manga et assistant manga",
     copyright: (year) => `© ${year} KEVGENGA. Tous droits réservés.`,
     navigation: "Navigation de pied de page",
   },
@@ -69,6 +88,8 @@ export const fr = {
     next: "Page suivante", previousSpread: "Page ou double page précédente",
     nextSpread: "Page ou double page suivante", navigation: "Navigation du lecteur manga",
     mode: "Mode de lecture", vertical: "Vertical", horizontal: "Horizontal",
+    verticalReader: (title) => `${title} — lecteur vertical`,
+    horizontalReader: (title) => `${title} — lecteur horizontal`,
     fullscreen: "Plein écran", exitFullscreen: "Quitter le plein écran",
     enterFullscreen: "Passer en plein écran",
     hideInterface: "Masquer les commandes", showInterface: "Afficher les commandes",
@@ -114,14 +135,28 @@ export const fr = {
   },
   home: {
     kicker: "Portfolio manga / 2026", signature: "Donner vie aux histoires.",
-    artworkLabel: "Les œuvres d'abord", artworkNote: "Manga, personnages et action",
-    artworkTitle: "Trait. Mouvement. Personnage.",
+    artworkLabel: "Travaux sélectionnés", artworkNote: "Compétences pour la production manga",
+    artworkTitle: "Personnages. Décors. Action.",
+    viewManga: "Voir les mangas", viewWorks: "Voir les travaux",
+    heroSummary: "Mangaka autodidacte à Lyon : personnages, action et narration visuelle. Disponible pour la production et l’assistanat manga au Japon et à l’international.",
+    heroCategories: "Découvrir les travaux par catégorie",
+    openCategory: (category) => `Voir les travaux : ${category}`,
+    selectedMangaLabel: "Sélection manga", selectedMangaNote: "Récits originaux · Projets complets",
+    selectedMangaTitle: "Découvrez les récits.", allManga: "Tous les mangas",
+    workAlt: (category) => `Travail de ${category} par KEVGENGA`,
+    workDescriptions: {
+      sketches: "Études de dessin, personnages et poses expressives.",
+      paintings: "Couleur, lumière et personnages peints.",
+      "character-design": "Personnages, expressions et développement visuel.",
+      backgrounds: "Environnements, perspective et dessin à l’encre.",
+      illustrations: "Illustration manga, action et composition.",
+    },
     recognitionLabel: "Prix et sélections",
     recognitionNote: "Concours internationaux de manga et d'illustration",
     experienceLabel: "Expérience", experienceNote: "Pratique et compétences",
     toolsLabel: "Outils", toolsNote: "Numérique et traditionnel",
-    sketchbookLabel: "Carnet de croquis", sketchbookTitle: "Travaux récents.",
-    sketchbookDescription: "Croquis, études et planches de manga récemment publiés sur Instagram.",
+    sketchbookLabel: "Connexion avec le monde", sketchbookTitle: "Réseau social.",
+    sketchbookDescription: "Retrouvez mes créations, mes projets manga et mes actualités sur Instagram.",
     sketchbookLoading: "Chargement des travaux récents",
     officialResults: (title) => `${title} — résultats officiels (s'ouvre dans un nouvel onglet)`,
     heroAlt: "Illustration manga en couleur par KEVGENGA",
@@ -138,10 +173,10 @@ export const fr = {
 
 export const frContent = {
   about: {
-    roles: ["Mangaka", "Illustrateur", "Animateur 2D"],
+    roles: ["Mangaka", "Artiste manga", "Assistant manga"],
     experienceLabel: "Plus de 15 ans de pratique du dessin",
-    summary: "Mangaka autodidacte basé à Lyon, je crée des mangas, des illustrations et des animations 2D. Je dessine depuis plus de 15 ans et m'attache à donner vie à des personnages expressifs, à des scènes d'action dynamiques et à des récits portés par l'image.",
-    availability: { label: "Disponible pour des missions", details: ["Freelance", "À distance", "International"] },
+    summary: "Mangaka autodidacte basé à Lyon. Personnages expressifs, action dynamique et narration visuelle : je recherche des missions de production et d’assistanat manga au Japon et à l’international.",
+    availability: { label: "Disponible pour des missions manga", details: ["Freelance", "À distance", "International"] },
   },
   recognition: {
     "mangadraft-first-prize-2022": {

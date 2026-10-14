@@ -1,11 +1,16 @@
+import { useLayoutEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import ArtworkHero from "../components/about/ArtworkHero";
-import ArtworkStrip from "../components/about/ArtworkStrip";
-import CapabilityGroup from "../components/about/CapabilityGroup";
+import { Link } from "react-router-dom";
+import HeroArtworkCards from "../components/about/HeroArtworkCards";
 import InstagramSketchbook from "../components/about/InstagramSketchbook";
 import ProfessionalStatus from "../components/about/ProfessionalStatus";
 import RecognitionSeal from "../components/about/RecognitionSeal";
 import SectionLabel from "../components/SectionLabel";
+import MangaCard from "../components/manga/MangaCard";
+import { artworks } from "../content/artworks";
+import { isArtworkCategoryVisible, isArtworkPubliclyVisible } from "../content/artworkPresentation";
+import { mangas } from "../content/mangas";
+import { getMangaPresentationSection, MANGA_PRESENTATION_SECTIONS } from "../content/mangaPresentation";
 import { profile } from "../content/profile";
 import { sitePresentation } from "../content/sitePresentation";
 import { useLanguage } from "../i18n/languageContext";
@@ -48,18 +53,35 @@ const RecognitionEvent = ({
 
 const HomePage = () => {
   const { t, content, locale } = useLanguage();
+  const heroRef = useRef(null);
+  useLayoutEffect(() => {
+    const hero = heroRef.current;
+    const header = document.querySelector(".brand-link")?.closest("nav");
+    if (!hero || !header) return undefined;
+    // Fixed navigation overlays the Hero. Measure its real border-box;
+    // do not duplicate Navbar dimensions in this page.
+    const measureHeader = () => hero.style.setProperty("--home-header-height", `${header.getBoundingClientRect().height}px`);
+    measureHeader();
+    if (typeof ResizeObserver !== "undefined") {
+      const observer = new ResizeObserver(measureHeader);
+      observer.observe(header);
+      return () => observer.disconnect();
+    }
+    window.addEventListener("resize", measureHeader);
+    return () => window.removeEventListener("resize", measureHeader);
+  }, []);
   const about = content?.about || profile.about;
-  const experience = content?.experience || profile.experience;
-  const localizeGroups = (groups) => groups.map((group) => ({
-    ...group,
-    label: content?.capabilityLabels[group.label] || group.label,
-    items: group.items.map((item) => content?.capabilityItems[item] || item),
-  }));
+  const selectedMangas = sitePresentation.selectedMangaSlugs.map((slug) => mangas.find((manga) => manga.slug === slug))
+    .filter((manga) => manga && (manga.visibility || "public") === "public" && getMangaPresentationSection(manga) === MANGA_PRESENTATION_SECTIONS.COMPLETED);
+  const heroCards = [...sitePresentation.heroCards].sort((a, b) => a.order - b.order)
+    .map((selection) => ({ ...selection, artwork: artworks.find((artwork) => artwork.id === selection.artworkId) }))
+    .filter(({ category, artwork }) => artwork && artwork.category.includes(category) && isArtworkCategoryVisible(category) && isArtworkPubliclyVisible(artwork));
   return (
   <main className="public-page">
     <motion.section
       id="about"
-      className="about-hero scroll-mt-[72px]"
+      ref={heroRef}
+      className="about-hero manga-home-hero scroll-mt-[72px]"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.45 }}
@@ -82,27 +104,31 @@ const HomePage = () => {
           <span>{about.experienceLabel}</span>
           <span>{t.home.location}</span>
         </p>
-        <p className="about-hero__summary">{about.summary}</p>
+        <p className="about-hero__summary">{t.home.heroSummary}</p>
         <ProfessionalStatus {...about.availability} />
+        <div className="manga-home-hero__actions">
+          <Link className="home-cta home-cta--primary" to="/mangaka">{t.home.viewManga} <span aria-hidden="true">↓</span></Link>
+          <Link className="home-cta" to="/illustration">{t.home.viewWorks} <span aria-hidden="true">↓</span></Link>
+        </div>
       </motion.div>
 
-      <ArtworkHero artwork={sitePresentation.hero} alt={t.home.heroAlt} caption={t.home.heroCaption} />
-      <p className="about-signature">{t.home.signature}</p>
+      <HeroArtworkCards cards={heroCards} />
     </motion.section>
 
     <motion.section
-      className="mx-auto max-w-[100rem] px-5 py-16 sm:px-8 sm:py-20 lg:px-10 lg:py-24"
-      aria-labelledby="artwork-first-title"
+      id="selected-manga"
+      className="home-selection mx-auto max-w-[100rem] px-5 py-12 sm:px-8 sm:py-16 lg:px-10"
+      aria-labelledby="selected-manga-title"
       {...reveal}
     >
-      <SectionLabel index="01" label={t.home.artworkLabel} note={t.home.artworkNote} />
-      <h2 id="artwork-first-title" className="section-title my-10 max-w-5xl sm:my-14">
-        {t.home.artworkTitle}
-      </h2>
-      <ArtworkStrip artworks={sitePresentation.aboutShowcase.map((artwork) => ({
-        ...artwork,
-        ...t.home.showcase?.[artwork.id],
-      }))} />
+      <SectionLabel index="01" label={t.home.selectedMangaLabel} note={t.home.selectedMangaNote} />
+      <div className="home-selection__heading">
+        <h2 id="selected-manga-title" className="section-title">{t.home.selectedMangaTitle}</h2>
+        <Link className="home-text-link" to="/mangaka">{t.home.allManga} <span aria-hidden="true">↗</span></Link>
+      </div>
+      <div className="home-manga-grid">
+        {selectedMangas.map((manga, index) => <MangaCard key={manga.id} manga={manga} index={index + 1} categoryLabel={t.manga.sections.completed.title} t={t} content={content} />)}
+      </div>
     </motion.section>
 
     <motion.section
@@ -147,52 +173,13 @@ const HomePage = () => {
     </motion.section>
 
     <motion.section
-      className="capability-section-dark bg-ink text-paper"
-      aria-labelledby="experience-title"
-      {...reveal}
-    >
-      <div className="mx-auto max-w-[100rem] px-5 py-16 sm:px-8 sm:py-20 lg:px-10 lg:py-24">
-        <SectionLabel index="03" label={t.home.experienceLabel} note={t.home.experienceNote} inverse />
-        <div className="mt-10 grid gap-12 lg:grid-cols-[minmax(15rem,0.32fr)_minmax(0,0.68fr)] lg:gap-16">
-          <div>
-            <h2 id="experience-title" className="text-4xl uppercase leading-[0.9] text-paper sm:text-6xl">
-              {experience.role}
-            </h2>
-            <p className="mt-4 text-xs font-black uppercase tracking-[0.18em] text-primary">
-              {experience.period}
-            </p>
-          </div>
-          <div className="grid gap-8 sm:grid-cols-2 xl:grid-cols-3">
-            {localizeGroups(profile.capabilities).map((group, index) => (
-              <CapabilityGroup key={group.label} {...group} index={index + 1} />
-            ))}
-          </div>
-        </div>
-      </div>
-    </motion.section>
-
-    <motion.section
-      className="mx-auto max-w-[100rem] px-5 py-16 sm:px-8 sm:py-20 lg:px-10 lg:py-24"
-      aria-labelledby="tools-title"
-      {...reveal}
-    >
-      <SectionLabel index="04" label={t.home.toolsLabel} note={t.home.toolsNote} />
-      <h2 id="tools-title" className="sr-only">{t.home.toolsLabel}</h2>
-      <div className="mt-10 grid gap-8 md:grid-cols-2">
-        {localizeGroups(profile.tools).map((group, index) => (
-          <CapabilityGroup key={group.label} {...group} index={index + 1} />
-        ))}
-      </div>
-    </motion.section>
-
-    <motion.section
       className="border-y-[3px] border-ink bg-surface"
       aria-labelledby="sketchbook-title"
       {...reveal}
     >
       <div className="mx-auto max-w-[100rem] px-5 py-16 sm:px-8 sm:py-20 lg:px-10 lg:py-24">
-        <SectionLabel index="05" label={t.home.sketchbookLabel} note="@kevgenga" />
-        <h2 id="sketchbook-title" className="section-title mt-10 sm:mt-14">{t.home.sketchbookTitle}</h2>
+        <SectionLabel index="03" label={t.home.sketchbookLabel} note="@kevgenga" />
+        <h2 id="sketchbook-title" className="section-title">{t.home.sketchbookTitle}</h2>
         <p className="mt-4 max-w-2xl text-sm font-medium leading-relaxed text-muted sm:text-base">
           {t.home.sketchbookDescription}
         </p>

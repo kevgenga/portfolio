@@ -666,7 +666,7 @@ try {
   assert.match(publicCss, /\.manga-card__body[\s\S]*?width:\s*100%/);
   assert.match(publicCss, /\.manga-card__body[\s\S]*?margin:\s*0;/);
   assert.doesNotMatch(publicCss, /margin:\s*-1\.1rem/);
-  assert.match(await readFile(path.join(PROJECT_DIR, "src/pages/Mangaka.jsx"), "utf8"), /getMangaCardImage\(manga\)/);
+  assert.match(await readFile(path.join(PROJECT_DIR, "src/components/manga/MangaCard.jsx"), "utf8"), /getMangaCardImage\(manga\)/);
   assert.match(await readFile(path.join(PROJECT_DIR, "src/pages/Mangaka.jsx"), "utf8"), /Completed|sections\.completed/);
   assert.match(await readFile(path.join(PROJECT_DIR, "src/pages/Mangaka.jsx"), "utf8"), /mangaPresentationSettings\.showStoryboardSection/);
   assert.match(await readFile(path.join(PROJECT_DIR, "src/pages/MangaReaderPage.jsx"), "utf8"), /isMangaPresentationSectionVisible/);

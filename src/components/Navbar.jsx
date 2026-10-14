@@ -3,6 +3,7 @@ import { Link, NavLink, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { FaBars, FaGlobe, FaMoon, FaSun, FaTimes } from "react-icons/fa";
 import { profile } from "../content/profile";
+import { sitePresentation } from "../content/sitePresentation";
 import { useTheme } from "../context/ThemeContext";
 import { useLanguage } from "../i18n/languageContext";
 import { locales } from "../i18n/locale";
@@ -25,7 +26,7 @@ const Navbar = () => {
     { to: "/", label: t.navigation.about, end: true },
     { to: "/mangaka", label: t.navigation.manga },
     { to: "/illustration", label: t.navigation.illustration },
-    { to: "/animation", label: t.navigation.animation },
+    ...(sitePresentation.showAnimationSection ? [{ to: "/animation", label: t.navigation.animation }] : []),
     { to: "/contact", label: t.navigation.contact },
   ];
 

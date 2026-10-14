@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useLayoutEffect } from "react";
 import {
   BrowserRouter as Router,
   matchPath,
+  Navigate,
   Route,
   Routes,
   useLocation,
@@ -11,6 +12,7 @@ import Analytics from "./components/Analytics";
 import Navbar from "./components/Navbar";
 import Footer from "./Footer";
 import { useLanguage } from "./i18n/languageContext";
+import { sitePresentation } from "./content/sitePresentation";
 
 const HomePage = lazy(() => import("./pages/HomePage"));
 const Animation = lazy(() => import("./pages/Animation"));
@@ -21,7 +23,7 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const MangaReaderPage = lazy(() => import("./pages/MangaReaderPage"));
 
 const pageTitles = {
-  "/": "KEVGENGA — Manga Artist, Illustrator & 2D Animator",
+  "/": "KEVGENGA — Mangaka, Manga Artist & Manga Assistant",
   "/mangaka": "Manga — KEVGENGA Portfolio",
   "/illustration": "Illustration — KEVGENGA Portfolio",
   "/animation": "2D Animation — KEVGENGA Portfolio",
@@ -74,8 +76,9 @@ const PageFallback = ({ immersive = false }) => {
 };
 
 const AppRoutes = () => {
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const isMangaReader = Boolean(matchPath({ path: "/mangas/:id", end: true }, pathname));
+  const isLocalAdminPreview = import.meta.env.DEV && new URLSearchParams(search).get("adminPreview") === "1";
 
   return (
     <>
@@ -88,7 +91,7 @@ const AppRoutes = () => {
           <Route path="/" element={<HomePage />} />
           <Route path="/mangaka" element={<MangakaPage />} />
           <Route path="/illustration" element={<Illustration />} />
-          <Route path="/animation" element={<Animation />} />
+          <Route path="/animation" element={sitePresentation.showAnimationSection || isLocalAdminPreview ? <Animation /> : <Navigate to="/" replace />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/mangas/:id" element={<MangaReaderPage />} />
           <Route path="*" element={<NotFound />} />

@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { useReducedMotion } from "framer-motion";
 import { useLanguage } from "../../i18n/languageContext";
 import { getLanguageDirection, getLanguageLabel } from "../../utils/languageLabels.js";
+import ReaderPageProductionTimes from "./ReaderPageProductionTimes";
 import {
   canStartReaderPointerGesture,
   finishReaderPointerGesture,
@@ -424,6 +425,9 @@ const ReaderTutorial = ({
 };
 
 const ReaderPagination = ({
+  manga,
+  pages,
+  pageNumbers,
   currentPage,
   pageCount,
   isVisible,
@@ -442,10 +446,10 @@ const ReaderPagination = ({
   >
     <p
       className="flex min-h-11 items-center justify-center px-4 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 text-xs font-semibold tracking-[0.14em] text-[#f4f1e8] sm:min-h-12 sm:py-2"
-      aria-label={t.mangaReader.progress(currentPage, pageCount)}
       dir="ltr"
     >
-      {currentPage} / {pageCount}
+      <span aria-label={t.mangaReader.progress(currentPage, pageCount)}>{currentPage} / {pageCount}</span>
+      <ReaderPageProductionTimes manga={manga} pages={pages} pageNumbers={pageNumbers} />
     </p>
   </div>
 );
@@ -1080,7 +1084,7 @@ const MangaReader = ({ manga }) => {
       {readingMode === "vertical" ? (
         <section
           className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-3 bg-[#0f0f0f] px-0 py-0 sm:gap-4 sm:px-4"
-          aria-label={`${title} vertical reader`}
+          aria-label={t.mangaReader.verticalReader(title)}
           data-vertical-reader
         >
           <div
@@ -1139,7 +1143,7 @@ const MangaReader = ({ manga }) => {
       ) : (
         <section
           className="mx-auto flex h-[100dvh] min-h-0 w-full max-w-none flex-1 flex-col overflow-hidden p-0"
-          aria-label={`${title} horizontal reader`}
+          aria-label={t.mangaReader.horizontalReader(title)}
           data-horizontal-reader
         >
           <div
@@ -1225,6 +1229,9 @@ const MangaReader = ({ manga }) => {
       )}
 
       <ReaderPagination
+        manga={manga}
+        pages={pages}
+        pageNumbers={visiblePageNumbers}
         currentPage={visiblePageNumbers[0]}
         pageCount={pageCount}
         isVisible={isInterfaceVisible}

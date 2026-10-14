@@ -53,7 +53,7 @@ function mediaKind(name) {
   return [".jpg", ".jpeg", ".png", ".webp", ".avif"].includes(extension) ? "image" : "unknown";
 }
 function assetUrl(relative) { return relative ? `/api/animation-asset/${encodeURIComponent(relative)}` : ""; }
-function portfolioUrl() { return "http://127.0.0.1:5173/portfolio/animation"; }
+function portfolioUrl() { return "http://127.0.0.1:5173/portfolio/animation?adminPreview=1"; }
 function currentAnimation() { return state.animations.find((entry) => entry.id === state.currentId); }
 function displayTitle(entry) { return entry.title || entry.alt || entry.id; }
 function setDirty(value = true) { state.dirty = value; $("#animation-dialog-title").textContent = `${value ? "• " : ""}Modifier l’animation`; }
@@ -386,4 +386,25 @@ mediaAuditController = mountMediaAudit({
     message("Média existant préparé sans copie. Complétez les informations avant enregistrement.", "warning");
   },
 });
-load().catch((error) => message(error.message, "error"));
+let presentationSettings;
+function renderPresentationSettings() {
+  const visible = presentationSettings.showAnimationSection;
+  $("#animation-visibility-state").textContent = visible ? "Visible sur le portfolio" : "Masquée sur le portfolio";
+  const button = $("#toggle-animation-visibility");
+  button.textContent = visible ? "Masquer Animation" : "Afficher Animation";
+  button.setAttribute("aria-pressed", String(visible)); button.disabled = false;
+}
+async function loadPresentationSettings() {
+  presentationSettings = await api("/api/animation-presentation-settings"); renderPresentationSettings();
+}
+$("#toggle-animation-visibility").onclick = async () => {
+  if (!presentationSettings || !confirm(presentationSettings.showAnimationSection
+    ? "Masquer Animation dans le portfolio public ? Toutes les données et tous les médias seront conservés."
+    : "Afficher de nouveau Animation dans le portfolio public ?")) return;
+  const button = $("#toggle-animation-visibility"); button.disabled = true;
+  try {
+    presentationSettings = await api("/api/animation-presentation-settings", { method: "PUT", body: JSON.stringify({ showAnimationSection: !presentationSettings.showAnimationSection }) });
+    renderPresentationSettings(); message(presentationSettings.message);
+  } catch (error) { renderPresentationSettings(); message(error.message, "error"); }
+};
+Promise.all([load(), loadPresentationSettings()]).catch((error) => message(error.message, "error"));

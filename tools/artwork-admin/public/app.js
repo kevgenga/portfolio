@@ -8,6 +8,8 @@ import { CATEGORY_LABELS as labels, createCategoryPicker, normalizeCategorySelec
 import { createReplacementController } from "./replacement-ui.js";
 import { CATEGORY_STORAGE_KEY, resolveCategoryPreference } from "./filter-preference.js";
 import { mountMediaAudit } from "./media-audit-ui.js";
+import { createProductionTimeFields } from "./production-time-fields.js";
+import { mountProductionBatch } from "./production-batch-ui.js";
 import {
   matchesArtworkVisibility,
   summarizeArtworkVisibility,
@@ -17,6 +19,8 @@ const SORT_STORAGE_KEY = "artwork-admin-sort";
 const invalidDateWarnings = new Set();
 const state = {
   artworks: [],
+  artworkProductionGroups: [],
+  catalogRevision: null,
   categories: [],
   presentationSettings: { hiddenCategories: [] },
   visibilitySummary: { total: 0, displayed: 0, individuallyHidden: 0, hiddenByCategory: 0 },
@@ -33,6 +37,41 @@ const state = {
 let batchCategoryPicker;
 let editCategoryPicker;
 let mediaAuditController;
+let editProductionTime;
+const productionTimeEditors = new Set();
+
+function mountProductionTime(artwork) {
+  const editor = createProductionTimeFields({
+    artwork,
+    revision: state.catalogRevision,
+    save: async (payload) => {
+      const response = await api(`/api/artworks/${encodeURIComponent(artwork.id)}/production-time`, {
+        method: "PUT", body: JSON.stringify(payload),
+      });
+      state.catalogRevision = response.catalogRevision;
+      state.artworks = state.artworks.map(item => item.id === artwork.id ? { ...item, ...response.artwork } : item);
+      // Refresh idle editors/revisions after our own mutation. Dirty drafts keep
+      // their revision so a competing edit cannot silently overwrite them.
+      for (const other of productionTimeEditors) {
+        if (other !== editor && !other.isDirty() && !other.isBusy()) {
+          const entry = state.artworks.find(item => item.id === other.artworkId);
+          if (entry) other.set(entry, response.catalogRevision);
+        }
+      }
+      showMessage(response.message);
+      return response;
+    },
+  });
+  editor.artworkId = artwork.id;
+  productionTimeEditors.add(editor);
+  return editor;
+}
+
+function requireSavedProductionTime(editor) {
+  if (!editor?.isDirty() && !editor?.isBusy()) return true;
+  showMessage("Enregistrez le temps de réalisation avec son bouton avant de sauvegarder les autres modifications.", true);
+  return false;
+}
 
 const $ = (selector) => document.querySelector(selector);
 const gallery = $("#gallery");
@@ -48,6 +87,19 @@ const toast = $("#toast");
 const importQueue = $("#import-queue");
 const importWorkspace = $("#import-workspace");
 const importReport = $("#import-report");
+const artworkBatch = mountProductionBatch({
+  container: $("#artwork-production-selection"), memberField: "artworkIds",
+  getItems: () => state.artworks.map(artwork => ({ key: artwork.id, logicalKey: artwork.id, label: artwork.image.split("/").at(-1), time: artwork.productionTime })),
+  getVisible: () => filteredArtworks().map(artwork => artwork.id), getGroups: () => state.artworkProductionGroups,
+  getRevision: () => state.catalogRevision, notice: showMessage,
+  canOperate: () => !state.busy && !editDialog.open && !state.dirtyCards.size && ![...productionTimeEditors].some(editor => editor.element.isConnected && (editor.isDirty() || editor.isBusy())),
+  request: (step, payload) => api(`/api/artworks/production-batch/${step}`, { method: "POST", body: JSON.stringify(payload) }),
+  applyResult: async result => {
+    state.artworks = result.artworks.map(entry => ({ ...state.artworks.find(old => old.id === entry.id), ...entry }));
+    state.artworkProductionGroups = result.artworkProductionGroups; state.catalogRevision = result.catalogRevision;
+    renderGallery();
+  },
+});
 const replacementController = createReplacementController({
   api,
   formatBytes,
@@ -141,9 +193,11 @@ function filteredArtworks() {
 function renderGallery() {
   const artworks = filteredArtworks();
   gallery.replaceChildren();
+  for (const editor of productionTimeEditors) if (!editor.element.isConnected) productionTimeEditors.delete(editor);
   const fragment = document.createDocumentFragment();
   for (const artwork of artworks) fragment.append(createArtworkCard(artwork));
   gallery.append(fragment);
+  artworkBatch.sync();
   resultCount.textContent = `${artworks.length} œuvre${artworks.length > 1 ? "s" : ""} affichée${artworks.length > 1 ? "s" : ""} sur ${state.artworks.length}`;
   renderVisibilitySummary(artworks);
   emptyState.hidden = artworks.length !== 0;
@@ -215,6 +269,7 @@ function createArtworkCard(artwork) {
   image.loading = "lazy";
   image.decoding = "async";
   const info = element("div", "art-info");
+  info.append(artworkBatch.checkbox({ key: artwork.id, logicalKey: artwork.id, label: artwork.image.split("/").at(-1), time: artwork.productionTime }));
   const visibilityBadges = element("div", "art-visibility-badges");
   if (individuallyHidden) visibilityBadges.append(element("span", "visibility-badge is-hidden", "Masquée"));
   if (artwork.visibility.hiddenByCategory) visibilityBadges.append(element("span", "visibility-badge is-category-hidden", "Catégorie masquée"));
@@ -277,6 +332,7 @@ function createArtworkCard(artwork) {
 
 function createQuickEditor(artwork, card) {
   const form = element("form", "quick-editor");
+  const productionTime = mountProductionTime(artwork);
   const dateLabel = element("label", "field");
   dateLabel.append(element("span", "", "Date"));
   const dateInput = document.createElement("input");
@@ -308,22 +364,25 @@ function createQuickEditor(artwork, card) {
   const cancel = element("button", "button button-secondary", "Annuler");
   cancel.type = "button";
   cancel.addEventListener("click", () => {
+    if (productionTime.isBusy()) return;
     state.dirtyCards.delete(artwork.id);
     renderGallery();
   });
   actions.append(save, cancel);
-  form.append(dateLabel, altLabel, categoryLabel, dirty, actions);
+  form.append(productionTime.element, dateLabel, altLabel, categoryLabel, dirty, actions);
 
   const markDirty = () => {
     state.dirtyCards.add(artwork.id);
     dirty.hidden = false;
     card.classList.add("is-dirty");
   };
-  form.addEventListener("input", markDirty);
-  form.addEventListener("change", markDirty);
+  const markMetadataDirty = (event) => { if (!event.target.closest(".production-time-fields")) markDirty(); };
+  form.addEventListener("input", markMetadataDirty);
+  form.addEventListener("change", markMetadataDirty);
   form.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       event.preventDefault();
+      if (productionTime.isBusy()) return;
       state.dirtyCards.delete(artwork.id);
       renderGallery();
     } else if (event.key === "Enter" && (event.ctrlKey || event.target.tagName !== "TEXTAREA")) {
@@ -333,6 +392,7 @@ function createQuickEditor(artwork, card) {
   });
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (!requireSavedProductionTime(productionTime)) return;
     await saveExistingArtwork(artwork, {
       fileName: artwork.image.split("/").at(-1),
       categories: categoryPicker.getValue(),
@@ -347,6 +407,7 @@ async function saveExistingArtwork(artwork, payload, form) {
   for (const control of form.elements) control.disabled = true;
   try {
     const response = await api(`/api/artworks/${encodeURIComponent(artwork.id)}`, { method: "PUT", body: JSON.stringify(payload) });
+    artworkBatch.rekey(artwork.id, response.artwork.id);
     state.dirtyCards.delete(artwork.id);
     await loadArtworks();
     showMessage(response.message);
@@ -372,6 +433,8 @@ function populateCategoryControls() {
 async function loadArtworks({ refreshAudit = true } = {}) {
   const data = await api("/api/artworks");
   state.artworks = data.artworks;
+  state.artworkProductionGroups = data.artworkProductionGroups || [];
+  state.catalogRevision = data.catalogRevision;
   state.presentationSettings = data.presentationSettings;
   state.visibilitySummary = data.visibilitySummary;
   state.limits = data.limits || state.limits;
@@ -408,6 +471,9 @@ async function openEdit(id) {
     $("#edit-year").textContent = artwork.year;
     $("#edit-preview").src = imageUrl(artwork.image);
     $("#edit-preview").alt = details.artwork.alt || "Aperçu de l’œuvre";
+    if (editProductionTime) productionTimeEditors.delete(editProductionTime);
+    editProductionTime = mountProductionTime(artwork);
+    $("#edit-production-time").replaceChildren(editProductionTime.element);
     editDialog.showModal();
   } catch (error) {
     showMessage(error.message, true);
@@ -846,6 +912,7 @@ async function saveBatch() {
 
 editForm.addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (!requireSavedProductionTime(editProductionTime)) return;
   const artwork = state.artworks.find((item) => item.id === state.editingId);
   if (!artwork) return;
   const form = new FormData(editForm);
@@ -874,6 +941,7 @@ editForm.addEventListener("submit", async (event) => {
       });
       showMessage(response.message);
       await replacementController.discard();
+      artworkBatch.rekey(artwork.id, response.artwork.id);
     }
     state.dirtyCards.delete(artwork.id);
     editDialog.close();
@@ -886,9 +954,12 @@ editForm.addEventListener("submit", async (event) => {
 });
 
 async function requestCloseEdit() {
+  if (editProductionTime?.isBusy()) return;
+  if (editProductionTime?.isDirty() && !window.confirm("Abandonner le temps de réalisation non enregistré ?")) return;
   if (replacementController.hasPending() && !window.confirm("Abandonner le remplacement d’image non enregistré ?")) return;
   await replacementController.discard();
   editDialog.close();
+  if (editProductionTime) productionTimeEditors.delete(editProductionTime);
 }
 
 $("#reveal-file-button").addEventListener("click", async (event) => {
@@ -989,7 +1060,8 @@ $("#preview-button").addEventListener("click", async () => {
 });
 
 window.addEventListener("beforeunload", (event) => {
-  if (!state.queue.length && !state.dirtyCards.size && !state.replacementPending) return;
+  const timePending = [...productionTimeEditors].some(editor => editor.element.isConnected && (editor.isDirty() || editor.isBusy()));
+  if (!state.queue.length && !state.dirtyCards.size && !state.replacementPending && !timePending) return;
   event.preventDefault();
   event.returnValue = "";
 });

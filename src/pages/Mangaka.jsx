@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Link } from "react-router-dom";
+import MangaCard from "../components/manga/MangaCard";
 import PageHero from "../components/PageHero";
 import { mangas } from "../content/mangas";
 import {
@@ -8,63 +8,11 @@ import {
   MANGA_PRESENTATION_SECTIONS,
 } from "../content/mangaPresentation";
 import { useLanguage } from "../i18n/languageContext";
-import { getMangaCardImage } from "../utils/mangaCardMedia";
 
 const listVariants = {
   hidden: { opacity: 0 },
   visible: { opacity: 1, transition: { staggerChildren: 0.06 } },
 };
-
-const cardVariants = {
-  hidden: { opacity: 0, y: 12 },
-  visible: { opacity: 1, y: 0 },
-};
-
-const MangaCard = ({ manga, index, categoryLabel, t, content }) => (
-  <motion.article className="manga-card" variants={cardVariants}>
-    <Link to={manga.route} className="manga-card__link">
-      <div className="manga-card__media">
-        <img
-          src={getMangaCardImage(manga)}
-          alt={t.manga.coverAlt(manga.title)}
-          loading="lazy"
-          decoding="async"
-        />
-        <span className="manga-card__index" aria-hidden="true">
-          {String(index).padStart(2, "0")}
-        </span>
-      </div>
-      <div className="manga-card__body">
-        <p className="manga-card__meta">
-          <span>{categoryLabel}</span>
-          {manga.status && <span>{t.manga.status[manga.status] || manga.status}</span>}
-          {manga.genre && <span>{manga.genre}</span>}
-        </p>
-        <div className="manga-card__heading">
-          <h3 className="manga-card__title">
-            {manga.title}
-            {manga.edition && (
-              <span className="manga-card__edition">
-                {manga.edition}
-              </span>
-            )}
-          </h3>
-          <span className="manga-card__pages">
-            {t.manga.pageCount(manga.pageCount)}
-          </span>
-        </div>
-        <p className="manga-card__description line-clamp-4">
-          {content?.mangaSummaries[manga.slug]
-            || (content?.storyboardSummary && /^Sketch storyboard$/i.test(manga.summary)
-              ? content.storyboardSummary : manga.summary)}
-        </p>
-        <span className="manga-card__cta">
-          {t.manga.read} <span aria-hidden="true">→</span>
-        </span>
-      </div>
-    </Link>
-  </motion.article>
-);
 
 const MangaSection = ({ mangas: sectionMangas, text, index, t, content }) => (
   <section aria-labelledby={`manga-section-${index}`}>

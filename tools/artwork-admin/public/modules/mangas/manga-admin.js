@@ -1,6 +1,8 @@
 import { analyzeMangaCardMedia, MANGA_CARD_MEDIA } from "./media-policy.js";
 import { auditItemAsFile, mountMediaAudit } from "../../media-audit-ui.js";
 import { getLanguageDetails, getLanguageDirection, getLanguageLabel, normalizeSupportedLanguageCode, supportedMangaLanguages } from "/shared/language-labels.js";
+import { createMangaProductionUI } from "./production-time-ui.js";
+import { mountProductionBatch } from "../../production-batch-ui.js";
 
 const state = { mangas: [], report: null, presentationSettings: null, currentId: null, language: null, workingPages: [], savedPages: [], dirty: false, toastTimer: null, createMediaReview: null };
 const $ = (selector) => document.querySelector(selector);
@@ -18,8 +20,44 @@ const sectionLabels = {
 };
 const cardMediaRatio = `${MANGA_CARD_MEDIA.ratioWidth}:${MANGA_CARD_MEDIA.ratioHeight}`;
 const mediaDimensions = (width, height) => `${width} × ${height} px`;
+const productionUI = createMangaProductionUI({
+  getManga: currentManga, getRevision: () => state.report.catalogRevision, api, notice: message, dialog,
+  canSave: () => !editorMutationPending && !pageReplacementPending && !duplicateSubmitting,
+  onSaved: response => {
+    if (response.result.productionTime) currentManga().productionTime = response.result.productionTime;
+    else delete currentManga().productionTime;
+    state.report.catalogRevision = response.catalogRevision;
+    renderPages();
+  },
+});
+const mangaBatch = mountProductionBatch({
+  container: $("#manga-production-selection"), memberField: "pageIds", scope: () => String(state.currentId),
+  getItems: () => mangaBatchItems(), getVisible: () => state.workingPages,
+  getGroups: () => currentManga()?.productionTime?.groups || [], getRevision: () => state.report.catalogRevision, notice: message,
+  canOperate: () => !state.dirty && !productionUI.isDirty() && !productionUI.isBusy() && !editorMutationPending && !pageReplacementPending && !duplicateSubmitting,
+  request: (step, payload) => api(`/api/mangas/${encodeURIComponent(state.currentId)}/production-batch/${step}`, { method: "POST", body: JSON.stringify(payload) }),
+  applyResult: async result => {
+    if (result.result.productionTime) currentManga().productionTime = result.result.productionTime; else delete currentManga().productionTime;
+    state.report.catalogRevision = result.catalogRevision; productionUI.reset(); renderPages();
+  },
+});
+function mangaBatchItems() {
+  const manga = currentManga(); if (!manga) return [];
+  const items = Object.entries(manga.languages).flatMap(([code, language]) => language.pages.map((path, index) => {
+    const page = productionUI.drawing(path);
+    return { key: path, logicalKey: page?.id || `pending:${path}`, label: `${getLanguageLabel(code, language.label)} — Page ${index + 1} — ${path.split("/").at(-1)}`, time: page?.time,
+      descriptor: { path, ...(page ? { pageId: page.id } : {}) } };
+  }));
+  for (const page of manga.productionTime?.pages || []) if (!manga.productionTime.bindings?.some(binding => binding.pageId === page.id)) {
+    items.push({ key: page.id, logicalKey: page.id, label: `${page.id} — dessin historique sans page`, time: page.time, descriptor: { pageId: page.id }, archived: true });
+  }
+  return items;
+}
 
 async function api(url, options = {}) {
+  if (url.startsWith("/api/mangas") && options.method && options.method !== "GET" && state.report?.catalogRevision) {
+    options = { ...options, body: JSON.stringify({ catalogRevision: state.report.catalogRevision, ...JSON.parse(options.body || "{}") }) };
+  }
   const response = await fetch(url, { ...options, headers: options.body ? { "Content-Type": "application/json" } : undefined });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error || `Erreur HTTP ${response.status}`);
@@ -66,6 +104,7 @@ function openLanguagePicker() {
 function setDirty(value = true) { state.dirty = value; $("#manga-dialog-title").textContent = `${value ? "• " : ""}Modifier le manga`; }
 function requireSavedEditor() {
   if (editorMutationPending || pageReplacementPending || duplicateSubmitting) return false;
+  if (productionUI.isDirty() || productionUI.isBusy()) { message("Enregistrez ou annulez le temps de réalisation en cours avant cette action.", "warning"); return false; }
   if (!state.dirty) return true;
   message("Enregistrez ou annulez les modifications en attente avant cette action.", "warning");
   return false;
@@ -177,7 +216,7 @@ function openEditor(id) {
   for (const field of ["title", "edition", "author", "year", "date", "status", "visibility", "presentationSection", "readingDirection", "genre", "role", "description", "summary", "order", "defaultReadingMode"]) form.elements[field].value = manga[field] ?? (field === "status" ? "published" : field === "visibility" ? "public" : field === "presentationSection" ? "completed" : field === "readingDirection" ? "rtl" : "");
   form.elements.tags.value = (manga.tags || []).join(", ");
   form.elements.featured.checked = Boolean(manga.featured); $("#manga-breadcrumb").textContent = `Mangas / ${manga.title} / ${manga.slug}`;
-  renderMedia(); renderLanguages(); switchEditorTab("pages"); if (!dialog.open) dialog.showModal();
+  productionUI.reset(); renderMedia(); renderLanguages(); switchEditorTab("pages"); if (!dialog.open) dialog.showModal();
 }
 function renderMedia() {
   const manga = currentManga(); const media = manga.primaryMedia; const info = media.details; const analysis = media.analysis;
@@ -231,6 +270,7 @@ function renderMedia() {
 }
 function renderLanguages() {
   closeLanguagePicker();
+  productionUI.closePage();
   const manga = currentManga(); $("#language-tabs").replaceChildren(...Object.entries(manga.languages).map(([code, language]) => {
     const button = document.createElement("button"); button.type = "button"; button.className = `language-tab ${state.language === code ? "is-active" : ""}`;
     const label = document.createElement("bdi"); label.dir = getLanguageDirection(code); label.textContent = getLanguageLabel(code, language.label);
@@ -246,16 +286,22 @@ function renderLanguages() {
 }
 function renderPages() {
   const manga = currentManga(); const details = new Map(manga.languages[state.language].pageDetails.map((item) => [item.path, item]));
+  const selectionItems = new Map(mangaBatchItems().map(item => [item.key, item]));
   $("#page-grid").replaceChildren(...state.workingPages.map((page, index) => {
     const info = details.get(page) || { path: page, name: page.split("/").at(-1) }; const card = document.createElement("article"); card.className = "manga-page"; card.draggable = true; card.dataset.index = index;
     card.innerHTML = `<img src="${imageUrl(page)}" alt="Page ${index + 1}" /><strong>Position ${String(index + 1).padStart(2, "0")}</strong><small title="${escapeHtml(info.name)}">${escapeHtml(info.name)}</small><small>${info.width || "?"} × ${info.height || "?"} · ${formatBytes(info.size)}</small><div class="page-actions"><button type="button" data-action="up" title="Monter">↑</button><button type="button" data-action="down" title="Descendre">↓</button><button type="button" data-action="reveal" title="Explorateur">⌕</button><button type="button" data-action="replace" title="Remplacer cette page" aria-label="Remplacer cette page">↻</button><button type="button" data-action="first" title="Début">⇈</button><button type="button" data-action="last" title="Fin">⇊</button><button type="button" data-action="position" title="Position précise">#</button><button type="button" data-action="delete" title="Supprimer">×</button><button type="button" data-action="duplicate" title="Dupliquer cette page" aria-label="Dupliquer cette page">Dupliquer</button></div>`;
     card.ondragstart = () => card.classList.add("is-dragging"); card.ondragend = () => card.classList.remove("is-dragging"); card.ondragover = (event) => event.preventDefault(); card.ondrop = (event) => { event.preventDefault(); const source = Number(document.querySelector(".manga-page.is-dragging")?.dataset.index); if (Number.isInteger(source)) movePage(source, index); };
+    card.prepend(mangaBatch.checkbox(selectionItems.get(page)));
+    const time = document.createElement("small"); time.textContent = productionUI.describe(page);
+    const timeButton = document.createElement("button"); timeButton.type = "button"; timeButton.dataset.action = "time"; timeButton.title = "Temps de réalisation de cette page"; timeButton.textContent = "Temps / correspondances";
+    card.querySelector(".page-actions").append(timeButton); card.querySelector(".page-actions").before(time);
     card.querySelectorAll("button").forEach((button) => {
       button.setAttribute("aria-label", `${button.title} — Position ${index + 1}`);
       button.disabled = (["up", "first"].includes(button.dataset.action) && index === 0) || (["down", "last"].includes(button.dataset.action) && index === state.workingPages.length - 1);
       button.onclick = () => pageAction(button.dataset.action, index);
     }); return card;
   }));
+  mangaBatch.sync();
 }
 function openDuplicatePage(index) {
   if (state.dirty) return message("Enregistrez vos modifications avant de dupliquer une page.", "warning");
@@ -298,8 +344,9 @@ $("#cancel-duplicate-page").onclick = closeDuplicatePage;
 $("#duplicate-page-dialog").addEventListener("cancel", (event) => {
   if (duplicateSubmitting) event.preventDefault(); else duplicateRequest = null;
 });
-function movePage(from, to) { if (!Number.isInteger(from) || !Number.isInteger(to) || from < 0 || from >= state.workingPages.length || from === to || to < 0 || to >= state.workingPages.length) return; const [page] = state.workingPages.splice(from, 1); state.workingPages.splice(to, 0, page); setDirty(); renderPages(); }
+function movePage(from, to) { if (productionUI.isDirty() || productionUI.isBusy()) return message("Enregistrez le temps en cours avant de réordonner.", "warning"); if (!Number.isInteger(from) || !Number.isInteger(to) || from < 0 || from >= state.workingPages.length || from === to || to < 0 || to >= state.workingPages.length) return; const [page] = state.workingPages.splice(from, 1); state.workingPages.splice(to, 0, page); setDirty(); renderPages(); }
 async function pageAction(action, index) {
+  if (action === "time") { if (requireSavedEditor()) productionUI.openPage(state.workingPages[index]); return; }
   if (action === "duplicate") return openDuplicatePage(index);
   if (action === "up") return movePage(index, index - 1); if (action === "down") return movePage(index, index + 1); if (action === "first") return movePage(index, 0);
   if (action === "last") return movePage(index, state.workingPages.length - 1);
@@ -325,8 +372,13 @@ function replacePageImage(index) {
       if (!stillCurrent()) return message("La sélection ou les modifications ont changé. Enregistrez et réessayez.", "warning");
       // Keep local edits/selection from changing while the server replaces this page.
       dialog.inert = true;
+      let productionIdentity;
+      if (productionUI.drawing(request.source)) {
+        productionIdentity = prompt('Cette page possède une identité/durée de dessin. Saisissez « keep » pour conserver le même dessin (toutes ses langues), ou « new » pour un nouveau dessin sans durée. Les durées historiques seront conservées.', "keep");
+        if (!["keep", "new"].includes(productionIdentity)) return;
+      }
       await api(`/api/mangas/${encodeURIComponent(request.id)}/languages/${encodeURIComponent(request.language)}/pages/${request.index}`, {
-        method: "PUT", body: JSON.stringify({ file: upload, keepName: true, source: request.source }),
+        method: "PUT", body: JSON.stringify({ file: upload, keepName: true, source: request.source, ...(productionIdentity ? { productionIdentity } : {}) }),
       });
       await reloadEditor(); state.language = request.language; renderLanguages();
       message("Page remplacée.");
@@ -340,6 +392,7 @@ async function reloadEditor(success, language = state.language) { const id = sta
 form.addEventListener("input", (event) => { if (event.target.name) setDirty(); });
 form.onsubmit = async (event) => {
   event.preventDefault(); if (editorMutationPending || pageReplacementPending || duplicateSubmitting) return;
+  if (productionUI.isDirty() || productionUI.isBusy()) return message("Enregistrez le temps avec son bouton avant les autres modifications.", "warning");
   const data = Object.fromEntries(new FormData(form)); data.featured = form.elements.featured.checked; data.tags = String(data.tags || "").split(",").map((tag) => tag.trim()).filter(Boolean);
   if (JSON.stringify(state.workingPages) !== JSON.stringify(state.savedPages)) data.pageOrder = { language: state.language, pages: [...state.workingPages], expectedPages: [...state.savedPages] };
   editorMutationPending = true; dialog.inert = true;
@@ -365,9 +418,9 @@ $("#confirm-add-language").onclick = async () => {
 };
 $("#delete-manga").onclick = async () => { if (!requireSavedEditor()) return; const manga = currentManga(); const confirmation = prompt(`Déplacer le manga et son dossier dans la corbeille : saisissez « ${manga.slug} » ou le titre.`); if (!confirmation) return; editorMutationPending = true; dialog.inert = true; try { await api(`/api/mangas/${encodeURIComponent(manga.id)}`, { method: "DELETE", body: JSON.stringify({ confirmation }) }); setDirty(false); dialog.close(); await load(); message("Manga déplacé dans la corbeille."); } catch (error) { message(error.message, "error"); } finally { editorMutationPending = false; dialog.inert = false; } };
 
-function requestClose() { if (pageReplacementPending || editorMutationPending || duplicateSubmitting) return; if (state.dirty && !confirm("Abandonner les modifications non enregistrées ?")) return; state.workingPages = [...state.savedPages]; setDirty(false); dialog.close(); }
+function requestClose() { if (pageReplacementPending || editorMutationPending || duplicateSubmitting || productionUI.isBusy()) return; if ((state.dirty || productionUI.isDirty()) && !confirm("Abandonner les modifications non enregistrées ?")) return; state.workingPages = [...state.savedPages]; setDirty(false); dialog.close(); }
 document.querySelectorAll("[data-close]").forEach((button) => button.onclick = requestClose); dialog.addEventListener("cancel", (event) => { event.preventDefault(); requestClose(); });
-window.addEventListener("beforeunload", (event) => { if (state.dirty) event.preventDefault(); });
+window.addEventListener("beforeunload", (event) => { if (state.dirty || productionUI.isDirty() || productionUI.isBusy()) event.preventDefault(); });
 for (const selector of ["#manga-search", "#manga-section", "#manga-status", "#manga-language", "#manga-sort"]) $(selector).addEventListener("input", renderList);
 
 const editorTabs = [...document.querySelectorAll("[data-editor-tab]")];

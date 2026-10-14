@@ -24,6 +24,12 @@
         <a href="/">Illustrations</a><a href="/mangas.html">Mangas</a><a class="is-active" href="/animations.html" aria-current="page">Animations</a>
       </nav>
       <aside id="animation-report" class="category-report" hidden></aside>
+      <section class="category-report" aria-label="Visibilité publique Animation">
+        <h2>Visibilité publique de la catégorie Animation</h2>
+        <p id="animation-visibility-state" aria-live="polite">Chargement de la configuration…</p>
+        <p>Masquer retire les liens publics et redirige /animation vers l’accueil, sans supprimer de contenu. Les changements seront publiés au prochain déploiement.</p>
+        <button id="toggle-animation-visibility" class="button button-secondary" type="button" disabled>Afficher / masquer Animation</button>
+      </section>
       <section id="animation-media-audit" aria-label="Audit des médias Animation"></section>
       <section class="toolbar animation-toolbar" aria-label="Recherche, filtres et tri">
         <label class="field search-field"><span>Rechercher</span><input id="animation-search" type="search" placeholder="Titre, fichier, alt ou ID…" /></label>
@@ -49,13 +55,13 @@
               <label class="field"><span>Titre *</span><input name="title" required /></label>
               <label class="field"><span>Date (JJ-MM-AAAA) *</span><input name="date" required inputmode="numeric" placeholder="01-02-2025" pattern="\d{2}-\d{2}-\d{4}" /></label>
               <label class="field"><span>Catégorie *</span><select name="category" required></select></label>
-              <label class="field"><span>Ordre interne du catalogue *</span><input name="position" type="number" min="1" required /><small>Cet ordre sert de référence interne. La position 1 fournit actuellement le visuel Animation de la page d’accueil. Le tri public par date reste indépendant.</small></label>
+              <label class="field"><span>Ordre interne du catalogue *</span><input name="position" type="number" min="1" required /><small>Cet ordre sert de référence interne. Le tri public par date reste indépendant.</small></label>
               <label class="toggle-field animation-wide"><input name="customizeAlt" type="checkbox" /><span>Personnaliser le texte alternatif</span></label>
               <p id="editor-alt-help" class="muted-copy animation-wide">Texte alternatif généré automatiquement depuis le titre.</p>
               <label id="editor-alt-field" class="field animation-wide" hidden><span>Texte alternatif *</span><input name="alt" /></label>
               <label class="toggle-field"><input name="featured" type="checkbox" /><span>Featured</span></label>
             </div>
-            <p class="muted-copy">L’année et le type sont calculés automatiquement. La première animation du catalogue fournit le visuel Animation de la page d’accueil.</p>
+            <p class="muted-copy">L’année et le type sont calculés automatiquement. La visibilité publique est indépendante des données du catalogue.</p>
           </section>
           <section id="animation-panel-media" class="animation-tab-panel" role="tabpanel" aria-labelledby="animation-tab-media" data-animation-panel="media" hidden><div id="animation-media-panel"></div></section>
           <section id="animation-panel-poster" class="animation-tab-panel" role="tabpanel" aria-labelledby="animation-tab-poster" data-animation-panel="poster" hidden><div id="animation-poster-panel"></div></section>

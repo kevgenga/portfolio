@@ -20,18 +20,35 @@ export async function handleMangaRoute(request, response, url, { service, readJs
     const output = await service.create(await readJson(request)); sendJson(response, 201, { ...output, message: "Manga créé avec succès." }); return true;
   }
   const base = url.pathname.match(/^\/api\/mangas\/([^/]+)$/);
+  const batch = url.pathname.match(/^\/api\/mangas\/([^/]+)\/production-batch\/(preview|commit)$/);
+  if (batch && request.method === "POST") {
+    const output = await service.productionBatch(decodeURIComponent(batch[1]), await readJson(request), batch[2] === "commit");
+    sendJson(response, 200, { ...output, message: batch[2] === "preview" ? "Récapitulatif préparé. Aucune écriture effectuée." : output.unchanged ? "Aucune modification nécessaire. Catalogue inchangé." : "Opération groupée enregistrée." }); return true;
+  }
+  const production = url.pathname.match(/^\/api\/mangas\/([^/]+)\/(production-time|production-page|production-bindings)$/);
+  if (production && ["PUT", "POST", "DELETE"].includes(request.method)) {
+    const action = production[2] === "production-time" && request.method === "PUT" ? "total"
+      : production[2] === "production-page" && request.method === "PUT" ? "page"
+        : production[2] === "production-bindings" && request.method === "POST" ? "associate"
+          : production[2] === "production-bindings" && request.method === "DELETE" ? "separate" : null;
+    if (!action) return false;
+    const output = await service.editProduction(decodeURIComponent(production[1]), action, await readJson(request));
+    sendJson(response, 200, { ...output, message: output.unchanged ? "Métadonnées de production inchangées." : "Métadonnées de production enregistrées." }); return true;
+  }
   if (base && request.method === "PUT") {
     const output = await service.update(decodeURIComponent(base[1]), await readJson(request)); sendJson(response, 200, { ...output, message: "Manga enregistré." }); return true;
   }
   if (base && request.method === "DELETE") {
-    const output = await service.removeManga(decodeURIComponent(base[1]), (await readJson(request)).confirmation); sendJson(response, 200, { ...output, message: "Manga déplacé dans la corbeille." }); return true;
+    const payload = await readJson(request);
+    const output = await service.removeManga(decodeURIComponent(base[1]), payload.confirmation, payload); sendJson(response, 200, { ...output, message: "Manga déplacé dans la corbeille." }); return true;
   }
   const language = url.pathname.match(/^\/api\/mangas\/([^/]+)\/languages(?:\/([^/]+))?$/);
   if (language && request.method === "POST" && !language[2]) {
     const output = await service.addLanguage(decodeURIComponent(language[1]), await readJson(request)); sendJson(response, 201, { ...output, message: "Langue ajoutée." }); return true;
   }
   if (language && request.method === "DELETE" && language[2]) {
-    const output = await service.deleteLanguage(decodeURIComponent(language[1]), decodeURIComponent(language[2])); sendJson(response, 200, { ...output, message: "Langue déplacée dans la corbeille." }); return true;
+    const hasBody = request.headers && (Number(request.headers["content-length"]) || request.headers["transfer-encoding"]);
+    const output = await service.deleteLanguage(decodeURIComponent(language[1]), decodeURIComponent(language[2]), hasBody ? await readJson(request) : {}); sendJson(response, 200, { ...output, message: "Langue déplacée dans la corbeille." }); return true;
   }
   const pages = url.pathname.match(/^\/api\/mangas\/([^/]+)\/languages\/([^/]+)\/pages$/);
   if (pages && request.method === "POST") {
@@ -45,7 +62,8 @@ export async function handleMangaRoute(request, response, url, { service, readJs
     }
   }
   if (pages && request.method === "PUT") {
-    const output = await service.reorderPages(decodeURIComponent(pages[1]), decodeURIComponent(pages[2]), (await readJson(request)).pages); sendJson(response, 200, { ...output, message: "Ordre des pages enregistré." }); return true;
+    const payload = await readJson(request);
+    const output = await service.reorderPages(decodeURIComponent(pages[1]), decodeURIComponent(pages[2]), payload.pages, payload); sendJson(response, 200, { ...output, message: "Ordre des pages enregistré." }); return true;
   }
   const duplicate = url.pathname.match(/^\/api\/mangas\/([^/]+)\/languages\/([^/]+)\/pages\/(\d+)\/duplicate$/);
   if (duplicate && request.method === "POST") {

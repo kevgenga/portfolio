@@ -48,6 +48,7 @@
         <div class="manga-tab-panels">
           <section id="manga-panel-information" class="manga-general manga-tab-panel" role="tabpanel" aria-labelledby="manga-tab-information" data-editor-panel="information" hidden>
             <h3>Informations générales</h3>
+            <div id="manga-production-project"></div>
             <div class="manga-form-grid">
               <label class="field"><span>Titre *</span><input name="title" required /></label>
               <label class="field"><span>Édition / titre secondaire</span><input name="edition" /></label>
@@ -84,7 +85,9 @@
               <div class="page-import"><label class="field"><span>Ajouter plusieurs pages</span><input id="page-files" form="manga-page-import-form" type="file" multiple accept=".jpg,.jpeg,.png,.webp,.avif,.gif" /></label><label class="field compact"><span>Position</span><input id="page-position" form="manga-page-import-form" type="number" min="1" step="1" required /></label><button id="add-pages" class="button button-secondary" type="button">Ajouter les pages</button></div>
             </div>
             <p class="muted-copy">Glissez les cartes ou utilisez les boutons. Le réordre ne renomme pas les fichiers physiques.</p>
+            <section id="manga-production-page" class="manga-production-page" aria-label="Temps et correspondances de la page" hidden></section>
             <div id="page-grid" class="manga-page-grid"></div>
+            <section id="manga-production-selection" aria-label="Sélection et groupes de dessins"></section>
           </section>
           <section id="manga-panel-media" class="manga-media manga-tab-panel" role="tabpanel" aria-labelledby="manga-tab-media" data-editor-panel="media" hidden>
             <div id="manga-media"></div>

@@ -191,6 +191,41 @@ input:focus, select:focus, textarea:focus, button:focus-visible { border-color: 
 .quick-editor { display: grid; gap: 9px; border-top: 1px solid #302b2e; padding-top: 10px; }
 .quick-editor input, .quick-editor select, .quick-editor textarea { min-height: 34px; padding: 6px 8px; font-size: .72rem; }
 .quick-editor textarea { min-height: 58px; }
+.production-time-fields { display: grid; gap: 9px; min-width: 0; margin: 0; padding: 12px; border: 1px solid var(--line); border-radius: 6px; }
+.production-time-fields legend { color: #d7cfd3; font-size: .78rem; font-weight: 750; padding: 0 4px; }
+.production-time-fields.is-dirty { border-color: #bd6479; }
+.production-time-units { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+.production-time-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.production-time-actions .button { min-width: 0; white-space: normal; }
+.production-time-help, .production-time-status { margin: 0; color: var(--muted); font-size: .72rem; overflow-wrap: anywhere; }
+.production-time-status { color: #a9ddb7; }
+.production-time-status.is-error { color: #f28a8a; }
+.production-selection-bar { display:grid; gap:7px; min-width:0; border:1px solid var(--line); background:var(--surface); padding:10px; margin:12px 0; }
+.production-selection-bar p { margin:0; color:var(--muted); font-size:.76rem; overflow-wrap:anywhere; }
+.production-selection-bar > div { display:flex; flex-wrap:wrap; gap:7px; }
+.production-select { display:flex; align-items:center; gap:7px; min-height:32px; font-size:.75rem; cursor:pointer; }
+.production-select input,.production-group-members input { width:18px; height:18px; min-height:18px; flex:none; padding:0; accent-color:var(--wine); }
+.production-batch-dialog { width:min(700px,calc(100vw - 24px)); }
+.production-batch-form { display:grid; gap:10px; }
+.production-batch-time-fields { display:grid; gap:10px; }
+.production-batch-help { margin:0; color:var(--muted); font-size:.76rem; line-height:1.5; }
+.production-batch-clear { background:var(--danger); color:var(--surface); }
+.production-batch-clear:hover { background:var(--danger); filter:brightness(1.1); }
+.production-batch-form > [data-batch-fields] { display:grid; gap:10px; min-width:0; }
+.production-batch-form .dialog-heading h2 { font-size:clamp(1.3rem,4vw,1.8rem); }
+.production-batch-preview { border-left:3px solid var(--wine); padding:8px 12px; background:var(--surface-raised); font-size:.8rem; overflow-wrap:anywhere; }
+.production-batch-preview p { margin:5px 0; }
+.production-group-list { display:grid; gap:12px; }
+.production-group-list article { display:grid; gap:9px; border:1px solid var(--line); padding:12px; min-width:0; overflow-wrap:anywhere; }
+.production-group-members { display:grid; gap:7px; max-height:220px; overflow:auto; margin-top:10px; }
+.production-group-members label { display:flex; gap:8px; align-items:center; overflow-wrap:anywhere; min-width:0; font-size:.76rem; }
+#manga-production-selection { flex:0 0 auto; margin:8px 0 0; }
+/* The extra selection bar must not collapse the page scroll area on a short
+   viewport. Only the Manga panel hosting that bar gets this overflow fallback. */
+#manga-panel-pages:has(#manga-production-selection) { overflow-y:auto; }
+#manga-panel-pages:has(#manga-production-selection) .manga-page-grid { min-height:180px; }
+.quick-editor .production-time-fields { padding: 9px; }
+.quick-editor .production-time-actions .button { width: 100%; font-size: .72rem; padding: 6px 8px; }
 .quick-actions { display: flex; flex-wrap: wrap; gap: 7px; }
 .quick-actions .button { min-height: 32px; padding: 6px 9px; font-size: .68rem; }
 .dirty-indicator { color: #dfaf67; font-size: .67rem; }

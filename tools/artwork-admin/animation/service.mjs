@@ -4,6 +4,7 @@ import { copyFile, mkdir, readFile, readdir, realpath, rename, rm, stat, writeFi
 import path from "node:path";
 import sharp from "../sharp-runtime.mjs";
 import { FileTransaction } from "../file-transaction.mjs";
+import { createPresentationSettingsStore } from "../presentation-settings.mjs";
 import { normalizeCompression, processImage } from "../image-processor.mjs";
 import { buildRevealCommand, isPathInside, launchReveal } from "../reveal-file.mjs";
 import {
@@ -42,6 +43,9 @@ export function createAnimationService({
   const backupRoot = path.join(runtimeRoot, "backups/animations");
   const trashRoot = path.join(runtimeRoot, "trash/animations");
   const stagingRoot = path.join(runtimeRoot, "staging/animations");
+  const { read: readPresentationSettings, update: updatePresentationSettings } = createPresentationSettingsStore({
+    file: path.join(projectRoot, "src/content/sitePresentation.js"), backupRoot, key: "showAnimationSection", label: "Animation",
+  });
   let mutationQueue = Promise.resolve();
   const existingPreparations = new Map();
 
@@ -526,7 +530,7 @@ export function createAnimationService({
     await Promise.all(staged.filter((entry) => entry.name !== ".gitkeep").map((entry) => rm(path.join(stagingRoot, entry.name), { recursive: entry.isDirectory(), force: true })));
   }
   return {
-    initialize, report,
+    initialize, report, readPresentationSettings, updatePresentationSettings,
     prepareExisting,
     discardExistingPreparation,
     create: (payload) => queueMutation(() => create(payload)),

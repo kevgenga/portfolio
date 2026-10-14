@@ -100,6 +100,7 @@ async function uiFixture(t) {
   const form = { elements: { featured: { checked: false } }, addEventListener() {} };
   const dialog = { open: true, inert: false, close() { this.open = false; }, addEventListener() {} };
   const context = vm.createContext({
+    productionUI: { isDirty: () => false, isBusy: () => false, reset() {} },
     state, form, dialog, JSON, encodeURIComponent, prompt: () => "", confirm: () => true,
     document: { querySelectorAll: () => [] }, setDirty: (value = true) => { state.dirty = value; }, renderPages: () => { renders++; },
     FormData: class { *[Symbol.iterator]() { yield ["title", "Example"]; yield ["tags", ""]; } },
@@ -132,6 +133,16 @@ async function assertPhysicalFilesUnchanged(f) {
   for (const [relative, bytes] of f.files) assert.deepEqual(await readFile(path.join(f.root, "public", relative)), bytes);
 }
 function expectedMove(pages, from, to) { const result = [...pages]; const [page] = result.splice(from - 1, 1); result.splice(to - 1, 0, page); return result; }
+
+test("an unsaved production-time draft blocks reorder and metadata submit without requests", async t => {
+  const f = await uiFixture(t);
+  f.context.productionUI.isDirty = () => true;
+  f.context.movePage(0, 2);
+  await f.form.onsubmit({ preventDefault() {} });
+  assert.deepEqual(f.state.workingPages, f.pages);
+  assert.equal(f.requests.length, 0);
+  assert.ok(f.notices.some(item => item.text.includes("temps")));
+});
 
 for (const [from, to] of [[24, 23], [23, 24], [1, 24], [24, 1], [3, 8], [8, 3]]) {
   test(`position ${from} → ${to} saves via the global handler and persists without touching files or other languages/mangas`, async (t) => {

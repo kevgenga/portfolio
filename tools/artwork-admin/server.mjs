@@ -20,6 +20,8 @@ import { createAnimationService } from "./animation/service.mjs";
 import { handleAnimationRoute } from "./animation/routes.mjs";
 import { createMediaAuditService, handleMediaAuditRoute } from "./media-audit.mjs";
 import { getArtworkVisibility } from "../../src/content/artworkPresentation.js";
+import { applyProductionTimePatch, validateProductionTime } from "../../src/utils/productionTime.js";
+import { parseArtworkProductionGroups, prepareProductionBatch, serializeArtworkProductionGroups, validateProductionGroups, verifyProductionConfirmation } from "./production-groups.mjs";
 
 const ADMIN_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(process.env.ARTWORK_ADMIN_TEST_ROOT || path.resolve(ADMIN_DIR, "../.."));
@@ -106,8 +108,10 @@ async function addFileSizes(artworks, presentationSettings) {
 }
 
 function parseCatalog(source) {
-  const match = source.match(/export\s+const\s+artworks\s*=\s*(\[[\s\S]*\]);\s*$/);
+  const match = source.match(/export\s+const\s+artworks\s*=\s*(\[[\s\S]*?\]);(?=\s*(?:export|$))/);
   assert(match, "Impossible de lire le tableau artworks.", 500);
+  const tail = source.slice(match.index + match[0].length).trim();
+  assert(!tail || /^export\s+const\s+artworkProductionGroups\s*=/.test(tail), "Un export Artwork supplémentaire n’est pas pris en charge ; sauvegarde refusée pour le préserver.", 500);
   const expression = match[1].replace(/assetPath\(("(?:[^"\\]|\\.)*")\)/g, "$1");
   let entries;
   try {
@@ -138,7 +142,7 @@ function serializeCatalog(entries) {
     year: ${entry.year},
     alt: ${quote(entry.alt)},
     featured: ${Boolean(entry.featured)},
-${entry.hidden === true ? "    hidden: true,\n" : ""}    orientation: ${quote(entry.orientation)},
+${entry.hidden === true ? "    hidden: true,\n" : ""}${Object.hasOwn(entry, "productionTime") ? `    productionTime: ${JSON.stringify(validateProductionTime(entry.productionTime))},\n` : ""}    orientation: ${quote(entry.orientation)},
   }`).join(",\n");
   return `import { assetPath } from "../utils/assetPath";\n\nexport const artworks = [\n${items},\n];\n\n`;
 }
@@ -253,6 +257,10 @@ function validateEntries(entries) {
     assert(entry.year === year, `Année incohérente pour ${entry.id}.`);
     assert(typeof entry.alt === "string", `Alt invalide pour ${entry.id}.`);
     assert(entry.hidden === undefined || typeof entry.hidden === "boolean", `Visibilité invalide pour ${entry.id}.`);
+    if (Object.hasOwn(entry, "productionTime")) {
+      try { validateProductionTime(entry.productionTime); }
+      catch (error) { throw new HttpError(400, `${entry.id} : ${error.message}`); }
+    }
   }
 }
 
@@ -722,32 +730,109 @@ async function createBackup() {
   return createSourceBackup(CATALOG_PATH, "artworks");
 }
 
-async function writeJavaScriptSourceAtomic(targetPath, source, validateSource) {
+async function writeJavaScriptSourceAtomic(targetPath, source, validateSource, beforeCommit = async () => {}) {
   const tempPath = `${targetPath}.${process.pid}.${Date.now()}.${randomUUID()}.tmp.js`;
-  await writeFile(tempPath, source, { encoding: "utf8", flag: "wx" });
   try {
+    await writeFile(tempPath, source, { encoding: "utf8", flag: "wx" });
     const check = spawnSync(process.execPath, ["--check", tempPath], { encoding: "utf8" });
     assert(check.status === 0, `JavaScript généré invalide : ${check.stderr}`, 500);
     validateSource(source);
+    await beforeCommit();
     await rename(tempPath, targetPath);
   } finally {
     await rm(tempPath, { force: true });
   }
 }
 
-async function writeCatalogSourceAtomic(source) {
+async function writeCatalogSourceAtomic(source, beforeCommit) {
   await writeJavaScriptSourceAtomic(CATALOG_PATH, source, (candidate) => {
-    validateEntries(parseCatalog(candidate));
-  });
+    const entries = parseCatalog(candidate);
+    validateEntries(entries);
+    validateProductionGroups(parseArtworkProductionGroups(candidate).groups, "artworkIds", new Set(entries.map(entry => entry.id)));
+  }, beforeCommit);
 }
 
-async function writeCatalogAtomic(entries) {
+async function writeCatalogAtomic(entries, beforeCommit, requestedGroups) {
   validateEntries(entries);
-  await writeCatalogSourceAtomic(serializeCatalog(entries));
+  const existing = parseArtworkProductionGroups(await readFile(CATALOG_PATH, "utf8"));
+  const groups = requestedGroups ?? existing.groups;
+  validateProductionGroups(groups, "artworkIds", new Set(entries.map(entry => entry.id)));
+  const source = serializeCatalog(entries) + (existing.hasGroups || requestedGroups !== undefined ? serializeArtworkProductionGroups(groups) : "");
+  await writeCatalogSourceAtomic(source, beforeCommit);
+}
+
+function catalogRevision(source) {
+  return createHash("sha256").update(source).digest("hex");
+}
+
+async function setArtworkProductionTime(id, payload) {
+  assert(payload && typeof payload === "object" && !Array.isArray(payload), "Requête de durée invalide.");
+  assert(Object.keys(payload).every((key) => ["productionTime", "catalogRevision"].includes(key)), "Champ de durée inconnu.");
+  const source = await readFile(CATALOG_PATH, "utf8");
+  const revision = catalogRevision(source);
+  assert(typeof payload.catalogRevision === "string" && payload.catalogRevision === revision,
+    "Le catalogue a changé. Actualisez Artwork Admin avant de réenregistrer la durée.", 409);
+  const entries = parseCatalog(source);
+  const index = entries.findIndex((entry) => entry.id === id);
+  assert(index >= 0, "Œuvre introuvable.", 404);
+  let artwork;
+  try { artwork = applyProductionTimePatch(entries[index], payload); }
+  catch (error) { throw new HttpError(400, error.message); }
+  const nextEntries = [...entries];
+  nextEntries[index] = artwork;
+  validateEntries(nextEntries);
+  if (JSON.stringify(artwork) === JSON.stringify(entries[index])) {
+    return { artwork, catalogRevision: revision, message: "Temps de réalisation inchangé." };
+  }
+  const checkRevision = async () => assert(catalogRevision(await readFile(CATALOG_PATH, "utf8")) === revision,
+    "Le catalogue a changé pendant la sauvegarde. Actualisez Artwork Admin.", 409);
+  await checkRevision();
+  const backup = await createBackup();
+  await writeCatalogAtomic(nextEntries, async () => {
+    await checkRevision();
+    // Fixture-only failure injection, after generating and validating the temporary JS.
+    if (process.env.ARTWORK_ADMIN_TEST_ROOT && process.env.ARTWORK_ADMIN_TEST_PRODUCTION_FAIL_AT === "before-commit") {
+      throw new HttpError(500, "Échec de sauvegarde simulé.");
+    }
+  });
+  return { artwork, catalogRevision: catalogRevision(await readFile(CATALOG_PATH, "utf8")),
+    backup: path.relative(PROJECT_ROOT, backup).replaceAll("\\", "/"),
+    message: payload.productionTime === null ? "Temps de réalisation effacé." : "Temps de réalisation enregistré." };
 }
 
 async function restoreCatalogBackup(backupPath) {
   await writeCatalogSourceAtomic(await readFile(backupPath, "utf8"));
+}
+
+async function artworkProductionBatch(payload, commit) {
+  const source = await readFile(CATALOG_PATH, "utf8");
+  const revision = catalogRevision(source);
+  assert(payload?.catalogRevision === revision, "Le catalogue a changé. Actualisez avant de préparer ou confirmer le lot.", 409);
+  const entries = parseCatalog(source), { groups } = parseArtworkProductionGroups(source);
+  validateEntries(entries);
+  validateProductionGroups(groups, "artworkIds", new Set(entries.map(entry => entry.id)));
+  const selected = payload.operation === "group-delete" ? [] : payload.ids ?? groups.find(group => group.id === payload.groupId)?.artworkIds;
+  assert(Array.isArray(selected) && selected.every(id => typeof id === "string") && new Set(selected).size === selected.length, "Sélection Artwork invalide ou dupliquée.");
+  const byId = new Map(entries.map(entry => [entry.id, entry]));
+  assert(selected.every(id => byId.has(id)), "Une œuvre sélectionnée a changé ou n’existe plus.", 409);
+  let plan;
+  try {
+    plan = prepareProductionBatch({ groups, selectedIds: selected, selectionCount: selected.length, field: "artworkIds", payload, revision,
+      readTime: id => byId.get(id)?.productionTime, setTime: (id, time) => { byId.get(id).productionTime = time; }, clearTime: id => { delete byId.get(id).productionTime; } });
+    validateProductionGroups(groups, "artworkIds", new Set(byId.keys()));
+    validateEntries(entries);
+    if (commit) verifyProductionConfirmation(payload, plan);
+  } catch (error) { throw new HttpError(400, error.message); }
+  if (!commit) return { plan };
+  if (plan.operation === "individual-clear" && plan.erased === 0) return { plan, artworks: entries, artworkProductionGroups: groups,
+    catalogRevision: revision, unchanged: true, message: "Aucune durée individuelle à effacer. Catalogue inchangé." };
+  const backup = await createBackup();
+  await writeCatalogAtomic(entries, async () => {
+    assert(catalogRevision(await readFile(CATALOG_PATH, "utf8")) === revision, "Le catalogue a changé pendant la sauvegarde du lot. Actualisez.", 409);
+    if (process.env.ARTWORK_ADMIN_TEST_ROOT && process.env.ARTWORK_ADMIN_TEST_PRODUCTION_FAIL_AT === "before-commit") throw new HttpError(500, "Échec groupé simulé.");
+  }, groups.length || parseArtworkProductionGroups(source).hasGroups ? groups : undefined);
+  return { plan, artworks: entries, artworkProductionGroups: groups, catalogRevision: catalogRevision(await readFile(CATALOG_PATH, "utf8")),
+    backup: path.relative(PROJECT_ROOT, backup).replaceAll("\\", "/"), message: "Opération groupée enregistrée." };
 }
 
 async function writeArtworkPresentationSettingsAtomic(settings) {
@@ -849,7 +934,9 @@ async function addArtwork(payload) {
 }
 
 async function updateArtwork(id, payload) {
-  const entries = await readCatalog();
+  const originalSource = await readFile(CATALOG_PATH, "utf8");
+  const entries = parseCatalog(originalSource);
+  const groupData = parseArtworkProductionGroups(originalSource);
   const index = entries.findIndex((entry) => entry.id === id);
   assert(index >= 0, "Œuvre introuvable.", 404);
   const current = entries[index];
@@ -896,7 +983,8 @@ async function updateArtwork(id, payload) {
     await rename(oldFile, newFile);
   }
   try {
-    await writeCatalogAtomic(nextEntries);
+    const groups = groupData.groups.map(group => ({ ...group, artworkIds: group.artworkIds.map(member => member === id ? nextEntry.id : member) }));
+    await writeCatalogAtomic(nextEntries, async () => assert(catalogRevision(await readFile(CATALOG_PATH, "utf8")) === catalogRevision(originalSource), "Le catalogue a changé pendant l’édition. Actualisez.", 409), groupData.hasGroups ? groups : undefined);
     hashCache.delete(oldFile);
     hashCache.delete(newFile);
     return nextEntry;
@@ -1333,6 +1421,8 @@ async function commitReplacement(session, payload) {
 
 async function deleteArtwork(id) {
   const entries = await readCatalog();
+  const groupData = parseArtworkProductionGroups(await readFile(CATALOG_PATH, "utf8"));
+  assert(!groupData.groups.some(group => group.artworkIds.includes(id)), "Cette œuvre appartient à un groupe de production. Retirez-la explicitement du groupe avant de la supprimer ; son temps collectif sera conservé.", 409);
   const index = entries.findIndex((entry) => entry.id === id);
   assert(index >= 0, "Œuvre introuvable.", 404);
   const entry = entries[index];
@@ -1457,12 +1547,13 @@ async function pipeLocalFile(response, file, options) {
 
 async function serveStatic(response, pathname) {
   const relative = pathname === "/" ? "index.html" : pathname.replace(/^\/+/, "");
-  // Expose only this shared display helper, not arbitrary portfolio source files.
-  const sharedLanguageLabels = pathname === "/shared/language-labels.js";
-  const target = sharedLanguageLabels
-    ? path.resolve(ADMIN_DIR, "../../src/utils/languageLabels.js")
+  // Explicit allowlist: never expose arbitrary portfolio source files.
+  const sharedHelpers = { "/shared/language-labels.js": "languageLabels.js", "/shared/production-time.js": "productionTime.js" };
+  const sharedHelper = Object.hasOwn(sharedHelpers, pathname) ? sharedHelpers[pathname] : null;
+  const target = sharedHelper
+    ? path.resolve(ADMIN_DIR, "../../src/utils", sharedHelper)
     : path.resolve(PUBLIC_DIR, relative);
-  assert(sharedLanguageLabels || target === PUBLIC_DIR || isInside(PUBLIC_DIR, target), "Fichier interdit.", 403);
+  assert(sharedHelper || target === PUBLIC_DIR || isInside(PUBLIC_DIR, target), "Fichier interdit.", 403);
   const content = await readFile(target);
   response.writeHead(200, {
     "Content-Type": MIME_TYPES[path.extname(target).toLowerCase()] || "application/octet-stream",
@@ -1493,7 +1584,8 @@ async function handleRequest(request, response) {
   if (await handleMangaRoute(request, response, url, { service: mangaService, readJson, sendJson })) return;
   if (await handleAnimationRoute(request, response, url, { service: animationService, readJson, sendJson })) return;
   if (request.method === "GET" && url.pathname === "/api/artworks") {
-    const catalogArtworks = await readCatalog();
+    const source = await readFile(CATALOG_PATH, "utf8");
+    const catalogArtworks = parseCatalog(source);
     const presentationSettings = await readArtworkPresentationSettings();
     const categoryReport = createCategoryReport(catalogArtworks);
     const artworks = await addFileSizes(catalogArtworks, presentationSettings);
@@ -1505,6 +1597,8 @@ async function handleRequest(request, response) {
     };
     sendJson(response, 200, {
       artworks,
+      catalogRevision: catalogRevision(source),
+      artworkProductionGroups: parseArtworkProductionGroups(source).groups,
       categories: Object.keys(CATEGORIES),
       count: artworks.length,
       presentationSettings,
@@ -1531,6 +1625,19 @@ async function handleRequest(request, response) {
     const payload = await readJson(request);
     const artwork = await queueMutation(() => addArtwork(payload));
     sendJson(response, 201, { artwork, message: "Œuvre ajoutée et catalogue sauvegardé." });
+    return;
+  }
+  const productionTimeMatch = url.pathname.match(/^\/api\/artworks\/([^/]+)\/production-time$/);
+  const batchMatch = url.pathname.match(/^\/api\/artworks\/production-batch\/(preview|commit)$/);
+  if (batchMatch && request.method === "POST") {
+    const payload = await readJson(request);
+    const result = await queueMutation(() => artworkProductionBatch(payload, batchMatch[1] === "commit"), { invalidateMedia: false });
+    sendJson(response, 200, result); return;
+  }
+  if (productionTimeMatch && request.method === "PUT") {
+    const payload = await readJson(request);
+    const result = await queueMutation(() => setArtworkProductionTime(decodeURIComponent(productionTimeMatch[1]), payload), { invalidateMedia: false });
+    sendJson(response, 200, result);
     return;
   }
   if (request.method === "POST" && url.pathname === "/api/artworks/reveal-file") {
