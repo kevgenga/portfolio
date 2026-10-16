@@ -17,7 +17,7 @@ export const fr = {
   common: {
     all: "Tout", loading: "Chargement…", loadMore: "Afficher plus",
     noResults: "Aucune œuvre ne correspond à ces filtres.", sortLabel: "Trier par",
-    newest: "Plus récentes", oldest: "Plus anciennes", backToTop: "Retour en haut de page",
+    newest: "Plus récentes", oldest: "Plus anciennes", backToTop: "Retour en haut",
   },
   lightbox: {
     CLOSE: "Fermer", NEXT: "Suivant", PREV: "Précédent",
@@ -54,6 +54,7 @@ export const fr = {
     eyebrow: "Portfolio", title: "Illustration",
     introduction: "Illustrations, croquis, peintures et création de personnages.",
     filtersLabel: "Filtrer les illustrations",
+    views: { cards: "Grandes cartes", compact: "Liste compacte" },
     categories: {
       illustrations: "Illustrations", sketches: "Croquis", paintings: "Peintures",
       "character-design": "Character design", backgrounds: "Décors",
@@ -83,6 +84,8 @@ export const fr = {
   },
   mangaReader: {
     title: (title) => `Lire ${title}`, progress: (current, total) => `Page ${current} sur ${total}`,
+    goToPage: "Aller à la page",
+    spreadCaption: (first, last) => `Pages ${first}–${last}`,
     pageAlt: (title, page) => `${title} — page ${page}`, pageCaption: (page) => `Page ${page}`,
     back: "Retour aux mangas", backShort: "Retour", previous: "Page précédente",
     next: "Page suivante", previousSpread: "Page ou double page précédente",

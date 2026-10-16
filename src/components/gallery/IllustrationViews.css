@@ -1,0 +1,99 @@
+.illustration-view-controls {
+  display: flex;
+  gap: .45rem;
+  margin-inline-start: auto;
+  align-self: flex-start;
+}
+
+.illustration-view-button {
+  min-width: 44px;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  padding: .6rem;
+}
+
+.illustration-view-button svg { width: 1.2rem; height: 1.2rem; }
+
+.illustration-grid {
+  --illustration-badge-overhang: 1.5rem;
+  align-items: start;
+}
+
+/* Scope to Illustration only; absent durations do not create an empty row. */
+.illustration-grid .artwork-card--illustration .artwork-card__metadata {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: .3rem;
+  /* Intrinsic badge width, capped by this padded metadata area, not 10rem. */
+  --work-badge-max-width: 100%;
+}
+
+.illustration-grid .artwork-card--illustration .artwork-card__metadata > p { flex-basis: auto; }
+
+/* The metadata already supplies padding; overlay edge clearance is unnecessary. */
+.illustration-grid .work-badge[data-badge-placement="metadata"] {
+  width: max-content;
+  max-width: min(var(--work-badge-max-width), 100%);
+  overflow-wrap: anywhere;
+}
+
+.illustration-grid .work-badge[data-badge-placement="metadata"] .work-badge__copy {
+  text-align: center;
+}
+
+.illustration-grid .work-badge[data-badge-placement="metadata"] .work-badge__duration {
+  justify-content: center;
+}
+
+.illustration-grid .work-badge[data-badge-placement="metadata"] .work-badge__duration > span {
+  min-width: 0;
+}
+
+/* Attached label: keep its natural height in flow, subtract only the overhang.
+   The matching card margin reserves it in the grid, even for 3+ lines.
+   Image links retain their own overflow:hidden and all compact cards stay flat. */
+.illustration-grid:not(.illustration-grid--compact) .artwork-card--illustration:has([data-badge-placement="metadata"]) {
+  overflow: visible;
+  margin-bottom: var(--illustration-badge-overhang);
+}
+
+.illustration-grid:not(.illustration-grid--compact) .artwork-card__metadata:has(> [data-badge-placement="metadata"]) {
+  padding-bottom: 0;
+}
+
+.illustration-grid:not(.illustration-grid--compact) .artwork-card__metadata > .work-badge[data-badge-placement="metadata"] {
+  margin-bottom: calc(-1 * var(--illustration-badge-overhang));
+}
+
+.illustration-grid--compact {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
+  align-items: start;
+}
+
+.illustration-grid--compact .artwork-card--illustration {
+  display: grid;
+  grid-template-columns: clamp(5rem, 8vw, 6rem) minmax(0, 1fr);
+  min-height: 7.5rem;
+}
+
+.illustration-grid--compact .artwork-card__image {
+  /* Remove the original file's intrinsic height from compact row sizing. */
+  position: absolute;
+  inset: 0;
+  display: block;
+  height: 100%;
+  aspect-ratio: auto;
+  object-fit: contain;
+}
+
+.illustration-grid--compact .artwork-card--illustration .artwork-card__metadata {
+  min-width: 0;
+  min-height: 7.5rem;
+  border-top: 0;
+  border-inline-start: 2px solid var(--color-text);
+  padding: .5rem;
+  justify-content: center;
+}
+
+.illustration-grid--compact .artwork-card__metadata > p { margin: 0; }

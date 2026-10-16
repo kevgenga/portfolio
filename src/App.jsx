@@ -11,6 +11,7 @@ import { MotionConfig } from "framer-motion";
 import Analytics from "./components/Analytics";
 import Navbar from "./components/Navbar";
 import Footer from "./Footer";
+import BackToTopButton from "./components/gallery/BackToTopButton";
 import { useLanguage } from "./i18n/languageContext";
 import { sitePresentation } from "./content/sitePresentation";
 
@@ -98,6 +99,7 @@ const AppRoutes = () => {
         </Routes>
       </Suspense>
       {!isMangaReader && <Footer />}
+      {!isMangaReader && <BackToTopButton />}
     </>
   );
 };

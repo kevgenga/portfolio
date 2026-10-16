@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import ArtworkCard from "../components/gallery/ArtworkCard";
-import BackToTopButton from "../components/gallery/BackToTopButton";
+import IllustrationViewControls from "../components/gallery/IllustrationViewControls";
+import "../components/gallery/IllustrationViews.css";
 import EmptyState from "../components/gallery/EmptyState";
 import FilterBar from "../components/gallery/FilterBar";
 import Lightbox from "../components/gallery/Lightbox";
@@ -17,6 +18,7 @@ import { createProductionTimeCaption } from "../utils/productionTimeCaption";
 import { useLanguage } from "../i18n/languageContext";
 import { formatPortfolioDate } from "../utils/formatPortfolioDate";
 import { illustrationCategories, resolveIllustrationFilter } from "../utils/illustrationFilters";
+import { readIllustrationView, saveIllustrationView } from "../utils/illustrationView";
 
 export const ILLUSTRATION_PAGE_SIZE = 24;
 const { artworks } = artworkCatalog;
@@ -50,6 +52,7 @@ const Illustration = () => {
   const hasFeaturedArtwork = publicArtworks.some((artwork) => artwork.featured);
   const filter = resolveIllustrationFilter(searchParams.get("category"), visibleIllustrationCategories, hasFeaturedArtwork);
   const [sortOrder, setSortOrder] = useState("recent");
+  const [view, setView] = useState(() => readIllustrationView());
   const [visibleCount, setVisibleCount] = useState(ILLUSTRATION_PAGE_SIZE);
   const loadSentinelRef = useRef(null);
   const loadingNextBatchRef = useRef(false);
@@ -125,6 +128,11 @@ const Illustration = () => {
     setVisibleCount(ILLUSTRATION_PAGE_SIZE);
   };
 
+  const changeView = (nextView) => {
+    setView(nextView);
+    saveIllustrationView(nextView);
+  };
+
   return (
     <main className="public-page px-5 pb-16 pt-24 sm:px-8 lg:px-10">
       <PageHero
@@ -146,6 +154,7 @@ const Illustration = () => {
           sortOrder === "recent" ? t.common.oldest : t.common.newest
         }`}
         filtersLabel={t.illustration.filtersLabel}
+        controls={<IllustrationViewControls view={view} onChange={changeView} labels={t.illustration.views} />}
       />
 
       <Lightbox
@@ -156,7 +165,7 @@ const Illustration = () => {
 
       {visibleArtworks.length > 0 ? (
         <>
-          <PortfolioGrid className="grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5" gapClassName="gap-2 sm:gap-3 lg:gap-4">
+          <PortfolioGrid className={view === "compact" ? "illustration-grid illustration-grid--compact" : "illustration-grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5"} gapClassName="gap-2 sm:gap-3 lg:gap-4">
             {visibleArtworks.map((artwork) => {
               const formattedDate = formatPortfolioDate(artwork.date, locale);
 
@@ -190,7 +199,6 @@ const Illustration = () => {
         <EmptyState message={t.common.noResults} />
       )}
       </div>
-      <BackToTopButton />
     </main>
   );
 };

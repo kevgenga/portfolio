@@ -2,13 +2,23 @@ import { analyzeMangaCardMedia, MANGA_CARD_MEDIA } from "./media-policy.js";
 import { auditItemAsFile, mountMediaAudit } from "../../media-audit-ui.js";
 import { getLanguageDetails, getLanguageDirection, getLanguageLabel, normalizeSupportedLanguageCode, supportedMangaLanguages } from "/shared/language-labels.js";
 import { createMangaProductionUI } from "./production-time-ui.js";
+import { createSpreadsUI } from "./spreads-ui.js";
 import { mountProductionBatch } from "../../production-batch-ui.js";
+import { createEditorSession } from "./editor-session.js";
 
 const state = { mangas: [], report: null, presentationSettings: null, currentId: null, language: null, workingPages: [], savedPages: [], dirty: false, toastTimer: null, createMediaReview: null };
 const $ = (selector) => document.querySelector(selector);
 const dialog = $("#manga-dialog");
 const form = $("#manga-form");
 const toast = $("#toast");
+const isEditorPage = document.body.classList.contains("manga-edit-page");
+let editorSession;
+let activeTab = "pages";
+const editorFields = ["title", "edition", "author", "year", "date", "status", "visibility", "presentationSection", "readingDirection", "genre", "role", "description", "summary", "order", "defaultReadingMode", "tags", "featured"];
+function editorUrl(id, language, tab = "pages") { const params = new URLSearchParams({ id: String(id), tab }); if (language) params.set("language", language); return `/manga-edit.html?${params}`; }
+function syncEditorUrl() { if (isEditorPage && state.currentId !== null) history.replaceState(null, "", editorUrl(state.currentId, state.language, activeTab)); }
+function placeNotice() { const target = [...document.querySelectorAll("dialog[open]")].at(-1) || document.body; if (toast.parentElement !== target) target.append(toast); }
+new MutationObserver(placeNotice).observe(document.body, { subtree: true, attributes: true, attributeFilter: ["open"] });
 let mediaAuditController;
 let duplicateRequest = null;
 let duplicateSubmitting = false;
@@ -54,6 +64,19 @@ function mangaBatchItems() {
   return items;
 }
 
+const spreadsUI = createSpreadsUI({
+  getManga: currentManga, getLanguage: () => state.language, getLanguageLabel, getPages: () => state.workingPages,
+  getSelection: () => mangaBatch.getSelectedKeys(), getRevision: () => state.report.catalogRevision,
+  requireSaved: requireSavedEditor, api, imageUrl, notice: message,
+  mutate: async action => {
+    if (!requireSavedEditor()) throw new Error("Enregistrez ou annulez les modifications en cours.");
+    editorMutationPending = true; dialog.inert = true;
+    try { await action(); await reloadEditor(); }
+    finally { editorMutationPending = false; dialog.inert = false; }
+  },
+});
+$("#configure-spread").onclick = () => spreadsUI.open();
+
 async function api(url, options = {}) {
   if (url.startsWith("/api/mangas") && options.method && options.method !== "GET" && state.report?.catalogRevision) {
     options = { ...options, body: JSON.stringify({ catalogRevision: state.report.catalogRevision, ...JSON.parse(options.body || "{}") }) };
@@ -64,10 +87,12 @@ async function api(url, options = {}) {
   return body;
 }
 function message(text, type = "success") {
+  placeNotice();
   clearTimeout(state.toastTimer); toast.textContent = text; toast.className = `toast ${type === "error" ? "error" : type === "warning" ? "warning" : ""}`; toast.hidden = false;
   state.toastTimer = setTimeout(() => { toast.hidden = true; }, 5500);
 }
 function imageUrl(relative) { return relative ? `/api/manga-image/${encodeURIComponent(relative)}` : ""; }
+function thumbnailUrl(relative) { return relative ? `/api/manga-thumbnail/${encodeURIComponent(relative)}` : ""; }
 function previewUrl(manga) {
   const adminPreview = manga.presentationSection === "storyboard" ? "?adminPreview=1" : "";
   return `http://127.0.0.1:5173/portfolio${manga.route}${adminPreview}`;
@@ -117,6 +142,7 @@ async function immediateMutation(action, success, language = state.language) {
   finally { editorMutationPending = false; dialog.inert = false; }
 }
 function switchEditorTab(tabName, focus = false) {
+  activeTab = tabName;
   const tabs = [...document.querySelectorAll("[data-editor-tab]")];
   tabs.forEach((tab) => {
     const active = tab.dataset.editorTab === tabName;
@@ -126,6 +152,7 @@ function switchEditorTab(tabName, focus = false) {
     if (active && focus) tab.focus();
   });
   document.querySelectorAll("[data-editor-panel]").forEach((panel) => { panel.hidden = panel.dataset.editorPanel !== tabName; });
+  syncEditorUrl(); editorSession?.save();
 }
 async function filePayload(file) {
   const dataBase64 = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(",")[1]); reader.onerror = reject; reader.readAsDataURL(file); });
@@ -142,7 +169,7 @@ function renderList() {
     const counts = Object.entries(manga.languages).map(([code, item]) => `<bdi dir="${getLanguageDirection(code)}">${escapeHtml(getLanguageLabel(code, item.label))}</bdi> ${item.pageCount}`).join(" · ");
     const temporary = manga.isTemporaryExample ? '<span class="temporary-example">Copie temporaire de test</span>' : "";
     card.innerHTML = `<img src="${imageUrl(manga.primaryMedia.path)}" alt="" /><div class="manga-card-body"><div><h2>${escapeHtml(manga.title)}</h2><span class="manga-card-meta">${escapeHtml(manga.slug)} · ${escapeHtml(manga.status || "published")}</span></div><div class="manga-section-meta"><span>${escapeHtml(sectionLabels[manga.presentationSection] || sectionLabels.completed)}</span>${temporary}</div><div class="language-counts">Défaut : <bdi dir="${getLanguageDirection(manga.defaultLanguage)}">${escapeHtml(getLanguageLabel(manga.defaultLanguage, manga.languages[manga.defaultLanguage]?.label))}</bdi><br>${counts}</div><div class="manga-card-actions"><button class="button button-primary" data-edit>Modifier</button><a class="button button-secondary" href="${previewUrl(manga)}" target="_blank" rel="noopener">Prévisualiser</a></div></div>`;
-    card.querySelector("[data-edit]").onclick = () => openEditor(manga.id); return card;
+    const edit = document.createElement("a"); edit.className = "button button-primary"; edit.dataset.edit = ""; edit.href = editorUrl(manga.id); edit.textContent = "Modifier"; card.querySelector("[data-edit]").replaceWith(edit); return card;
   }));
 }
 function escapeHtml(value) { const node = document.createElement("span"); node.textContent = String(value ?? ""); return node.innerHTML; }
@@ -166,6 +193,7 @@ async function reviewReplacementMedia(file) {
 
 async function load() {
   state.report = await api("/api/mangas"); state.mangas = state.report.mangas;
+  if (isEditorPage) return;
   const statuses = [...new Set(state.mangas.map((manga) => manga.status || "published"))]; $("#manga-status").innerHTML = `<option value="">Tous</option>${statuses.map((value) => `<option>${escapeHtml(value)}</option>`).join("")}`;
   const languages = [...new Set(state.mangas.flatMap((manga) => Object.keys(manga.languages)))]; $("#manga-language").innerHTML = `<option value="">Toutes</option>${languages.map((value) => `<option value="${escapeHtml(value)}" dir="${getLanguageDirection(value)}">${escapeHtml(getLanguageLabel(value, state.mangas.find((manga) => manga.languages[value])?.languages[value].label))}</option>`).join("")}`;
   const report = $("#manga-report"); report.hidden = false; report.textContent = `Audit — ${state.report.count} mangas (${state.report.sectionCounts.completed} Completed Manga, ${state.report.sectionCounts.storyboard} Complete Storyboards), ${state.report.languageVersions} versions linguistiques, ${state.report.totalPages} pages. ${state.report.issues.length ? state.report.issues.join(" · ") : "Aucune anomalie détectée."}`;
@@ -212,11 +240,14 @@ $("#toggle-storyboard-visibility").onclick = async () => {
 };
 
 function openEditor(id) {
+  if (!isEditorPage) { location.assign(editorUrl(id)); return; }
   const manga = state.mangas.find((item) => String(item.id) === String(id)); state.currentId = manga.id; state.language = manga.defaultLanguage; setDirty(false);
   for (const field of ["title", "edition", "author", "year", "date", "status", "visibility", "presentationSection", "readingDirection", "genre", "role", "description", "summary", "order", "defaultReadingMode"]) form.elements[field].value = manga[field] ?? (field === "status" ? "published" : field === "visibility" ? "public" : field === "presentationSection" ? "completed" : field === "readingDirection" ? "rtl" : "");
   form.elements.tags.value = (manga.tags || []).join(", ");
   form.elements.featured.checked = Boolean(manga.featured); $("#manga-breadcrumb").textContent = `Mangas / ${manga.title} / ${manga.slug}`;
-  productionUI.reset(); renderMedia(); renderLanguages(); switchEditorTab("pages"); if (!dialog.open) dialog.showModal();
+  productionUI.reset(); renderMedia(); renderLanguages(); switchEditorTab("pages");
+  $("#editor-preview").href = previewUrl(manga); $("#editor-preview").hidden = false;
+  document.title = `${manga.title} — Manga Admin`;
 }
 function renderMedia() {
   const manga = currentManga(); const media = manga.primaryMedia; const info = media.details; const analysis = media.analysis;
@@ -289,19 +320,34 @@ function renderPages() {
   const selectionItems = new Map(mangaBatchItems().map(item => [item.key, item]));
   $("#page-grid").replaceChildren(...state.workingPages.map((page, index) => {
     const info = details.get(page) || { path: page, name: page.split("/").at(-1) }; const card = document.createElement("article"); card.className = "manga-page"; card.draggable = true; card.dataset.index = index;
-    card.innerHTML = `<img src="${imageUrl(page)}" alt="Page ${index + 1}" /><strong>Position ${String(index + 1).padStart(2, "0")}</strong><small title="${escapeHtml(info.name)}">${escapeHtml(info.name)}</small><small>${info.width || "?"} × ${info.height || "?"} · ${formatBytes(info.size)}</small><div class="page-actions"><button type="button" data-action="up" title="Monter">↑</button><button type="button" data-action="down" title="Descendre">↓</button><button type="button" data-action="reveal" title="Explorateur">⌕</button><button type="button" data-action="replace" title="Remplacer cette page" aria-label="Remplacer cette page">↻</button><button type="button" data-action="first" title="Début">⇈</button><button type="button" data-action="last" title="Fin">⇊</button><button type="button" data-action="position" title="Position précise">#</button><button type="button" data-action="delete" title="Supprimer">×</button><button type="button" data-action="duplicate" title="Dupliquer cette page" aria-label="Dupliquer cette page">Dupliquer</button></div>`;
+    card.innerHTML = `<button type="button" class="page-thumbnail" data-action="preview" title="Agrandir cette page"><img loading="lazy" decoding="async" draggable="false" width="240" height="320" src="${thumbnailUrl(page)}" alt="Page ${index + 1}" /></button><strong class="page-position">Position ${String(index + 1).padStart(2, "0")}</strong><small class="page-filename" title="${escapeHtml(info.name)}">${escapeHtml(info.name)}</small><small class="page-dimensions">${info.width || "?"} × ${info.height || "?"}</small><small class="page-size">${formatBytes(info.size)}</small><div class="page-actions"><button type="button" data-action="up" title="Monter">↑</button><button type="button" data-action="down" title="Descendre">↓</button><button type="button" data-action="reveal" title="Explorateur">⌕</button><button type="button" data-action="replace" title="Remplacer cette page" aria-label="Remplacer cette page">↻</button><button type="button" data-action="first" title="Début">⇈</button><button type="button" data-action="last" title="Fin">⇊</button><button type="button" data-action="position" title="Position précise">#</button><button type="button" data-action="delete" title="Supprimer">×</button><button type="button" data-action="duplicate" title="Dupliquer cette page" aria-label="Dupliquer cette page">Dupliquer</button></div>`;
     card.ondragstart = () => card.classList.add("is-dragging"); card.ondragend = () => card.classList.remove("is-dragging"); card.ondragover = (event) => event.preventDefault(); card.ondrop = (event) => { event.preventDefault(); const source = Number(document.querySelector(".manga-page.is-dragging")?.dataset.index); if (Number.isInteger(source)) movePage(source, index); };
     card.prepend(mangaBatch.checkbox(selectionItems.get(page)));
-    const time = document.createElement("small"); time.textContent = productionUI.describe(page);
+    const language = manga.languages[state.language];
+    const pairs = new Map([...(language.verticalSpreads || []), ...(language.horizontalSpreads || [])].filter(pair => pair.includes(page)).map(pair => [JSON.stringify(pair), pair]));
+    for (const pair of pairs.values()) {
+      card.classList.add("manga-page--vertical-spread");
+      const marker = document.createElement("small"); marker.className = "vertical-spread-marker";
+      const numbers = pair.map(path => state.workingPages.indexOf(path) + 1).join("–");
+      const modes = [["verticalSpreads", "Verticale"], ["horizontalSpreads", "Horizontale"]].filter(([field]) => language[field]?.some(entry => entry[0] === pair[0] && entry[1] === pair[1])).map(([,label]) => label).join(" + ");
+      marker.textContent = `Double page ${numbers} · ${modes}`;
+      const separate = document.createElement("button"); separate.type = "button";
+      separate.dataset.action = "configure-spread"; separate.title = `Modifier ou dissocier la double page ${numbers}`; separate.textContent = `Configurer ${numbers}`;
+      separate.onclick = () => spreadsUI.open(pair);
+      card.querySelector(".page-actions").before(marker); card.querySelector(".page-actions").append(separate);
+    }
+    if (!pairs.size) { const status = document.createElement("small"); status.className = "page-spread-status"; status.textContent = "Page simple"; card.querySelector(".page-actions").before(status); }
+    const time = document.createElement("small"); time.className = "page-time"; time.textContent = productionUI.describe(page);
     const timeButton = document.createElement("button"); timeButton.type = "button"; timeButton.dataset.action = "time"; timeButton.title = "Temps de réalisation de cette page"; timeButton.textContent = "Temps / correspondances";
     card.querySelector(".page-actions").append(timeButton); card.querySelector(".page-actions").before(time);
     card.querySelectorAll("button").forEach((button) => {
       button.setAttribute("aria-label", `${button.title} — Position ${index + 1}`);
       button.disabled = (["up", "first"].includes(button.dataset.action) && index === 0) || (["down", "last"].includes(button.dataset.action) && index === state.workingPages.length - 1);
-      button.onclick = () => pageAction(button.dataset.action, index);
+      if (button.dataset.action !== "configure-spread") button.onclick = () => pageAction(button.dataset.action, index);
     }); return card;
   }));
   mangaBatch.sync();
+  syncEditorUrl();
 }
 function openDuplicatePage(index) {
   if (state.dirty) return message("Enregistrez vos modifications avant de dupliquer une page.", "warning");
@@ -346,6 +392,7 @@ $("#duplicate-page-dialog").addEventListener("cancel", (event) => {
 });
 function movePage(from, to) { if (productionUI.isDirty() || productionUI.isBusy()) return message("Enregistrez le temps en cours avant de réordonner.", "warning"); if (!Number.isInteger(from) || !Number.isInteger(to) || from < 0 || from >= state.workingPages.length || from === to || to < 0 || to >= state.workingPages.length) return; const [page] = state.workingPages.splice(from, 1); state.workingPages.splice(to, 0, page); setDirty(); renderPages(); }
 async function pageAction(action, index) {
+  if (action === "preview") return openPagePreview(state.workingPages[index], index);
   if (action === "time") { if (requireSavedEditor()) productionUI.openPage(state.workingPages[index]); return; }
   if (action === "duplicate") return openDuplicatePage(index);
   if (action === "up") return movePage(index, index - 1); if (action === "down") return movePage(index, index + 1); if (action === "first") return movePage(index, 0);
@@ -387,7 +434,13 @@ function replacePageImage(index) {
 }
 function chooseFile(callback) { const input = document.createElement("input"); input.type = "file"; input.accept = ".jpg,.jpeg,.png,.webp,.avif,.gif"; input.onchange = () => input.files[0] && callback(input.files[0]).catch((error) => message(error.message, "error")); input.click(); }
 async function reveal(descriptor) { try { const result = await api(`/api/mangas/${encodeURIComponent(state.currentId)}/reveal`, { method: "POST", body: JSON.stringify(descriptor) }); message(result.warning || result.message, result.mode === "opened-folder" ? "warning" : "success"); } catch (error) { message(error.message, "error"); } }
-async function reloadEditor(success, language = state.language) { const id = state.currentId; await load(); openEditor(id); if (currentManga().languages[language]) { state.language = language; renderLanguages(); } if (success) message(success); }
+async function reloadEditor(success, language = state.language) {
+  const id = state.currentId, tab = activeTab, scroll = window.scrollY;
+  editorSession?.suspend();
+  try { await load(); if (!state.mangas.some(item => String(item.id) === String(id))) throw new Error("Ce manga n’existe plus. Retournez à la liste des mangas."); openEditor(id); if (currentManga().languages[language]) { state.language = language; renderLanguages(); } switchEditorTab(tab); }
+  finally { editorSession?.resume(); }
+  editorSession?.save(); window.scrollTo(0, scroll); if (success) message(success);
+}
 
 form.addEventListener("input", (event) => { if (event.target.name) setDirty(); });
 form.onsubmit = async (event) => {
@@ -398,7 +451,7 @@ form.onsubmit = async (event) => {
   editorMutationPending = true; dialog.inert = true;
   try {
     await api(`/api/mangas/${encodeURIComponent(state.currentId)}`, { method: "PUT", body: JSON.stringify(data) });
-    setDirty(false); dialog.close(); await load(); message("Manga et ordre des pages enregistrés.");
+    setDirty(false); await reloadEditor("Manga et ordre des pages enregistrés.");
   } catch (error) { message(error.message, "error"); }
   finally { editorMutationPending = false; dialog.inert = false; }
 };
@@ -416,11 +469,13 @@ $("#confirm-add-language").onclick = async () => {
   } catch (error) { message(error.message, "error"); }
   finally { button.disabled = false; }
 };
-$("#delete-manga").onclick = async () => { if (!requireSavedEditor()) return; const manga = currentManga(); const confirmation = prompt(`Déplacer le manga et son dossier dans la corbeille : saisissez « ${manga.slug} » ou le titre.`); if (!confirmation) return; editorMutationPending = true; dialog.inert = true; try { await api(`/api/mangas/${encodeURIComponent(manga.id)}`, { method: "DELETE", body: JSON.stringify({ confirmation }) }); setDirty(false); dialog.close(); await load(); message("Manga déplacé dans la corbeille."); } catch (error) { message(error.message, "error"); } finally { editorMutationPending = false; dialog.inert = false; } };
+$("#delete-manga").onclick = async () => { if (!requireSavedEditor()) return; const manga = currentManga(); const confirmation = prompt(`Déplacer le manga et son dossier dans la corbeille : saisissez « ${manga.slug} » ou le titre.`); if (!confirmation) return; editorMutationPending = true; dialog.inert = true; try { await api(`/api/mangas/${encodeURIComponent(manga.id)}`, { method: "DELETE", body: JSON.stringify({ confirmation }) }); setDirty(false); editorSession?.clear(); editorSession?.suspend(); sessionStorage.setItem("manga-dashboard-notice", "Manga déplacé dans la corbeille."); editorMutationPending = false; location.assign("/mangas.html"); } catch (error) { message(error.message, "error"); } finally { editorMutationPending = false; dialog.inert = false; } };
 
-function requestClose() { if (pageReplacementPending || editorMutationPending || duplicateSubmitting || productionUI.isBusy()) return; if ((state.dirty || productionUI.isDirty()) && !confirm("Abandonner les modifications non enregistrées ?")) return; state.workingPages = [...state.savedPages]; setDirty(false); dialog.close(); }
+function requestClose() { if (pageReplacementPending || editorMutationPending || duplicateSubmitting || productionUI.isBusy()) return; if ((state.dirty || productionUI.isDirty()) && !confirm("Abandonner les modifications non enregistrées ?")) return; editorSession?.clear(); return reloadEditor().catch(error => message(error.message, "error")); }
 document.querySelectorAll("[data-close]").forEach((button) => button.onclick = requestClose); dialog.addEventListener("cancel", (event) => { event.preventDefault(); requestClose(); });
-window.addEventListener("beforeunload", (event) => { if (state.dirty || productionUI.isDirty() || productionUI.isBusy()) event.preventDefault(); });
+function hasPendingWork() { return state.dirty || productionUI.isDirty() || productionUI.isBusy() || editorMutationPending || pageReplacementPending || duplicateSubmitting || mangaBatch.isBusy() || Boolean($("#page-files").files.length) || Boolean(document.querySelector("dialog[open]")); }
+window.addEventListener("beforeunload", (event) => { if (!isEditorPage) return; editorSession?.save(); if (hasPendingWork()) { event.preventDefault(); event.returnValue = ""; } });
+$("#back-to-mangas").onclick = event => { if (!hasPendingWork()) { editorSession?.save(); return; } event.preventDefault(); if (editorMutationPending || pageReplacementPending || duplicateSubmitting || productionUI.isBusy() || mangaBatch.isBusy()) return message("Attendez la fin de l’opération avant de quitter l’éditeur.", "warning"); if (confirm("Quitter l’éditeur ? Le brouillon des champs et de l’ordre sera conservé dans cet onglet. Les fichiers à importer et les confirmations devront être sélectionnés de nouveau.")) { editorSession?.save(); editorSession?.suspend(); state.dirty = false; productionUI.reset(); $("#page-files").value = ""; document.querySelectorAll("dialog[open]").forEach(modal => modal.close()); location.assign("/mangas.html"); } };
 for (const selector of ["#manga-search", "#manga-section", "#manga-status", "#manga-language", "#manga-sort"]) $(selector).addEventListener("input", renderList);
 
 const editorTabs = [...document.querySelectorAll("[data-editor-tab]")];
@@ -463,13 +518,14 @@ $("#create-form").onsubmit = async (event) => {
 };
 $("#create-dialog").addEventListener("cancel", (event) => { if (createPending) event.preventDefault(); });
 
-mediaAuditController = mountMediaAudit({
+const auditOptions = {
   module: "manga",
   container: $("#manga-media-audit"),
   notify: message,
   onOpenMissing: (item) => {
     if (!requireSavedEditor()) return;
     if (!state.mangas.some((manga) => String(manga.id) === String(item.entryId))) return;
+    if (!isEditorPage) { location.assign(editorUrl(item.entryId, item.role === "page" ? item.language : null, item.role === "page" ? "pages" : "media")); return; }
     openEditor(item.entryId);
     if (item.role === "page" && item.language && currentManga().languages[item.language]) {
       state.language = item.language;
@@ -480,13 +536,17 @@ mediaAuditController = mountMediaAudit({
   onIntegrate: async (item) => {
     if (!requireSavedEditor()) return;
     if (!state.report) await load();
-    const file = await auditItemAsFile(item);
     let manga = state.mangas.find((candidate) => String(candidate.id) === String(item.mangaId) || candidate.slug === item.mangaSlug);
     if (!manga) {
       const target = prompt("ID, slug ou titre du manga cible :");
       manga = state.mangas.find((candidate) => String(candidate.id) === target || candidate.slug === target || candidate.title === target);
     }
     if (!manga) throw new Error("Manga cible introuvable.");
+    if (!isEditorPage) {
+      sessionStorage.setItem("manga-pending-audit", JSON.stringify({ id: String(manga.id), item, createdAt: Date.now() }));
+      location.assign(editorUrl(manga.id)); return;
+    }
+    const file = await auditItemAsFile(item);
     openEditor(manga.id);
     if (item.type === "page" || item.type === "orphan-language" || item.type === "page-or-legacy") {
       const language = item.language && manga.languages[item.language] ? item.language : prompt(`Code de langue cible (${Object.keys(manga.languages).join(", ")}) :`, manga.defaultLanguage);
@@ -509,10 +569,78 @@ mediaAuditController = mountMediaAudit({
     if (!confirm("Utiliser ce fichier comme image de la carte Manga ? L’ancien média sera déplacé dans la corbeille.")) return;
     await immediateMutation(async () => api(`/api/mangas/${encodeURIComponent(manga.id)}/media/primary`, { method: "PUT", body: JSON.stringify({ file: await filePayload(file) }) }), "Image de la carte Manga intégrée après validation.");
   },
-});
+};
+if (!isEditorPage) mediaAuditController = mountMediaAudit(auditOptions);
 document.querySelectorAll("select[name='languageCode']").forEach((select) => {
   select.replaceChildren(...supportedMangaLanguages.filter((language) => language.code !== "orig").map(languageOption));
   select.dir = getLanguageDirection(select.value);
   select.onchange = () => { select.dir = getLanguageDirection(select.value); };
 });
-Promise.all([load(), loadPresentationSettings()]).catch((error) => message(error.message, "error"));
+function openPagePreview(path, index) {
+  const modal = $("#page-preview-dialog"), image = $("#page-preview-image"), status = $("#page-preview-status");
+  $("#page-preview-title").textContent = `Position ${String(index + 1).padStart(2, "0")} — ${path.split("/").at(-1)}`;
+  status.textContent = "Chargement de l’image originale…";
+  image.alt = `Page ${index + 1} — ${currentManga().title}`;
+  image.onload = () => { status.textContent = ""; }; image.onerror = () => { status.textContent = "Impossible de charger cette image. Vérifiez le fichier source."; };
+  image.src = imageUrl(path); modal.showModal();
+}
+$("#close-page-preview").onclick = () => $("#page-preview-dialog").close();
+$("#page-preview-dialog").addEventListener("close", () => { const image = $("#page-preview-image"); image.onload = image.onerror = null; image.removeAttribute("src"); });
+
+function setPagesView(view) {
+  const next = view === "list" ? "list" : "cards";
+  $("#page-grid").dataset.view = next;
+  document.querySelectorAll("[data-pages-view]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.pagesView === next)));
+  try { localStorage.setItem("manga-pages-view", next); } catch { /* The view still works without storage. */ }
+}
+document.querySelectorAll("[data-pages-view]").forEach(button => { button.onclick = () => setPagesView(button.dataset.pagesView); });
+try { setPagesView(localStorage.getItem("manga-pages-view")); } catch { setPagesView("cards"); }
+
+// Native document scrolling also works while dragging across distant rows.
+let dragScrollFrame, dragPointerY = 0;
+function stopDragScroll() { cancelAnimationFrame(dragScrollFrame); dragScrollFrame = null; }
+document.addEventListener("dragover", event => {
+  if (!document.querySelector(".manga-page.is-dragging")) return;
+  dragPointerY = event.clientY;
+  if (dragScrollFrame) return;
+  const step = () => { const edge = 90; const speed = dragPointerY < edge ? -Math.ceil((edge - dragPointerY) / 5) : dragPointerY > innerHeight - edge ? Math.ceil((dragPointerY - innerHeight + edge) / 5) : 0; if (speed) window.scrollBy(0, speed); dragScrollFrame = requestAnimationFrame(step); };
+  dragScrollFrame = requestAnimationFrame(step);
+});
+document.addEventListener("dragend", stopDragScroll); document.addEventListener("drop", stopDragScroll);
+
+async function startEditor() {
+  const error = document.body.dataset.editorError;
+  if (error) throw new Error(error);
+  const requested = new URLSearchParams(location.search);
+  await load();
+  const id = document.body.dataset.editorId;
+  if (!state.mangas.some(manga => String(manga.id) === id)) throw new Error("Ce manga n’existe plus. Retournez à la liste des mangas.");
+  openEditor(id);
+  if (requested.has("language") && currentManga().languages[requested.get("language")]) { state.language = requested.get("language"); renderLanguages(); }
+  switchEditorTab(requested.get("tab") || "pages");
+  editorSession = createEditorSession({ id, revision: () => state.report.catalogRevision, notice: message,
+    capture: () => ({ dirty: state.dirty, language: state.language, tab: activeTab, scroll: window.scrollY, fields: Object.fromEntries(editorFields.map(name => [name, form.elements[name].type === "checkbox" ? form.elements[name].checked : form.elements[name].value])), workingPages: [...state.workingPages], savedPages: [...state.savedPages], selection: mangaBatch.getSelectedKeys(), production: productionUI.captureDraft() }),
+    restore: draft => {
+      if (!currentManga().languages[draft.language]) return;
+      state.language = draft.language; renderLanguages();
+      const pages = currentManga().languages[state.language].pages;
+      if (Array.isArray(draft.workingPages) && draft.workingPages.length === pages.length && new Set(draft.workingPages).size === pages.length && draft.workingPages.every(page => pages.includes(page))) state.workingPages = [...draft.workingPages];
+      for (const name of editorFields) if (Object.hasOwn(draft.fields || {}, name)) { const field = form.elements[name]; if (field.type === "checkbox") field.checked = draft.fields[name] === true; else if (typeof draft.fields[name] === "string") field.value = draft.fields[name]; }
+      setDirty(Boolean(draft.dirty)); switchEditorTab(["pages", "information", "media"].includes(draft.tab) ? draft.tab : "pages");
+      mangaBatch.restoreSelection(Array.isArray(draft.selection) ? draft.selection : []); renderPages(); productionUI.restoreDraft(draft.production); window.scrollTo(0, Number(draft.scroll) || 0);
+    },
+  });
+  editorSession.suspend(); editorSession.recover(); editorSession.resume();
+  for (const eventName of ["input", "change"]) document.addEventListener(eventName, () => queueMicrotask(() => editorSession.save()));
+  document.addEventListener("click", () => queueMicrotask(() => editorSession.save()));
+  window.addEventListener("pagehide", () => editorSession.save());
+  let pending;
+  try { pending = JSON.parse(sessionStorage.getItem("manga-pending-audit") || "null"); } catch { /* Invalid transfer is never submitted. */ }
+  if (pending && pending.id === id) {
+    sessionStorage.removeItem("manga-pending-audit");
+    if (Date.now() - pending.createdAt < 300000 && !state.dirty && !productionUI.isDirty() && !form.inert) await auditOptions.onIntegrate(pending.item);
+    else message("Intégration non préparée : terminez le brouillon puis relancez l’audit depuis les mangas.", "warning");
+  }
+}
+if (isEditorPage) startEditor().catch(error => { $("#editor-error").textContent = error.message; $("#editor-error").hidden = false; dialog.hidden = true; message(error.message, "error"); });
+else Promise.all([load(), loadPresentationSettings()]).then(() => { const notice = sessionStorage.getItem("manga-dashboard-notice"); if (notice) { sessionStorage.removeItem("manga-dashboard-notice"); message(notice); } }).catch(error => message(error.message, "error"));

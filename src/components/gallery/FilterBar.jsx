@@ -5,6 +5,7 @@ const FilterBar = ({
   onSortChange,
   sortLabel,
   filtersLabel,
+  controls,
 }) => (
   <div className="filter-bar" role="group" aria-label={filtersLabel}>
     {onSortChange && (
@@ -25,6 +26,7 @@ const FilterBar = ({
         {Number.isInteger(count) && <span className="filter-count">({count})</span>}
       </button>
     ))}
+    {controls}
   </div>
 );
 

@@ -4,7 +4,11 @@ import { Link } from "react-router-dom";
 import { useReducedMotion } from "framer-motion";
 import { useLanguage } from "../../i18n/languageContext";
 import { getLanguageDirection, getLanguageLabel } from "../../utils/languageLabels.js";
+import { getVerticalReadingGroups } from "../../utils/verticalSpreads.js";
 import ReaderPageProductionTimes from "./ReaderPageProductionTimes";
+import ReaderPageSlider from "./ReaderPageSlider";
+import useVerticalPageTracking from "./useVerticalPageTracking";
+import { getHorizontalReadingPanels, getReadingPanelIndex } from "./readerPagination";
 import {
   canStartReaderPointerGesture,
   finishReaderPointerGesture,
@@ -77,25 +81,6 @@ const writePreference = (key, value) => {
   } catch {
     // The reader remains fully functional when storage is unavailable.
   }
-};
-
-const getSpreadStart = (pageNumber) => {
-  if (pageNumber <= 1) return 1;
-  return pageNumber % 2 === 0 ? pageNumber : pageNumber - 1;
-};
-
-const getVisiblePageNumbers = (currentPage, pageDisplay, pageCount) => {
-  if (pageDisplay === "single") return [currentPage];
-
-  const firstPage = getSpreadStart(currentPage);
-  if (firstPage === 1) return [1];
-
-  return [firstPage, firstPage + 1].filter((page) => page <= pageCount);
-};
-
-const getVerticalGroups = (pages) => {
-  const numberedPages = pages.map((src, index) => ({ src, number: index + 1 }));
-  return numberedPages.map((page) => [page]);
 };
 
 const isInteractiveElementFocused = () => {
@@ -344,7 +329,7 @@ const MangaPageImage = ({ page, title, eager = false, className = "", t }) => (
   />
 );
 
-const HorizontalRailPanel = ({ panel, title, t }) => (
+const HorizontalRailPanel = ({ panel, title, readingDirection, t }) => (
   <div
     className="flex h-full min-h-0 w-full flex-none items-center justify-center overflow-hidden"
     aria-hidden={panel.role !== "current"}
@@ -353,7 +338,7 @@ const HorizontalRailPanel = ({ panel, title, t }) => (
   >
     <div
       className="flex h-full min-h-0 w-full items-center justify-center gap-0"
-      dir={panel.pages.length > 1 ? "rtl" : "ltr"}
+      dir={panel.pages.length > 1 ? readingDirection : "ltr"}
     >
       {panel.pages.map((page) => (
         <figure
@@ -432,27 +417,42 @@ const ReaderPagination = ({
   pageCount,
   isVisible,
   interfaceTransition,
+  readingMode,
+  readingDirection,
+  readingPanels,
+  sliderKey,
+  onNavigate,
   t,
-}) => (
-  <div
-    className={`fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.1] bg-[#151515]/95 ${interfaceTransition} ${
-      isVisible
-        ? "translate-y-0 opacity-100"
-        : "pointer-events-none translate-y-full opacity-0"
-    }`}
-    aria-hidden={!isVisible}
-    inert={isVisible ? undefined : ""}
-    data-reader-pagination
-  >
+}) => {
+  // Reuse this exact counter in both modes. Only its displayed number previews
+  // the slider destination; production metadata still describes the visible art.
+  const renderCounter = (displayPage) => (
     <p
       className="flex min-h-11 items-center justify-center px-4 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 text-xs font-semibold tracking-[0.14em] text-[#f4f1e8] sm:min-h-12 sm:py-2"
       dir="ltr"
     >
-      <span aria-label={t.mangaReader.progress(currentPage, pageCount)}>{currentPage} / {pageCount}</span>
+      <span aria-label={t.mangaReader.progress(displayPage, pageCount)}>{displayPage} / {pageCount}</span>
       <ReaderPageProductionTimes manga={manga} pages={pages} pageNumbers={pageNumbers} />
     </p>
-  </div>
-);
+  );
+  return (
+    <div
+      className={`${readingMode === "horizontal" ? "relative shrink-0" : "fixed inset-x-0 bottom-0"} z-40 border-t border-white/[0.1] bg-[#151515]/95 ${interfaceTransition} ${
+        isVisible
+          ? "translate-y-0 opacity-100"
+          : "pointer-events-none translate-y-full opacity-0"
+      }`}
+      aria-hidden={!isVisible}
+      inert={isVisible ? undefined : ""}
+      data-reader-pagination
+    >
+      {readingMode === "horizontal" && (
+        <ReaderPageSlider key={sliderKey} panels={readingPanels} currentPage={currentPage} pageCount={pageCount} readingDirection={readingDirection} isVisible={isVisible} onNavigate={onNavigate} renderCounter={renderCounter} t={t} />
+      )}
+      {readingMode !== "horizontal" && renderCounter(currentPage)}
+    </div>
+  );
+};
 
 const MangaReader = ({ manga }) => {
   const { t } = useLanguage();
@@ -530,30 +530,29 @@ const MangaReader = ({ manga }) => {
     [languages],
   );
 
-  const visiblePageNumbers = useMemo(
-    () => getVisiblePageNumbers(currentPage, pageDisplay, pageCount),
-    [currentPage, pageCount, pageDisplay],
-  );
   const verticalGroups = useMemo(
-    () => getVerticalGroups(pages),
-    [pages],
+    () => getVerticalReadingGroups(pages, languages[resolvedLanguage].verticalSpreads),
+    [pages, languages, resolvedLanguage],
   );
-
+  const verticalGroupIndex = verticalGroups.findIndex(group => group.some(page => page.number === currentPage));
+  const readingPanels = useMemo(
+    () => getHorizontalReadingPanels(pageDisplay, pageCount, pages, languages[resolvedLanguage].horizontalSpreads),
+    [pageDisplay, pageCount, pages, languages, resolvedLanguage],
+  );
+  const horizontalPanelIndex = getReadingPanelIndex(readingPanels, currentPage);
+  const visiblePageNumbers = useMemo(
+    () => readingMode === "vertical"
+      ? (verticalGroups[verticalGroupIndex] || []).map(page => page.number)
+      : readingPanels[horizontalPanelIndex] || [],
+    [readingMode, verticalGroups, verticalGroupIndex, readingPanels, horizontalPanelIndex],
+  );
   const canGoPrevious = visiblePageNumbers[0] > 1;
   const canGoNext = visiblePageNumbers.at(-1) < pageCount;
   const nextPageNumber = canGoNext
-    ? pageDisplay === "double"
-      ? visiblePageNumbers[0] === 1
-        ? 2
-        : visiblePageNumbers[0] + 2
-      : currentPage + 1
+    ? readingMode === "vertical" ? visiblePageNumbers.at(-1) + 1 : readingPanels[horizontalPanelIndex + 1]?.[0] ?? null
     : null;
   const previousPageNumber = canGoPrevious
-    ? pageDisplay === "double"
-      ? visiblePageNumbers[0] === 2
-        ? 1
-        : visiblePageNumbers[0] - 2
-      : currentPage - 1
+    ? readingMode === "vertical" ? verticalGroups[verticalGroupIndex - 1]?.[0].number ?? null : readingPanels[horizontalPanelIndex - 1]?.[0] ?? null
     : null;
   const horizontalPanelStarts = {
     current: currentPage,
@@ -566,7 +565,7 @@ const MangaReader = ({ manga }) => {
       ? []
       : role === "current"
         ? visiblePageNumbers
-        : getVisiblePageNumbers(startPage, pageDisplay, pageCount);
+        : readingPanels[getReadingPanelIndex(readingPanels, startPage)] || [];
 
     return {
       role,
@@ -580,7 +579,10 @@ const MangaReader = ({ manga }) => {
 
   const goToPage = useCallback(
     (pageNumber, { scroll = readingMode === "vertical" } = {}) => {
-      const targetPage = Math.min(Math.max(pageNumber, 1), pageCount);
+      const clampedPage = Math.min(Math.max(pageNumber, 1), pageCount);
+      const targetPage = readingMode === "vertical"
+        ? verticalGroups.find(group => group.some(page => page.number === clampedPage))?.[0].number ?? clampedPage
+        : clampedPage;
       setCurrentPage(targetPage);
 
       if (scroll) {
@@ -592,7 +594,7 @@ const MangaReader = ({ manga }) => {
         });
       }
     },
-    [pageCount, readingMode, shouldReduceMotion],
+    [pageCount, readingMode, shouldReduceMotion, verticalGroups],
   );
 
   const goToNext = useCallback(() => {
@@ -691,28 +693,9 @@ const MangaReader = ({ manga }) => {
     );
     setCurrentPage(1);
     setIsInterfaceVisible(true);
-    verticalPageElements.current = [];
   }, [defaultLanguage, id, languageCodes, languageStorageKey]);
 
-  useEffect(() => {
-    if (readingMode !== "vertical") return undefined;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visibleEntry = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((first, second) => second.intersectionRatio - first.intersectionRatio)[0];
-
-        if (visibleEntry) {
-          setCurrentPage(Number(visibleEntry.target.dataset.page));
-        }
-      },
-      { rootMargin: "-18% 0px -58%", threshold: [0.1, 0.5, 0.9] },
-    );
-
-    verticalPageElements.current.forEach((page) => page && observer.observe(page));
-    return () => observer.disconnect();
-  }, [pages, readingMode]);
+  useVerticalPageTracking({ enabled: readingMode === "vertical", readerRef: readerRoot, pages: verticalGroups, currentPage, onPageChange: setCurrentPage, isFullscreen, isInterfaceVisible });
 
   const toggleInterface = useCallback(() => {
     setIsInterfaceVisible((isVisible) => !isVisible);
@@ -989,6 +972,18 @@ const MangaReader = ({ manga }) => {
     action();
   };
 
+  const navigateFromSlider = (page) => {
+    // Cancel an in-flight gesture/snap before this external, direct navigation.
+    clearRailSnapTimer();
+    railNavigation.current = null;
+    railNeedsRecentering.current = true;
+    const gesture = pointerGesture.current;
+    if (gesture) releasePointer(gesture.captureElement, gesture.pointerId);
+    pointerGesture.current = null;
+    resetHorizontalDrag();
+    goToPage(page, { scroll: false });
+  };
+
   const selectMode = (mode) => setReadingMode(mode);
 
   const interfaceTransition = shouldReduceMotion
@@ -1083,7 +1078,7 @@ const MangaReader = ({ manga }) => {
 
       {readingMode === "vertical" ? (
         <section
-          className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-3 bg-[#0f0f0f] px-0 py-0 sm:gap-4 sm:px-4"
+          className="mx-auto flex w-full flex-1 flex-col gap-3 bg-[#0f0f0f] px-0 py-0 sm:gap-4"
           aria-label={t.mangaReader.verticalReader(title)}
           data-vertical-reader
         >
@@ -1114,17 +1109,15 @@ const MangaReader = ({ manga }) => {
           {verticalGroups.map((group) => (
             <div
               key={group[0].number}
-              className="mx-auto grid w-full grid-cols-1 items-start justify-center gap-2 sm:gap-3"
-              dir="ltr"
+              ref={(element) => { group.forEach(page => { verticalPageElements.current[page.number - 1] = element; }); }}
+              className={`reader-vertical-group${group.length > 1 ? " reader-vertical-group--spread" : ""}`}
+              dir={readingDirection === "rtl" ? "rtl" : "ltr"}
               data-page-group={group.map((page) => page.number).join("-")}
             >
               {group.map((page) => (
                 <figure
                   key={page.src}
-                  ref={(element) => {
-                    verticalPageElements.current[page.number - 1] = element;
-                  }}
-                  className="mx-auto flex w-full scroll-mt-0 justify-center bg-white md:w-auto"
+                  className="reader-vertical-page"
                   data-page={page.number}
                   dir="ltr"
                 >
@@ -1133,7 +1126,7 @@ const MangaReader = ({ manga }) => {
                     title={title}
                     t={t}
                     eager={page.number === 1}
-                    className="h-auto max-h-[100dvh] w-auto max-w-full"
+                    className="reader-vertical-image"
                   />
                 </figure>
               ))}
@@ -1205,6 +1198,7 @@ const MangaReader = ({ manga }) => {
                   key={panel.pageNumbers.join("-") || `empty-${panel.role}`}
                   panel={panel}
                   title={title}
+                  readingDirection={readingDirection === "ltr" ? "ltr" : "rtl"}
                   t={t}
                 />
               ))}
@@ -1236,6 +1230,11 @@ const MangaReader = ({ manga }) => {
         pageCount={pageCount}
         isVisible={isInterfaceVisible}
         interfaceTransition={interfaceTransition}
+        readingMode={readingMode}
+        readingDirection={readingDirection}
+        readingPanels={readingPanels}
+        sliderKey={`${resolvedLanguage}:${pageCount}:${pageDisplay}`}
+        onNavigate={navigateFromSlider}
         t={t}
       />
     </main>

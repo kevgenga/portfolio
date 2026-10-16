@@ -219,5 +219,5 @@ export function mountProductionBatch({ container, getItems, getVisible, getGroup
   container.querySelector("[data-clear-selection]").onclick = () => { selected.clear(); refreshCount(); };
   container.querySelector("[data-edit-selection]").onclick = () => { $("preview-button").hidden = false; openBatch(); };
   container.querySelector("[data-manage-groups]").onclick = showGroups;
-  return { checkbox, sync, isBusy: () => busy, rekey(oldKey, newKey) { if (selected.has(oldKey)) { const old = selected.get(oldKey); selected.delete(oldKey); selected.set(newKey, { ...old, key: newKey, logicalKey: newKey }); } } };
+  return { checkbox, sync, getSelectedKeys: () => [...selected.keys()], restoreSelection(keys) { selected.clear(); for (const item of getItems()) if (keys.includes(item.key)) selected.set(item.key, item); sync(); }, isBusy: () => busy, rekey(oldKey, newKey) { if (selected.has(oldKey)) { const old = selected.get(oldKey); selected.delete(oldKey); selected.set(newKey, { ...old, key: newKey, logicalKey: newKey }); } } };
 }

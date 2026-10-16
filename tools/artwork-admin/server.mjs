@@ -16,6 +16,7 @@ import { buildRevealCommand, isPathInside, launchReveal, resolveArtworkFile } fr
 import { CATEGORY_VALUES, createCategoryReport, normalizeCategorySelection } from "./public/category-utils.js";
 import { createMangaService } from "./manga/service.mjs";
 import { handleMangaRoute } from "./manga/routes.mjs";
+import { serveMangaEditor } from "./manga/editor-page.mjs";
 import { createAnimationService } from "./animation/service.mjs";
 import { handleAnimationRoute } from "./animation/routes.mjs";
 import { createMediaAuditService, handleMediaAuditRoute } from "./media-audit.mjs";
@@ -1483,7 +1484,8 @@ function sendJson(response, status, body) {
 
 function checkLocalRequest(request) {
   const host = request.headers.host || "";
-  assert(host.startsWith(`${HOST}:`) || host === HOST || host.startsWith("localhost:"), "Accès local uniquement.", 403);
+  assert(new Set([`${HOST}:${PORT}`, `localhost:${PORT}`]).has(host), "Accès local uniquement.", 403);
+  assert(request.headers["sec-fetch-site"] !== "cross-site", "Requête externe refusée.", 403);
   const origin = request.headers.origin;
   if (origin) {
     const allowed = new Set([`http://${HOST}:${PORT}`, `http://localhost:${PORT}`]);
@@ -1575,6 +1577,9 @@ async function cleanStagingDirectory() {
 async function handleRequest(request, response) {
   checkLocalRequest(request);
   const url = new URL(request.url, `http://${request.headers.host}`);
+  if (request.method === "GET" && url.pathname === "/manga-edit.html") {
+    await serveMangaEditor(response, url, mangaService, path.join(PUBLIC_DIR, "mangas.html")); return;
+  }
   if (await handleMediaAuditRoute(request, response, url, {
     service: mediaAuditService,
     readJson,

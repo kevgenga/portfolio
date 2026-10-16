@@ -1,6 +1,11 @@
 const IMAGE_TYPES = { ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".avif": "image/avif", ".gif": "image/gif" };
 
 export async function handleMangaRoute(request, response, url, { service, readJson, sendJson }) {
+  if (request.method === "GET" && url.pathname.startsWith("/api/manga-thumbnail/")) {
+    const content = await service.readThumbnail(decodeURIComponent(url.pathname.slice("/api/manga-thumbnail/".length)));
+    response.writeHead(200, { "Content-Type": "image/webp", "Content-Length": content.length, "Cache-Control": "private, max-age=60", "X-Content-Type-Options": "nosniff" });
+    response.end(content); return true;
+  }
   if (request.method === "GET" && url.pathname === "/api/manga-presentation-settings") {
     sendJson(response, 200, await service.readPresentationSettings()); return true;
   }
@@ -20,6 +25,17 @@ export async function handleMangaRoute(request, response, url, { service, readJs
     const output = await service.create(await readJson(request)); sendJson(response, 201, { ...output, message: "Manga créé avec succès." }); return true;
   }
   const base = url.pathname.match(/^\/api\/mangas\/([^/]+)$/);
+  const spread = url.pathname.match(/^\/api\/mangas\/([^/]+)\/languages\/([^/]+)\/spreads$/);
+  if (spread && request.method === "PUT") {
+    const output = await service.configureSpread(decodeURIComponent(spread[1]), decodeURIComponent(spread[2]), await readJson(request));
+    sendJson(response, 200, { ...output, message: output.unchanged ? "Configuration inchangée." : "Configuration de la double page enregistrée." }); return true;
+  }
+  const verticalSpread = url.pathname.match(/^\/api\/mangas\/([^/]+)\/languages\/([^/]+)\/vertical-spreads$/);
+  if (verticalSpread && ["POST", "DELETE"].includes(request.method)) {
+    const remove = request.method === "DELETE";
+    const output = await service.editVerticalSpread(decodeURIComponent(verticalSpread[1]), decodeURIComponent(verticalSpread[2]), await readJson(request), remove);
+    sendJson(response, 200, { ...output, message: remove ? "Double page verticale dissociée." : "Double page verticale enregistrée." }); return true;
+  }
   const batch = url.pathname.match(/^\/api\/mangas\/([^/]+)\/production-batch\/(preview|commit)$/);
   if (batch && request.method === "POST") {
     const output = await service.productionBatch(decodeURIComponent(batch[1]), await readJson(request), batch[2] === "commit");

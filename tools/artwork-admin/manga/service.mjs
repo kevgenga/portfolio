@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
+import { moveMangaSpreadPath } from "../../../src/utils/verticalSpreads.js";
 import { copyFile, lstat, mkdir, readFile, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "../sharp-runtime.mjs";
@@ -178,6 +179,9 @@ export function createMangaService({
       }
     }
     for (const language of Object.values(manga.languages || {})) {
+      for (const page of language.pages) {
+        if (page.startsWith(`${previousPrefix}/`)) moveMangaSpreadPath(language, page, `${nextPrefix}${page.slice(previousPrefix.length)}`);
+      }
       language.pages = language.pages.map((page) =>
         page.startsWith(`${previousPrefix}/`)
           ? `${nextPrefix}${page.slice(previousPrefix.length)}`
@@ -295,7 +299,8 @@ export function createMangaService({
     const afterSave = [];
     try {
       const result = await callback(catalog, transaction, afterSave);
-      validateMangaCatalog(catalog);
+      try { validateMangaCatalog(catalog); }
+      catch (error) { throw new MangaAdminError(400, error.message); }
       if (metadataOnly && JSON.stringify(catalog) === initialData) return { result, catalogRevision: revision(original), unchanged: true };
       if (metadataOnly) backupPath = await backup(operation, slug);
       if (failurePoint === "before-catalog") throw new Error("Échec manga simulé.");
@@ -682,6 +687,7 @@ export function createMangaService({
         else await tx.move(source, destination);
         const nextPath = languagePagePath(manga, storage.folder, name);
         language.pages[index] = nextPath;
+        moveMangaSpreadPath(language, currentPath, nextPath);
         moveProductionPath(manga, currentPath, nextPath);
         moved.push({ index, from: currentPath, to: nextPath });
       }
@@ -729,6 +735,7 @@ export function createMangaService({
       ensure(isPathInside(actualDirectory, destination), "Destination de remplacement interdite.", 403);
       await tx.writeExclusive(destination, image.buffer);
       language.pages[index] = languagePagePath(manga, folder, name);
+      moveMangaSpreadPath(language, oldRelative, language.pages[index]);
       replaceProductionDrawing(manga, oldRelative, language.pages[index], payload.productionIdentity);
       await scheduleArchiveUnused(catalog, tx, afterSave, manga, [oldRelative], `${manga.slug}-${code}-replace-page`);
       return manga;
@@ -827,7 +834,68 @@ export function createMangaService({
       return manga;
     }, { metadataOnly: true, expectedRevision: payload.catalogRevision });
   }
+  async function configureSpread(id, code, payload) {
+    ensure(payload && typeof payload === "object" && !Array.isArray(payload), "Configuration de double page invalide.");
+    ensure(typeof payload.catalogRevision === "string", "Actualisez le catalogue avant de configurer une double page.", 409);
+    ensure(typeof payload.vertical === "boolean" && typeof payload.horizontal === "boolean", "Indiquez explicitement les deux modes de lecture.");
+    return mutate("configure-spread", id, catalog => {
+      const manga = findManga(catalog, id);
+      ensure(Object.hasOwn(manga.languages, code), "Langue introuvable.", 404);
+      const language = manga.languages[code];
+      ensure(Array.isArray(payload.pages) && payload.pages.length === 2 && new Set(payload.pages).size === 2 && payload.pages.every(page => language.pages.includes(page)), "Sélectionnez exactement deux pages de la même langue.");
+      const pair = [...payload.pages].sort((a, b) => language.pages.indexOf(a) - language.pages.indexOf(b));
+      ensure(language.pages.indexOf(pair[1]) === language.pages.indexOf(pair[0]) + 1, "Sélectionnez deux pages consécutives dans l’ordre actuel.");
+      const matches = entry => entry[0] === pair[0] && entry[1] === pair[1];
+      const wasAssociated = ["verticalSpreads", "horizontalSpreads"].some(field => language[field]?.some(matches));
+      if (wasAssociated && !payload.vertical && !payload.horizontal) ensure(payload.confirmRemoval === true, "Confirmez la suppression des deux associations explicites.");
+      for (const [field, enabled] of [["verticalSpreads", payload.vertical], ["horizontalSpreads", payload.horizontal]]) {
+        const existing = language[field] || [];
+        const others = existing.filter(entry => !matches(entry));
+        if (enabled) ensure(!others.some(entry => entry.some(page => pair.includes(page))), `Une page sélectionnée appartient déjà à une autre double page ${field === "verticalSpreads" ? "verticale" : "horizontale"}. Dissociez-la d’abord.`);
+        if (enabled) language[field] = existing.some(matches) ? existing : [...others, pair];
+        else if (others.length) language[field] = others;
+        else delete language[field];
+      }
+      return manga;
+    }, { metadataOnly: true, expectedRevision: payload.catalogRevision });
+  }
+  async function editVerticalSpread(id, code, payload, remove = false) {
+    ensure(payload && typeof payload === "object" && !Array.isArray(payload), "Demande de double page verticale invalide.");
+    ensure(typeof payload.catalogRevision === "string", "Actualisez le catalogue avant de modifier les doubles pages verticales.", 409);
+    return mutate(remove ? "remove-vertical-spread" : "add-vertical-spread", id, catalog => {
+      const manga = findManga(catalog, id);
+      ensure(Object.hasOwn(manga.languages, code), "Langue introuvable.", 404);
+      const language = manga.languages[code];
+      ensure(Array.isArray(payload.pages) && payload.pages.length === 2 && new Set(payload.pages).size === 2 && payload.pages.every(page => language.pages.includes(page)), "Sélectionnez exactement deux pages de la même langue.");
+      const pair = [...payload.pages].sort((a, b) => language.pages.indexOf(a) - language.pages.indexOf(b));
+      const existing = language.verticalSpreads || [];
+      if (remove) {
+        ensure(existing.some(entry => entry[0] === pair[0] && entry[1] === pair[1]), "Double page verticale introuvable. Actualisez la liste.", 409);
+        language.verticalSpreads = existing.filter(entry => entry[0] !== pair[0] || entry[1] !== pair[1]);
+        if (!language.verticalSpreads.length) delete language.verticalSpreads;
+      } else {
+        ensure(language.pages.indexOf(pair[1]) === language.pages.indexOf(pair[0]) + 1, "Sélectionnez deux pages consécutives dans l’ordre actuel.");
+        ensure(!existing.some(entry => entry.some(page => pair.includes(page))), "Une page sélectionnée appartient déjà à une double page verticale. Dissociez-la d’abord.");
+        language.verticalSpreads = [...existing, pair];
+      }
+      return manga;
+    }, { metadataOnly: true, expectedRevision: payload.catalogRevision });
+  }
   async function readAsset(relative) { const file = assetFile(relative); await ensureAssetDirectory(path.dirname(file)); ensure((await lstat(file)).isFile(), "Fichier manga invalide.", 403); return { content: await readFile(file), extension: path.extname(relative).toLowerCase() }; }
+  const thumbnailCache = new Map();
+  async function readThumbnail(relative) {
+    const file = assetFile(relative);
+    await ensureAssetDirectory(path.dirname(file));
+    const info = await lstat(file);
+    ensure(info.isFile() && EXTENSIONS.has(path.extname(file).toLowerCase()), "Image manga invalide.", 403);
+    const key = `${relative}:${info.size}:${info.mtimeMs}`;
+    if (thumbnailCache.has(key)) return thumbnailCache.get(key);
+    // Read-only, bounded in-memory cache: no derived files beside the originals.
+    const content = await sharp(await readFile(file), { animated: false }).resize({ width: 240, height: 320, fit: "inside", withoutEnlargement: true }).webp({ quality: 75 }).toBuffer();
+    if (thumbnailCache.size >= 128) thumbnailCache.delete(thumbnailCache.keys().next().value);
+    thumbnailCache.set(key, content);
+    return content;
+  }
   async function productionBatch(id, payload, commit = false) {
     ensure(typeof payload?.catalogRevision === "string", "Actualisez le catalogue avant l’opération groupée.", 409);
     if (!commit) {
@@ -846,5 +914,5 @@ export function createMangaService({
     }, { metadataOnly: true, expectedRevision: payload.catalogRevision });
     return { ...result, plan };
   }
-  return { productionBatch, initialize, report, create, update, editProduction, addLanguage, deleteLanguage, addPages, duplicatePage, repairLanguageStorage, reorderPages, deletePage, replacePage, replaceMedia, replacePrimaryMedia, removeManga, reveal, readAsset, readCatalog, readPresentationSettings, updatePresentationSettings, validateFiles, paths: { catalogPath, presentationSettingsPath, assetRoot, backupRoot, trashRoot, stagingRoot } };
+  return { productionBatch, initialize, report, create, update, editProduction, configureSpread, editVerticalSpread, addLanguage, deleteLanguage, addPages, duplicatePage, repairLanguageStorage, reorderPages, deletePage, replacePage, replaceMedia, replacePrimaryMedia, removeManga, reveal, readAsset, readThumbnail, readCatalog, readPresentationSettings, updatePresentationSettings, validateFiles, paths: { catalogPath, presentationSettingsPath, assetRoot, backupRoot, trashRoot, stagingRoot } };
 }

@@ -57,7 +57,7 @@ try {
   const groupButton = async text => evaluate(`(()=>{const button=[...document.querySelectorAll('[data-batch-groups] button')].find(b=>b.textContent.startsWith(${JSON.stringify(text)}));button.click()})()`);
   const count = () => evaluate("document.querySelector('[data-production-count]').textContent");
   const navigateArtwork = async () => { await command("Page.navigate", { url: `${f.base}/` }); await until("document.querySelectorAll('.art-card').length>0"); };
-  const navigateManga = async (index = 0) => { await command("Page.navigate", { url: `${f.base}/mangas.html` }); await until("document.querySelectorAll('[data-edit]').length===2"); await evaluate(`document.querySelectorAll('[data-edit]')[${index}].click()`); await until("document.querySelector('#manga-dialog').open && document.querySelectorAll('.manga-page').length>0"); };
+  const navigateManga = async (index = 0) => { await command("Page.navigate", { url: `${f.base}/mangas.html` }); await until("document.querySelectorAll('[data-edit]').length===2"); await evaluate(`document.querySelectorAll('[data-edit]')[${index}].click()`); await until("location.pathname==='/manga-edit.html' && document.querySelectorAll('.manga-page').length>0"); };
   const checkLayout = async (container) => {
     for (const width of [375, 390, 768, 1024, 1440, 1920]) {
       await command("Emulation.setDeviceMetricsOverride", { width, height: width < 768 ? 844 : 1100, deviceScaleFactor: 1, mobile: width < 768 });
@@ -187,9 +187,9 @@ try {
   assert.deepEqual((await f.manga()).productionTime.groups[0], group);
   await navigateManga(); await click("[data-manage-groups]"); await groupButton("Modifier"); await set("[data-batch-hours]", "12"); await preview(); await commit();
   assert.equal((await f.manga()).productionTime.groups[0].time.minutes, 720);
-  await click('.manga-page input[data-production-key]'); await click("#manga-dialog [data-close]");
-  await evaluate("document.querySelectorAll('[data-edit]')[1].click()"); await until("document.querySelector('#manga-dialog').open && document.querySelectorAll('.manga-page').length===1");
-  assert.match(await count(), /^0 /); assert.match(await evaluate("document.querySelector('#toast').textContent"), /changement de projet/);
+  await click('.manga-page input[data-production-key]'); await navigateManga(1);
+  assert.equal(await evaluate("new URLSearchParams(location.search).get('id')"), "other");
+  assert.match(await count(), /^0 /);
   assert.equal((await f.service.readCatalog())[1].productionTime, undefined);
 
   await f.edit("page", { path: f.pages.english[2], time: { minutes: 45, kind: "actual" } });

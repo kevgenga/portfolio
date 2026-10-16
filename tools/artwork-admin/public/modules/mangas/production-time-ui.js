@@ -159,6 +159,18 @@ export function createMangaProductionUI({ getManga, getRevision, api, onSaved, c
     associations.append(status); layout.append(associations); pageRoot.append(layout); pageRoot.scrollTop = 0;
   }
   return { drawing, describe: path => describeTime(drawing(path)?.time), isDirty: () => Boolean(projectEditor?.dirty() || pageEditor?.dirty()), isBusy: () => busy,
+    captureDraft() {
+      const values = editor => editor && { dirty: editor.dirty(), values: [...editor.element.querySelectorAll("[data-time-hours],[data-time-minutes],[data-time-kind]")].map(input => input.value) };
+      return { selectedPath, total: values(projectEditor), page: values(pageEditor) };
+    },
+    restoreDraft(draft) {
+      if (!draft) return;
+      if (draft.selectedPath && Object.values(getManga().languages).some(language => language.pages.includes(draft.selectedPath))) { selectedPath = draft.selectedPath; renderPage(); }
+      for (const [editor, saved] of [[projectEditor, draft.total], [pageEditor, draft.page]]) if (editor && saved?.dirty && Array.isArray(saved.values) && saved.values.length === 3) {
+        [...editor.element.querySelectorAll("[data-time-hours],[data-time-minutes],[data-time-kind]")].forEach((input, index) => { input.value = saved.values[index]; });
+        editor.element.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+    },
     reset() { selectedPath = null; renderProject(); renderPage(); },
     closePage() { selectedPath = null; renderPage(); },
     openPage(path) { selectedPath = path; renderPage(); pageRoot.querySelector("[data-time-hours]").focus(); },

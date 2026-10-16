@@ -1,0 +1,161 @@
+[data-reader-mode] {
+  --reader-header-bg-opacity: 0.80;
+  --reader-footer-bg-opacity: 0.80;
+}
+
+[data-reader-mode="vertical"] {
+  --reader-vertical-page-max-width: 800px;
+  --reader-vertical-spread-max-width: 1440px;
+}
+
+[data-reader-mode="vertical"] .reader-vertical-group {
+  display: flex;
+  align-items: flex-start;
+  width: 100%;
+  max-width: var(--reader-vertical-page-max-width);
+  margin-inline: auto;
+  gap: 0;
+}
+
+[data-reader-mode="vertical"] .reader-vertical-group--spread {
+  max-width: var(--reader-vertical-spread-max-width);
+}
+
+[data-reader-mode="vertical"] .reader-vertical-page {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+[data-reader-mode="vertical"] .reader-vertical-image {
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+  max-height: none;
+}
+
+[data-reader-mode] [data-reader-header] > header {
+  background-color: rgba(0, 0, 0, var(--reader-header-bg-opacity));
+}
+
+[data-reader-mode] [data-reader-pagination] {
+  background-color: rgba(0, 0, 0, var(--reader-footer-bg-opacity));
+}
+
+[data-reader-mode="horizontal"] {
+  --reader-page-background: #0f0f0f;
+  --reader-horizontal-height: 100dvh;
+  background-color: var(--reader-page-background);
+  height: var(--reader-horizontal-height);
+  min-height: var(--reader-horizontal-height);
+}
+
+[data-reader-mode="horizontal"] [data-horizontal-stage],
+[data-reader-mode="horizontal"] [data-horizontal-rail] img {
+  background-color: var(--reader-page-background);
+}
+
+[data-reader-mode="horizontal"] [data-horizontal-reader] {
+  height: 100%;
+}
+
+[data-reader-mode="horizontal"] [data-reader-pagination] {
+  /* Local visual settings. The vertical Reader keeps its existing styles. */
+  --reader-slider-max-width: 70rem;
+  --reader-counter-font-size: clamp(.875rem, 1.25vw, 1rem);
+  --reader-counter-gap: 2px;
+  /* Overlay only: controls no longer subtract their height from the rail. */
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+}
+
+[data-reader-mode="horizontal"] [data-reader-pagination] > p {
+  padding-top: var(--reader-counter-gap);
+  padding-bottom: max(1.125rem, env(safe-area-inset-bottom));
+}
+
+[data-reader-mode="horizontal"] [data-reader-pagination] > p > span:first-child {
+  font-size: var(--reader-counter-font-size);
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.reader-page-slider {
+  --reader-slider-track: #555;
+  --reader-slider-fill: #ffd500;
+  --reader-slider-thumb: #fff;
+  --reader-slider-track-height: 6px;
+  --reader-slider-thumb-size: 22px;
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: var(--reader-slider-max-width);
+  margin-inline: auto;
+  padding-top: 6px;
+  padding-inline: max(1rem, env(safe-area-inset-left)) max(1rem, env(safe-area-inset-right));
+}
+
+.reader-page-slider__input {
+  display: block;
+  appearance: none;
+  width: 100%;
+  height: 44px;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.reader-page-slider__input::-webkit-slider-runnable-track {
+  height: var(--reader-slider-track-height);
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--reader-slider-fill) var(--reader-slider-progress), var(--reader-slider-track) var(--reader-slider-progress));
+}
+.reader-page-slider__input[dir="rtl"]::-webkit-slider-runnable-track {
+  background: linear-gradient(to left, var(--reader-slider-fill) var(--reader-slider-progress), var(--reader-slider-track) var(--reader-slider-progress));
+}
+.reader-page-slider__input::-webkit-slider-thumb {
+  appearance: none;
+  width: var(--reader-slider-thumb-size);
+  height: var(--reader-slider-thumb-size);
+  margin-top: calc((var(--reader-slider-track-height) - var(--reader-slider-thumb-size)) / 2);
+  border: 1px solid #ddd;
+  border-radius: 50%;
+  background: var(--reader-slider-thumb);
+}
+.reader-page-slider__input::-moz-range-track {
+  height: var(--reader-slider-track-height);
+  border-radius: 999px;
+  background: var(--reader-slider-track);
+}
+.reader-page-slider__input::-moz-range-progress {
+  height: var(--reader-slider-track-height);
+  border-radius: 999px;
+  background: var(--reader-slider-fill);
+}
+.reader-page-slider__input::-moz-range-thumb {
+  width: var(--reader-slider-thumb-size);
+  height: var(--reader-slider-thumb-size);
+  border: 1px solid #ddd;
+  border-radius: 50%;
+  background: var(--reader-slider-thumb);
+}
+.reader-page-slider__input:focus-visible {
+  outline: none;
+}
+.reader-page-slider:has(.reader-page-slider__input:focus-visible) {
+  outline: 2px solid var(--reader-slider-fill);
+  outline-offset: -2px;
+}
+.reader-page-slider__input:disabled { opacity: .5; cursor: default; }
+/* Normal vertical reading scrolls the document. Native fullscreen instead
+   needs an explicit scroll container inside its fixed-height top-layer root. */
+[data-reader-mode="vertical"]:fullscreen {
+  height: 100dvh;
+  overflow-y: auto;
+}

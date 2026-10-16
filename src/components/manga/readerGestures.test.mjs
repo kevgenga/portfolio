@@ -189,5 +189,6 @@ test("uses one lower pagination bar without public page thumbnails", async () =>
   assert.match(readerSource, /draggable="false"/);
   assert.match(readerSource, /button, a, input, textarea, select/);
   assert.match(readerSource, /data-vertical-reader/);
-  assert.match(readerSource, /IntersectionObserver/);
+  assert.match(readerSource, /useVerticalPageTracking\(\{ enabled: readingMode === "vertical"/);
+  assert.match(readerSource, /readingMode === "horizontal" && \(\s*<ReaderPageSlider/);
 });

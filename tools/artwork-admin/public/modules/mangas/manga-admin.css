@@ -17,9 +17,7 @@
 .temporary-example { border:1px solid #795161; border-radius:999px; padding:2px 7px; color:#f2c3cf; }
 .manga-card-actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
 .manga-card-actions .button { text-align:center; text-decoration:none; }
-.manga-dialog { width:min(1760px,calc(100vw - 24px)); height:94vh; max-height:94vh; overflow:hidden; }
 .manga-editor-form { display:grid; grid-template-rows:auto auto minmax(0,1fr) auto; height:100%; min-height:0; }
-.manga-dialog .dialog-heading { margin-bottom:14px; }
 .manga-editor-tabs { display:flex; gap:6px; min-width:0; margin-bottom:18px; overflow-x:auto; border-bottom:1px solid var(--line); }
 .manga-editor-tabs button { flex:0 0 auto; border:0; border-bottom:2px solid transparent; padding:10px 16px; background:transparent; color:var(--muted); font-weight:800; cursor:pointer; }
 .manga-editor-tabs button.is-active { border-bottom-color:#c45972; color:#fff; }
@@ -66,6 +64,24 @@
 .page-actions { display:grid; grid-template-columns:repeat(3,1fr); gap:3px; margin-top:5px; }
 .page-actions button { border:1px solid var(--line); padding:4px 2px; background:#1c181a; color:#eee; cursor:pointer; }
 .page-actions [data-action="duplicate"] { grid-column:1/-1; }
+.vertical-spread-actions { flex:0 0 auto; padding-top:6px; }
+.manga-page--vertical-spread { border-color:#b9546c; }
+.manga-page .vertical-spread-marker { color:#f0d49b; white-space:normal; }
+.page-actions [data-action="configure-spread"] { grid-column:1/-1; }
+.spread-mode-option { display:flex; align-items:start; gap:10px; margin-block:12px; cursor:pointer; }
+.spread-mode-option[hidden] { display:none; }
+.spread-mode-option input { flex:0 0 auto; width:20px; height:20px; margin-top:2px; }
+.spread-mode-option span { min-width:0; overflow-wrap:anywhere; }
+.spread-mode-option small { display:block; color:var(--muted); font-size:.76rem; }
+.spread-config-dialog .vertical-spread-preview img { height:clamp(100px,20vh,180px); object-fit:contain; }
+/* Keep this popup in the visible viewport even if the background Admin page is wider. */
+.spread-config-dialog { position:fixed; left:50vw; top:50vh; right:auto; bottom:auto; margin:0; transform:translate(-50%,-50%); }
+.spread-config-dialog .dialog-actions { flex-wrap:wrap; }
+.spread-config-dialog .dialog-actions .button { min-width:0; max-width:100%; white-space:normal; }
+.vertical-spread-preview { display:flex; align-items:start; gap:0; background:#0f0f0f; }
+.vertical-spread-preview figure { flex:1 1 0; min-width:0; margin:0; }
+.vertical-spread-preview img { display:block; width:100%; height:auto; }
+.vertical-spread-preview figcaption { padding:5px; text-align:center; font-size:.75rem; }
 #manga-media { display:grid; gap:8px; }
 #manga-media > h3 { margin:0; }
 .primary-media-panel { display:grid; grid-template-columns:minmax(280px,420px) minmax(340px,1fr); align-items:start; gap:clamp(18px,2.5vw,36px); border:1px solid var(--line); border-radius:8px; padding:14px; background:#121012; }
@@ -96,7 +112,6 @@
 @media (max-width:760px) {
   .storyboard-visibility { align-items:stretch; flex-direction:column; }
   .storyboard-visibility .button { width:100%; }
-  .manga-dialog { width:calc(100vw - 12px); height:calc(100dvh - 12px); max-height:calc(100dvh - 12px); }
   .manga-form-grid,.manga-toolbar,.page-import { grid-template-columns:1fr; }
   .manga-pages-toolbar { padding:8px; }
   .manga-language-controls { align-items:stretch; }

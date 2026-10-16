@@ -1,4 +1,5 @@
 import vm from "node:vm";
+import { validateMangaSpreads } from "../../../src/utils/verticalSpreads.js";
 import { validateMangaProductionTime } from "./production-time.mjs";
 import {
   getMangaPresentationDirectory,
@@ -79,6 +80,7 @@ export function validateMangaCatalog(mangas) {
       normalizeLanguageCode(code);
       if (language.storageFolder !== undefined) normalizeStorageFolder(language.storageFolder);
       if (!Array.isArray(language.pages)) throw new Error(`Pages invalides pour ${manga.title}/${code}.`);
+      validateMangaSpreads(language);
       for (const page of language.pages) {
         if (typeof page !== "string" || !page.startsWith(ASSET_PREFIX)) throw new Error(`Chemin de page invalide pour ${manga.title}/${code}.`);
         if (!pathBelongsToProject(page)) throw new Error(`Page hors du dossier de section pour ${manga.title}/${code} : ${page}.`);

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { createMangaProductionFixture } from "./manga-production-fixture.mjs";
 import { getProductionDrawing } from "../manga/production-time.mjs";
@@ -41,9 +41,79 @@ try {
   const fill = (kind, hours, minutes, type) => evaluate(`(()=>{const el=document.querySelector('[data-production-editor="${kind}"]');for(const [key,value] of ${JSON.stringify([["hours", hours], ["minutes", minutes], ["kind", type]])}){const control=el.querySelector('[data-time-'+key+']');control.value=value;control.dispatchEvent(new Event('input',{bubbles:true}));}})()`);
   const fieldValues = kind => evaluate(`(()=>{const el=document.querySelector('[data-production-editor="${kind}"]');return ['hours','minutes','kind'].map(key=>el.querySelector('[data-time-'+key+']').value)})()`);
   const save = async kind => { await click(`[data-production-editor="${kind}"] [data-time-save]`); await until("!document.querySelector('#manga-dialog').inert"); };
-  const open = async () => { await until("document.querySelectorAll('[data-edit]').length===2"); await click("[data-edit]"); await until("document.querySelector('#manga-dialog').open"); };
+  const open = async () => { await until("document.querySelectorAll('[data-edit]').length===2"); await click("[data-edit]"); await until("location.pathname==='/manga-edit.html' && document.querySelectorAll('.manga-page').length>0 && !document.querySelector('#editor-error').textContent"); };
   const navigate = async () => { await command("Page.navigate", { url: `${f.base}/mangas.html` }); await open(); };
-  await open(); await click("#manga-tab-information");
+  await open();
+  // The same selection drives explicit vertical pairs, never production groups.
+  await click('#configure-spread');
+  assert.ok((await evaluate("document.querySelector('#toast').textContent")).includes('exactement deux'));
+  await click('.manga-page[data-index="0"] input[data-production-key]');
+  await click('.manga-page[data-index="2"] input[data-production-key]');
+  await click('#configure-spread');
+  assert.ok((await evaluate("document.querySelector('#toast').textContent")).includes('consécutives'));
+  await click('[data-clear-selection]');
+  await click('.manga-page[data-index="1"] input[data-production-key]');
+  await click('.manga-page[data-index="2"] input[data-production-key]');
+  await click('#configure-spread'); await until("document.querySelector('#spread-title').closest('dialog').open");
+  assert.equal(await evaluate("document.querySelector('.vertical-spread-preview').dir"),'rtl');
+  const spreadRects=await evaluate("[...document.querySelectorAll('.vertical-spread-preview img')].map(el=>el.getBoundingClientRect().left)");
+  assert.ok(spreadRects[0]>spreadRects[1]);
+  for(const width of [320,375,390,430,768,1024,1440,1920]) {
+    await command('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<768});
+    await evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+    const layout=await evaluate("(()=>{const modal=document.querySelector('#spread-title').closest('dialog'),r=modal.getBoundingClientRect();return {width:innerWidth,visual:visualViewport.width,left:r.left,right:r.right,top:r.top,bottom:r.bottom,client:modal.clientWidth,scroll:modal.scrollWidth,labels:[...modal.querySelectorAll('input')].every(input=>input.labels.length===1)}})()");
+    assert.ok(layout.left>=0&&layout.right<=width&&layout.top>=0&&layout.bottom<=900&&layout.scroll<=layout.client+1,JSON.stringify({width,layout}));assert.equal(layout.labels,true);
+    if(process.env.PUBLIC_PRODUCTION_CAPTURE_DIR&&[320,1440].includes(width)) {
+      await mkdir(process.env.PUBLIC_PRODUCTION_CAPTURE_DIR,{recursive:true});const shot=await command('Page.captureScreenshot',{format:'png'});
+      await writeFile(path.join(process.env.PUBLIC_PRODUCTION_CAPTURE_DIR,`manga-spread-config-admin-${width}.png`),Buffer.from(shot.data,'base64'));
+    }
+  }
+  await evaluate("document.querySelector('[data-spread-horizontal]').focus()");
+  const beforeKeyboard=await f.currentSource();
+  for(let i=0;i<2;i++){
+    await command('Input.dispatchKeyEvent',{type:'keyDown',key:' ',code:'Space',windowsVirtualKeyCode:32});await command('Input.dispatchKeyEvent',{type:'keyUp',key:' ',code:'Space',windowsVirtualKeyCode:32});
+    assert.equal(await evaluate("document.querySelector('[data-spread-horizontal]').checked"),i===0);
+  }
+  assert.equal(await f.currentSource(),beforeKeyboard,'Keyboard toggles do not save');
+  await click('[data-spread-cancel]'); assert.equal((await f.manga()).languages.english.verticalSpreads,undefined);
+  await click('#configure-spread');
+  assert.equal(await evaluate("document.querySelector('[data-spread-vertical]').checked"),true);
+  assert.equal(await evaluate("document.querySelector('[data-spread-horizontal]').checked"),false);
+  const spreadOriginal=await f.currentSource();
+  await evaluate("window.__originalFetch=window.fetch;window.fetch=async(url,...args)=>String(url).endsWith('/spreads')?new Response(JSON.stringify({error:'Conflit simulé : actualisez.'}),{status:409,headers:{'Content-Type':'application/json'}}):window.__originalFetch(url,...args)");
+  await click('[data-spread-confirm]');await until("!document.querySelector('[data-spread-error]').hidden&&!document.querySelector('[data-spread-confirm]').disabled");
+  assert.equal(await evaluate("document.querySelector('#spread-title').closest('dialog').open"),true);
+  assert.equal(await evaluate("document.querySelector('[data-spread-vertical]').checked"),true);
+  assert.equal(await f.currentSource(),spreadOriginal);
+  await evaluate("window.fetch=window.__originalFetch");await click('[data-spread-confirm]');
+  await until("document.querySelectorAll('.manga-page--vertical-spread').length===2&&!document.querySelector('#manga-dialog').inert");
+  assert.deepEqual((await f.manga()).languages.english.verticalSpreads,[f.pages.english.slice(1,3)]);
+  assert.equal((await f.manga()).productionTime,undefined);
+  await navigate(); assert.equal(await evaluate("document.querySelectorAll('.manga-page--vertical-spread').length"),2);
+  const openPair=async()=>{await click('[data-action=configure-spread]');await until("document.querySelector('#spread-title').closest('dialog').open");};
+  await f.service.update(2,{readingDirection:'ltr'});await navigate();await openPair();
+  assert.equal(await evaluate("document.querySelector('.vertical-spread-preview').dir"),'ltr');
+  const ltrRects=await evaluate("[...document.querySelectorAll('.vertical-spread-preview img')].map(el=>el.getBoundingClientRect().left)");assert.ok(ltrRects[0]<ltrRects[1]);
+  await click('[data-spread-cancel]');await f.service.update(2,{readingDirection:'rtl'});await navigate();
+  const changeModes=async(vertical,horizontal)=>{
+    await evaluate(`for(const [key,value] of ${JSON.stringify([['vertical',vertical],['horizontal',horizontal]])}){const box=document.querySelector('[data-spread-'+key+']');box.checked=value;box.dispatchEvent(new Event('change',{bubbles:true}))}`);
+  };
+  const saveModes=async(vertical,horizontal)=>{
+    await openPair();await changeModes(vertical,horizontal);
+    const before=await f.currentSource();await pause();assert.equal(await f.currentSource(),before,'Checkbox changes never save');
+    await click('[data-spread-confirm]');await until("!document.querySelector('#spread-title').closest('dialog').open&&!document.querySelector('#manga-dialog').inert");
+    const m=await f.manga();assert.deepEqual(m.languages.english.verticalSpreads,vertical?[f.pages.english.slice(1,3)]:undefined);assert.deepEqual(m.languages.english.horizontalSpreads,horizontal?[f.pages.english.slice(1,3)]:undefined);
+    assert.equal(m.productionTime,undefined);
+  };
+  await openPair();assert.equal(await evaluate("document.querySelector('[data-spread-vertical]').checked"),true);assert.equal(await evaluate("document.querySelector('[data-spread-horizontal]').checked"),false);await click('[data-spread-cancel]');
+  await saveModes(true,true);await saveModes(false,true);await saveModes(true,true);await saveModes(true,false);await saveModes(false,true);
+  await navigate();await openPair();assert.equal(await evaluate("document.querySelector('[data-spread-horizontal]').checked"),true);
+  await changeModes(false,false);await click('[data-spread-confirm]');
+  assert.equal(await evaluate("document.querySelector('#spread-title').closest('dialog').open"),true,'Both removals require explicit confirmation');
+  await click('[data-spread-removal-confirm]');await click('[data-spread-confirm]');
+  await until("document.querySelectorAll('.manga-page--vertical-spread').length===0&&!document.querySelector('#manga-dialog').inert");
+  assert.equal((await f.manga()).languages.english.verticalSpreads,undefined);
+  await click('[data-clear-selection]'); await click("#manga-tab-information");
   assert.deepEqual(await fieldValues("total"), ["", "", "actual"]);
   await fill("total", "85", "30", "estimated");
   await evaluate("(()=>{const title=document.querySelector('#manga-form [name=title]');title.value='Unsaved title draft';title.dispatchEvent(new Event('input',{bubbles:true}));})()");
@@ -51,6 +121,8 @@ try {
   assert.deepEqual((await f.manga()).productionTime.total, { minutes: 5130, kind: "estimated" });
   assert.equal((await f.manga()).title, f.mangas[0].title);
   assert.equal(await evaluate("document.querySelector('#manga-form [name=title]').value"), "Unsaved title draft");
+  // Leaving/reopening now intentionally preserves drafts; explicitly discard this one.
+  await click('#manga-dialog [data-close]'); await until("!document.querySelector('#manga-form [name=title]').value.includes('Unsaved')");
   await navigate(); await click("#manga-tab-information");
   assert.deepEqual(await fieldValues("total"), ["85", "30", "estimated"]);
   await fill("total", "85", "30", "actual"); await save("total");

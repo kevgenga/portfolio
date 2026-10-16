@@ -57,6 +57,7 @@ export const uiText = {
       title: "Illustration",
       introduction: "Illustration, sketches, paintings and character design.",
       filtersLabel: "Filter illustrations",
+      views: { cards: "Large cards", compact: "Compact list" },
       categories: {
         illustrations: "Illustrations",
         sketches: "Sketches",
@@ -101,6 +102,8 @@ export const uiText = {
     mangaReader: {
       title: (mangaTitle) => `Read ${mangaTitle}`,
       progress: (current, total) => `Page ${current} of ${total}`,
+      goToPage: "Go to page",
+      spreadCaption: (first, last) => `Pages ${first}–${last}`,
       pageAlt: (title, page) => `${title} — page ${page}`,
       pageCaption: (page) => `Page ${page}`,
       back: "Back to Manga",

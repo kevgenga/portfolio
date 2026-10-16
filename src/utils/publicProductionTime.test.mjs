@@ -97,7 +97,7 @@ test("Illustration tiers use exact stored minutes for both kinds, including ever
   const cases = [[1,"short"],[59,"short"],[60,"short"],[119,"short"],[120,"medium"],[180,"medium"],[239,"medium"],[240,"long"],[300,"long"],[1000,"long"]];
   for (const [minutes,tier] of cases) for (const kind of ["actual","estimated"]) {
     const time=Object.freeze({minutes,kind});
-    assert.deepEqual(getProductionTimeBadgeAppearance(time),{tier,placement:"top-right"});
+    assert.deepEqual(getProductionTimeBadgeAppearance(time),{tier,placement:"metadata"});
     assert.equal(time.minutes,minutes); assert.equal(time.kind,kind);
   }
   assert.equal(getProductionTimeBadgeAppearance(actual(0)),null);
@@ -119,7 +119,7 @@ test("Artwork badges have visible localized copy and one full accessible descrip
       const time={minutes,kind},html=renderToStaticMarkup(React.createElement(Badge,{time,variant:"artwork"}));
       assert.ok(html.includes(t.productionTime.compact.individual[kind]));assert.ok(html.includes(formatProductionTime(time,locale)));
       assert.equal((html.match(/class="sr-only"/g)||[]).length,1);assert.ok(html.includes('class="work-badge__copy" aria-hidden="true"'));
-      assert.ok(html.includes(`work-badge--${getProductionTimeBadgeAppearance(time).tier}`));assert.ok(html.includes('data-badge-placement="top-right"'));
+      assert.ok(html.includes(`work-badge--${getProductionTimeBadgeAppearance(time).tier}`));assert.ok(html.includes('data-badge-placement="metadata"'));
       assert.ok(!html.includes("<button"));
       for(const context of ["manga","page"]){const neutral=renderToStaticMarkup(React.createElement(Badge,{time,context}));assert.ok(neutral.includes(t.productionTime.compact[context][kind]));assert.ok(!neutral.includes("work-badge"));}
     }

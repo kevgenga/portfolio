@@ -1,0 +1,18 @@
+.public-back-to-top {
+  right: max(1rem, env(safe-area-inset-right, 0px));
+  bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+}
+
+@media (min-width: 640px) {
+  .public-back-to-top {
+    right: max(1.5rem, env(safe-area-inset-right, 0px));
+    bottom: max(1.5rem, env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* Reserve a slim right-hand lane, not an overlay over footer links/copyright.
+   The marker exists on ordinary routes only, even before the 400px threshold.
+   Footer content/components are unchanged; no appearance-time layout shift. */
+body:has(.public-scroll-tools) .portfolio-footer__inner {
+  padding-inline-end: calc(44px + max(1.5rem, env(safe-area-inset-right, 0px)) + 1rem);
+}

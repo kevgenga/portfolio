@@ -17,7 +17,7 @@ export const ja = {
   common: {
     all: "すべて", loading: "読み込み中…", loadMore: "さらに表示",
     noResults: "条件に一致する作品はありません。", sortLabel: "並び替え",
-    newest: "新しい順", oldest: "古い順", backToTop: "ページの先頭へ",
+    newest: "新しい順", oldest: "古い順", backToTop: "ページ上部へ戻る",
   },
   lightbox: {
     CLOSE: "閉じる", NEXT: "次へ", PREV: "前へ",
@@ -54,6 +54,7 @@ export const ja = {
     eyebrow: "作品集", title: "イラスト",
     introduction: "イラスト、スケッチ、絵画、キャラクターデザイン。",
     filtersLabel: "イラスト作品を絞り込む",
+    views: { cards: "カード表示", compact: "コンパクト表示" },
     categories: {
       illustrations: "イラスト", sketches: "スケッチ", paintings: "絵画",
       "character-design": "キャラクターデザイン", backgrounds: "背景",
@@ -83,6 +84,8 @@ export const ja = {
   },
   mangaReader: {
     title: (title) => `${title}を読む`, progress: (current, total) => `全${total}ページ中${current}ページ目`,
+    goToPage: "ページへ移動",
+    spreadCaption: (first, last) => `${first}～${last}ページ`,
     pageAlt: (title, page) => `${title}の${page}ページ目`, pageCaption: (page) => `${page}ページ`,
     back: "マンガ一覧へ戻る", backShort: "戻る", previous: "前のページ",
     next: "次のページ", previousSpread: "前のページまたは見開き",

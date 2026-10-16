@@ -36,7 +36,7 @@ test("native HTML validation allows global Save while the add-language selector 
     const result = { submitted: 0, invalid: [], valid: form.checkValidity() };
     form.addEventListener("submit", (event) => { event.preventDefault(); result.submitted++; });
     form.addEventListener("invalid", (event) => result.invalid.push(event.target.id || event.target.name), true);
-    document.getElementById("manga-dialog").showModal();
+    document.getElementById("manga-editor-shell").hidden = false;
     form.requestSubmit(form.querySelector('button[type="submit"]'));
     const output = document.createElement("pre"); output.id = "validation-result"; output.textContent = JSON.stringify(result); document.body.append(output);
   </script>`;
@@ -101,7 +101,7 @@ async function uiFixture(t) {
   const dialog = { open: true, inert: false, close() { this.open = false; }, addEventListener() {} };
   const context = vm.createContext({
     productionUI: { isDirty: () => false, isBusy: () => false, reset() {} },
-    state, form, dialog, JSON, encodeURIComponent, prompt: () => "", confirm: () => true,
+    state, form, dialog, JSON, encodeURIComponent, prompt: () => "", confirm: () => true, editorSession: undefined, isEditorPage: true,
     document: { querySelectorAll: () => [] }, setDirty: (value = true) => { state.dirty = value; }, renderPages: () => { renders++; },
     FormData: class { *[Symbol.iterator]() { yield ["title", "Example"]; yield ["tags", ""]; } },
     message: (text, type) => notices.push({ text, type }),
@@ -114,6 +114,7 @@ async function uiFixture(t) {
       }); assert.equal(handled, true); return output;
     },
     load: async () => { state.catalog = await f.service.readCatalog(); },
+    reloadEditor: async success => { state.catalog = await f.service.readCatalog(); state.workingPages = [...state.catalog[0].languages[state.language].pages]; state.savedPages = [...state.workingPages]; state.dirty = false; if (success) notices.push({ text: success }); },
   });
   const moves = adminSource.slice(adminSource.indexOf("function movePage("), adminSource.indexOf("function replacePageImage("));
   const submit = adminSource.slice(adminSource.indexOf('form.addEventListener("input"'), adminSource.indexOf('$("#add-pages").onclick'));
@@ -156,7 +157,7 @@ for (const [from, to] of [[24, 23], [23, 24], [1, 24], [24, 1], [3, 8], [8, 3]])
     assert.deepEqual(f.requests[0].payload.pageOrder.pages, expected);
     const persisted = await f.service.readCatalog(); assert.deepEqual(persisted[0].languages.ja.pages, expected);
     const restored = structuredClone(persisted); restored[0].languages.ja.pages = f.before[0].languages.ja.pages; assert.deepEqual(restored, f.before);
-    assert.equal(f.state.dirty, false); assert.equal(f.dialog.open, false);
+    assert.equal(f.state.dirty, false); assert.equal(f.dialog.open, true);
     assert.deepEqual(f.state.catalog[0].languages.ja.pages, expected);
     const serialized = await readFile(f.catalogPath, "utf8");
     // Verify the emitted public reader data, not alphabetic filename order.
@@ -191,18 +192,18 @@ test("a server failure keeps the editor open, preserves local edits and allows r
   assert.equal(f.notices.at(-1).type, "error"); assert.match(f.notices.at(-1).text, /500.*non enregistré/);
   assert.deepEqual((await f.service.readCatalog())[0].languages.ja.pages, f.pages);
   f.context.failRequest = false; await f.form.onsubmit({ preventDefault() {} });
-  assert.equal(f.dialog.open, false); assert.equal(f.state.dirty, false); assert.deepEqual((await f.service.readCatalog())[0].languages.ja.pages, desired);
+  assert.equal(f.dialog.open, true); assert.equal(f.state.dirty, false); assert.deepEqual((await f.service.readCatalog())[0].languages.ja.pages, desired);
   await assertPhysicalFilesUnchanged(f);
 });
 
 test("Cancel abandons the pending reorder, and reopening restores the saved pages", async (t) => {
-  const f = await uiFixture(t); f.context.movePage(23, 22); f.context.requestClose();
-  assert.equal(f.dialog.open, false); assert.equal(f.state.dirty, false); assert.equal(f.requests.length, 0);
+  const f = await uiFixture(t); f.context.movePage(23, 22); await f.context.requestClose();
+  assert.equal(f.dialog.open, true); assert.equal(f.state.dirty, false); assert.equal(f.requests.length, 0);
   assert.deepEqual(await readFile(f.catalogPath), f.original);
   // Exercise the real openEditor handler with rendering adapters, not a save.
   f.state.mangas = (await f.service.report()).mangas;
   f.form.elements = Object.fromEntries(["title", "edition", "author", "year", "date", "status", "visibility", "presentationSection", "readingDirection", "genre", "role", "description", "summary", "order", "defaultReadingMode", "tags", "featured"].map((name) => [name, {}]));
-  f.context.$ = () => ({}); f.context.renderMedia = () => {}; f.context.switchEditorTab = () => {}; f.dialog.showModal = () => { f.dialog.open = true; };
+  f.context.$ = () => ({}); f.context.renderMedia = () => {}; f.context.switchEditorTab = () => {}; f.context.previewUrl = () => "/preview";
   f.context.renderLanguages = () => { const language = f.context.currentManga().languages[f.state.language]; f.state.workingPages = [...language.pages]; f.state.savedPages = [...language.pages]; };
   vm.runInContext(`${adminSource.slice(adminSource.indexOf("function currentManga("), adminSource.indexOf("function languageOption("))}\n${adminSource.slice(adminSource.indexOf("function openEditor("), adminSource.indexOf("function renderMedia("))}`, f.context);
   f.context.openEditor("example"); f.state.language = "ja"; f.context.renderLanguages();

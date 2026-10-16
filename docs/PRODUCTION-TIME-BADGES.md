@@ -12,7 +12,7 @@ Valeurs par défaut :
 
 ```js
 colorMode: "tiered",
-placement: "top-right",
+placement: "metadata",
 thresholds: Object.freeze({ medium: 120, long: 240 }),
 ```
 
@@ -30,13 +30,20 @@ n’est ajouté. Revenir à `"tiered"` pour réactiver la palette.
 
 `placement` accepte :
 
-- `"top-right"` : en haut à droite de l’image, valeur par défaut ;
+- `"top-right"` : en haut à droite de l’image ;
 - `"bottom-right"` : en bas à droite de l’image ;
-- `"metadata"` : sous l’image, dans les métadonnées, avec le même composant.
+- `"metadata"` : **valeur par défaut**, sous la date centrée, hors de l’image,
+  avec le même composant, dans les deux vues Illustration.
 
 Les positions superposées n’ajoutent aucune hauteur à la carte ni à l’image.
-La position `metadata` peut naturellement augmenter la hauteur des
-métadonnées : la vérifier sur mobile. Une position invalide revient à
+La position `metadata` ajoute seulement la hauteur du badge et un petit espacement
+lorsqu’une durée existe ; sans durée, aucune ligne vide n’est créée.
+Les dimensions et le recadrage de l’image restent inchangés en vue Grandes cartes.
+Dans cette vue, le badge est centré et suspendu sur la bordure basse. Il reste
+dans le flux avec une marge négative ; une marge extérieure équivalente réserve
+son dépassement dans la grille, même si le texte occupe plusieurs lignes.
+La Liste compacte garde le badge à l’intérieur, sans dépassement décoratif.
+Une position invalide revient à
 `top-right`. Le badge n’intercepte ni clic, ni geste, ni focus.
 
 ## Palette et dimensions
@@ -80,6 +87,24 @@ sans couper le texte ni imposer des polices minuscules.
 est légèrement compacté (minimum 12,5 px), mais la durée reste à 13 px et les
 textes japonais à 14 px par défaut. Cette règle ciblée est commentée en fin
 de CSS ; elle n’affecte ni les images ni les autres emplacements.
+
+### Étiquette Illustration centrée
+
+Les ajustements locaux sont dans `src/components/gallery/IllustrationViews.css` :
+
+- Dépassement sous les grandes cartes : `--illustration-badge-overhang: 1.5rem`
+  (environ 22 px visibles après la bordure). Cette valeur réserve aussi
+  l’espace nécessaire avant la rangée suivante ; aucune hauteur de badge fixe.
+- Largeur : `width: max-content`, avec `--work-badge-max-width: 100%` limité
+  par les métadonnées et leur padding. Ce n’est pas une largeur fixe : un libellé
+  court produit un badge étroit, un libellé long s’élargit puis revient à la ligne.
+- Centrage : `.work-badge__copy` et `.work-badge__duration` dans ce même fichier ;
+  les autres emplacements et les badges Manga restent inchangés.
+
+Le padding reste réglé par `--work-badge-padding-block` / `--work-badge-padding-inline`
+dans `ProductionTimeBadge.css`. L’espace libellé–durée est le `margin-top: .15rem`
+de `.work-badge__duration`, l’espace horloge–durée son `gap: .3rem`.
+Les tailles de police restent `--work-badge-font-size` / `--work-badge-font-size-ja`.
 
 Conserver l’opacité `1` est recommandé : le contraste ne dépend alors pas
 du dessin sous le badge. Une opacité réduite exige de revérifier le contraste

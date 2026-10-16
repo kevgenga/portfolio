@@ -1,0 +1,70 @@
+/* Only the local dedicated editor. Card size / spacing can be customized here. */
+.manga-edit-page { --manga-page-card-min: 160px; --manga-page-gap: 12px; }
+.manga-edit-page > .topbar, .manga-edit-page #manga-dashboard { display:none; }
+.manga-edit-page #manga-editor-shell { display:block; width:100%; max-width:none; margin:0; padding:clamp(10px,2vw,32px); }
+#manga-editor-shell[hidden] { display:none; }
+.manga-editor-navigation { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:18px; }
+.manga-editor-navigation a { text-decoration:none; }
+.manga-edit-page #manga-dialog { border:1px solid var(--line); background:var(--surface); border-radius:8px; min-width:0; }
+.manga-edit-page .manga-editor-form { display:block; height:auto; min-width:0; padding:clamp(10px,2vw,28px); }
+.manga-edit-page .dialog-heading { margin-bottom:14px; overflow-wrap:anywhere; }
+.manga-edit-page .manga-editor-form > .dialog-heading { flex-wrap:wrap; }
+.manga-edit-page .manga-editor-form > .dialog-heading > .button { flex:0 0 auto; white-space:nowrap; }
+.manga-edit-page .manga-editor-tabs { position:sticky; top:0; z-index:4; background:var(--surface); padding-top:6px; }
+.manga-edit-page .manga-tab-panels, .manga-edit-page .manga-tab-panel, .manga-edit-page .manga-language-editor { height:auto; overflow:visible; }
+.manga-edit-page #manga-panel-pages:has(#manga-production-selection) { overflow:visible; }
+.manga-edit-page .manga-tab-panel[hidden] { display:none; }
+.manga-edit-page .manga-production-page { max-height:none; overflow:visible; }
+.manga-edit-page .manga-page-grid { flex:none; overflow:visible; padding:0; grid-template-columns:repeat(auto-fill,minmax(min(100%,var(--manga-page-card-min)),1fr)); gap:var(--manga-page-gap); }
+.manga-view-switch { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 14px; }
+.manga-view-switch [aria-pressed="true"] { border-color:#c45972; background:#3b1822; color:#fff; }
+.page-thumbnail { display:block; width:100%; padding:0; border:0; cursor:zoom-in; background:#080708; }
+.page-thumbnail img { display:block; height:auto; }
+.manga-page .page-filename { white-space:normal; overflow-wrap:anywhere; }
+.manga-page .page-time, .manga-page .page-spread-status { white-space:normal; }
+.manga-edit-page .manga-page { min-width:0; }
+.manga-page .page-spread-status { color:var(--muted); }
+.manga-edit-page .manga-page-grid[data-view="list"] { grid-template-columns:minmax(0,1fr); }
+.manga-page-grid[data-view="list"] .manga-page { display:grid; grid-template-columns:110px minmax(150px,1fr) minmax(110px,.65fr) minmax(240px,1fr); align-items:center; gap:6px 14px; padding:10px; }
+.manga-page-grid[data-view="list"] .page-thumbnail { grid-column:1; grid-row:2/8; }
+.manga-page-grid[data-view="list"] .page-thumbnail img { height:110px; aspect-ratio:auto; }
+.manga-page-grid[data-view="list"] .production-select { grid-column:1; }
+.manga-page-grid[data-view="list"] .page-position { grid-column:2; grid-row:1; }
+.manga-page-grid[data-view="list"] .page-filename { grid-column:2; grid-row:2/4; }
+.manga-page-grid[data-view="list"] .page-dimensions { grid-column:3; grid-row:1/3; }
+.manga-page-grid[data-view="list"] .page-size { grid-column:3; grid-row:3; }
+.manga-page-grid[data-view="list"] .page-time { grid-column:2/4; }
+.manga-page-grid[data-view="list"] .vertical-spread-marker, .manga-page-grid[data-view="list"] .page-spread-status { grid-column:2/4; }
+.manga-page-grid[data-view="list"] .page-actions { grid-column:4; grid-row:1/9; margin:0; }
+.manga-edit-page .manga-editor-form > .dialog-actions { position:static; flex-wrap:wrap; gap:10px; }
+.manga-edit-page .split-actions > div { display:flex; flex-wrap:wrap; gap:8px; }
+.manga-edit-page #manga-production-selection { position:static; }
+.manga-edit-page .vertical-spread-actions { margin-bottom:14px; }
+.manga-edit-page :is(input,select,textarea) { max-width:100%; min-width:0; }
+.manga-edit-page .button { white-space:normal; }
+.manga-edit-page .page-actions button { min-width:0; min-height:32px; overflow-wrap:anywhere; }
+.manga-image-dialog { width:min(1100px,calc(100vw - 24px)); }
+.manga-image-dialog img { display:block; width:100%; max-height:76dvh; object-fit:contain; background:#080708; }
+.manga-image-dialog h2 { font-size:1rem; overflow-wrap:anywhere; }
+/* Notices are reparented into any secondary top-layer dialog, never behind it. */
+body:has(#manga-dashboard) .toast { z-index:100; max-width:calc(100vw - 24px); overflow-wrap:anywhere; }
+@media(max-width:900px) {
+  .manga-page-grid[data-view="list"] .manga-page { grid-template-columns:80px minmax(0,1fr) minmax(0,1fr); gap:8px; }
+  .manga-page-grid[data-view="list"] .production-select { grid-column:1/-1; grid-row:1; }
+  .manga-page-grid[data-view="list"] .page-position { grid-column:2/4; grid-row:2; }
+  .manga-page-grid[data-view="list"] .page-thumbnail { grid-row:2/8; }
+  .manga-page-grid[data-view="list"] .page-thumbnail img { height:100px; }
+  .manga-page-grid[data-view="list"] .page-actions { grid-column:1/-1; grid-row:auto; grid-template-columns:repeat(4,minmax(0,1fr)); }
+  .manga-page-grid[data-view="list"] .page-filename { grid-column:2/4; grid-row:3; }
+  .manga-page-grid[data-view="list"] .page-dimensions { grid-column:2/4; grid-row:4; }
+  .manga-page-grid[data-view="list"] .page-size { grid-column:2/4; grid-row:5; }
+}
+@media(max-width:480px) {
+  .manga-edit-page { --manga-page-card-min:120px; --manga-page-gap:8px; }
+  .manga-edit-page .manga-editor-form > .dialog-heading { flex-direction:column; align-items:flex-start; gap:10px; }
+  .manga-edit-page .manga-editor-tabs { flex-wrap:wrap; overflow:visible; }
+  .manga-edit-page .manga-editor-tabs button { flex:1 1 auto; padding:10px 5px; }
+  .manga-edit-page .page-actions button { min-height:38px; }
+  .manga-edit-page .language-summary-content { align-items:start; }
+  .manga-edit-page .media-facts div { grid-template-columns:95px minmax(0,1fr); }
+}
