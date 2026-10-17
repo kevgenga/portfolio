@@ -16,24 +16,118 @@
 .illustration-view-button svg { width: 1.2rem; height: 1.2rem; }
 
 .illustration-grid {
-  --illustration-badge-overhang: 1.5rem;
-  align-items: start;
+  /* V2 footer controls (scoped to Illustration, not other badge contexts). */
+  --illustration-footer-date-width: 1fr;
+  --illustration-footer-badge-width: 1fr;
+  --illustration-footer-gap: .45rem;
+  --illustration-footer-padding-block: .3rem;
+  --illustration-footer-padding-inline: .4rem;
+  --illustration-footer-min-height: 3rem;
+  --illustration-footer-stacked-gap: .4rem;
+  --illustration-date-stacked-cut: .65rem;
+  --illustration-date-stacked-offset: .65rem;
+  --illustration-date-cut: .9rem;
+  --illustration-date-offset: 1.5rem;
+  --illustration-date-line-gap: 2px;
+  --illustration-date-font-size: .8125rem;
+  --illustration-footer-badge-font-size: var(--work-badge-font-size);
+  --illustration-footer-badge-font-size-ja: var(--work-badge-font-size-ja);
+  --illustration-footer-badge-padding-block: var(--work-badge-padding-block);
+  --illustration-footer-badge-padding-inline: var(--work-badge-padding-inline);
+  /* V3 date-only footer: independent of the recorded-duration V2 design. */
+  --illustration-v3-min-height: 3rem;
+  --illustration-v3-font-size: .8125rem;
+  --illustration-v3-padding-block: .25rem;
+  --illustration-v3-padding-inline: 0rem;
+  --illustration-v3-width: 100%;
+  --illustration-v3-cut: .9rem;
+  --illustration-v3-offset: 8%;
+  --illustration-v3-line-gap: 2px;
+  align-items: stretch;
 }
 
-/* Scope to Illustration only; absent durations do not create an empty row. */
+/* Shared Illustration metadata; V3 date-only overrides are grouped below. */
 .illustration-grid .artwork-card--illustration .artwork-card__metadata {
+  container-type: inline-size;
   flex-direction: column;
   flex-wrap: nowrap;
   gap: .3rem;
-  /* Intrinsic badge width, capped by this padded metadata area, not 10rem. */
+  /* The footer controls width; no global 10rem cap in this padded area. */
   --work-badge-max-width: 100%;
+}
+
+.illustration-grid:not(.illustration-grid--compact) .artwork-card--illustration { display:flex; flex-direction:column; }
+.illustration-grid:not(.illustration-grid--compact) .artwork-card__link { flex:none; }
+.illustration-grid:not(.illustration-grid--compact) .artwork-card__metadata { flex:1; }
+.illustration-grid .artwork-card__metadata:has(.artwork-card__footer) {
+  padding:var(--illustration-footer-padding-block) var(--illustration-footer-padding-inline);
+}
+.illustration-grid .artwork-card__footer {
+  display:grid;
+  grid-template-columns:minmax(0,var(--illustration-footer-date-width)) minmax(0,var(--illustration-footer-badge-width));
+  align-items:center;
+  gap:var(--illustration-footer-gap);
+  width:100%;
+  min-width:0;
+  min-height:var(--illustration-footer-min-height);
+}
+.illustration-grid .artwork-card__footer--time-only { grid-template-columns:minmax(0,1fr); }
+.illustration-grid .artwork-card__date-ribbon {
+  min-width:0;
+  width:100%;
+  color:#fff;
+  font-size:var(--illustration-date-font-size);
+  font-weight:800;
+  line-height:1.5;
+  letter-spacing:.06em;
+  text-align:center;
+  text-transform:uppercase;
+}
+.illustration-grid .artwork-card__date-inline { display:none; }
+.illustration-grid .artwork-card__date-lines { display:grid; gap:var(--illustration-date-line-gap); }
+.illustration-grid .artwork-card__date-line {
+  display:block;
+  padding:.05rem calc(var(--illustration-date-cut) + .15rem) .05rem .3rem;
+  background:var(--color-ink);
+  overflow-wrap:anywhere;
+  clip-path:polygon(0 0,100% 0,calc(100% - var(--illustration-date-cut)) 100%,0 100%);
+}
+.illustration-grid .artwork-card__date-line + .artwork-card__date-line {
+  margin-inline-start:var(--illustration-date-offset);
+  clip-path:polygon(0 0,calc(100% - var(--illustration-date-cut)) 0,100% 100%,0 100%);
+}
+.illustration-grid .artwork-card__footer .work-badge {
+  width:100%;
+  min-width:0;
+  margin:0;
+  padding:var(--illustration-footer-badge-padding-block) var(--illustration-footer-badge-padding-inline);
+  font-size:var(--illustration-footer-badge-font-size);
+}
+.illustration-grid .artwork-card__footer .work-badge__label { font-size:inherit; }
+html[lang="ja"] .illustration-grid .artwork-card__date-ribbon { font-family:var(--font-japanese); letter-spacing:normal; }
+html[lang="ja"] .illustration-grid .artwork-card__footer .work-badge { font-size:var(--illustration-footer-badge-font-size-ja); }
+
+/* A phone's two-column cards cannot fit two readable labels side by side.
+   Reflow the footer only, leaving gallery columns and image geometry intact. */
+@container (max-width: 239px) {
+  .illustration-grid:not(.illustration-grid--compact) .artwork-card__footer { grid-template-columns:minmax(0,1fr); }
+  /* Reclaim width for long months; keep the two cut ribbons and readable type.
+     V3 is already full-width and must not inherit the V2 stacked spacing. */
+  .illustration-grid:not(.illustration-grid--compact) .artwork-card__footer:not(.artwork-card__footer--date-only) {
+    --illustration-date-cut: var(--illustration-date-stacked-cut);
+    --illustration-date-offset: var(--illustration-date-stacked-offset);
+    gap:var(--illustration-footer-stacked-gap);
+  }
+  .illustration-grid:not(.illustration-grid--compact) .artwork-card__footer:not(.artwork-card__footer--date-only) .artwork-card__date-line {
+    padding-inline:calc(var(--illustration-date-cut) + .15rem);
+  }
 }
 
 .illustration-grid .artwork-card--illustration .artwork-card__metadata > p { flex-basis: auto; }
 
 /* The metadata already supplies padding; overlay edge clearance is unnecessary. */
 .illustration-grid .work-badge[data-badge-placement="metadata"] {
-  width: max-content;
+  width: 100%;
   max-width: min(var(--work-badge-max-width), 100%);
   overflow-wrap: anywhere;
 }
@@ -48,22 +142,6 @@
 
 .illustration-grid .work-badge[data-badge-placement="metadata"] .work-badge__duration > span {
   min-width: 0;
-}
-
-/* Attached label: keep its natural height in flow, subtract only the overhang.
-   The matching card margin reserves it in the grid, even for 3+ lines.
-   Image links retain their own overflow:hidden and all compact cards stay flat. */
-.illustration-grid:not(.illustration-grid--compact) .artwork-card--illustration:has([data-badge-placement="metadata"]) {
-  overflow: visible;
-  margin-bottom: var(--illustration-badge-overhang);
-}
-
-.illustration-grid:not(.illustration-grid--compact) .artwork-card__metadata:has(> [data-badge-placement="metadata"]) {
-  padding-bottom: 0;
-}
-
-.illustration-grid:not(.illustration-grid--compact) .artwork-card__metadata > .work-badge[data-badge-placement="metadata"] {
-  margin-bottom: calc(-1 * var(--illustration-badge-overhang));
 }
 
 .illustration-grid--compact {
@@ -97,3 +175,63 @@
 }
 
 .illustration-grid--compact .artwork-card__metadata > p { margin: 0; }
+
+.illustration-grid--compact .artwork-card__footer { display:flex; flex-direction:column; min-height:0; gap:.3rem; }
+.illustration-grid--compact .artwork-card__date-ribbon { color:var(--color-muted); font-size:.8125rem; letter-spacing:.12em; }
+.illustration-grid--compact .artwork-card__date-lines { display:none; }
+.illustration-grid--compact .artwork-card__date-inline { display:inline; }
+.illustration-grid--compact .artwork-card__footer .work-badge { width:max-content; }
+
+/* V3: no badge, no reserved column. Both strips stay inside the card frame.
+   These rules also apply to compact view; V2 remains unchanged above. */
+.illustration-grid .artwork-card--illustration .artwork-card__metadata:has(.artwork-card__footer--date-only) {
+  padding:var(--illustration-v3-padding-block) var(--illustration-v3-padding-inline);
+}
+.illustration-grid .artwork-card__footer--date-only {
+  display:grid;
+  grid-template-columns:minmax(0,1fr);
+  align-content:center;
+  gap:0;
+  min-height:var(--illustration-v3-min-height);
+}
+.illustration-grid .artwork-card__footer--date-only .artwork-card__date-ribbon {
+  width:var(--illustration-v3-width);
+  max-width:100%;
+  margin-inline:auto;
+  color:#fff;
+  font-size:var(--illustration-v3-font-size);
+  letter-spacing:.06em;
+}
+.illustration-grid .artwork-card__footer--date-only .artwork-card__date-inline { display:none; }
+.illustration-grid .artwork-card__footer--date-only .artwork-card__date-lines {
+  display:grid;
+  gap:var(--illustration-v3-line-gap);
+}
+.illustration-grid .artwork-card__footer--date-only .artwork-card__date-line {
+  margin-inline:0 var(--illustration-v3-offset);
+  padding:.05rem calc(var(--illustration-v3-cut) + .15rem);
+  clip-path:polygon(0 0,calc(100% - var(--illustration-v3-cut)) 0,100% 100%,0 100%);
+}
+.illustration-grid .artwork-card__footer--date-only .artwork-card__date-line + .artwork-card__date-line {
+  margin-inline:var(--illustration-v3-offset) 0;
+  clip-path:polygon(0 0,100% 0,100% 100%,var(--illustration-v3-cut) 100%);
+}
+
+/* Dark-only date palette. Geometry, separators and colored badges stay intact. */
+.dark .illustration-grid {
+  --illustration-footer-dark-background: #000000;
+  --illustration-date-dark-background: #ffffff;
+  --illustration-date-dark-text: #000000;
+  --illustration-footer-dark-separator: var(--color-line);
+}
+.dark .illustration-grid .artwork-card--illustration .artwork-card__metadata:has(.artwork-card__footer) {
+  background:var(--illustration-footer-dark-background);
+  border-color:var(--illustration-footer-dark-separator);
+}
+.dark .illustration-grid .artwork-card__footer .artwork-card__date-ribbon {
+  color:var(--illustration-date-dark-text);
+}
+.dark .illustration-grid .artwork-card__date-line,
+.dark .illustration-grid .artwork-card__date-inline {
+  background:var(--illustration-date-dark-background);
+}

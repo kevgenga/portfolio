@@ -8,6 +8,7 @@ import { transformWithEsbuild } from "vite";
 import { getTranslations } from "../i18n/locale.js";
 import { readProductionTime, formatProductionTime, getProductionTimePresentation, getProductionTimeBadgeAppearance, getPublicArtworkProductionGroups, createMangaProductionTimeLookup } from "./publicProductionTime.js";
 import { productionTimeBadgeSettings } from "../content/productionTimeBadgeSettings.js";
+import { formatPortfolioDateLines } from "./formatPortfolioDate.js";
 
 const actual = minutes => ({ minutes, kind: "actual" });
 test("absent/invalid durations disappear without fabricated zero or invalid text; read is immutable", () => {
@@ -75,12 +76,13 @@ test("shared Badge renders nothing for absent/invalid metadata and accessible co
   }
 });
 test("Artwork opt-in preserves Animation/Hero; Manga Card only uses manual total and retains route/cover/page count", async()=>{
-  const t=getTranslations("en"), fakeBadge=props=>props.time?React.createElement("span",{"data-time":props.time.minutes},String(props.time.minutes)):null;
+  const t=getTranslations("en"), fakeBadge=props=>getProductionTimeBadgeAppearance(props.time)?React.createElement("span",{"data-time":props.time.minutes},String(props.time.minutes)):null;
   const Artwork=await component("../components/gallery/ArtworkCard.jsx","ArtworkCard",{motion:{article:"article"},ProductionTimeBadge:fakeBadge,getProductionTimeBadgeAppearance});
   const item={id:"a",title:"",alt:"Unchanged",image:"/portfolio/sample.jpg",productionTime:actual(150)};
   assert.ok(!renderToStaticMarkup(React.createElement(Artwork,{item,metadata:""})).includes("data-time"));
   assert.ok(renderToStaticMarkup(React.createElement(Artwork,{item,metadata:"",showProductionTime:true})).includes('data-time="150"'));
-  assert.ok(!renderToStaticMarkup(React.createElement(Artwork,{item:{...item,productionTime:actual(0)},metadata:"",showProductionTime:true})).includes("artwork-card__metadata"));
+  const invalid=renderToStaticMarkup(React.createElement(Artwork,{item:{...item,productionTime:actual(0)},metadata:"",showProductionTime:true}));
+  assert.doesNotMatch(invalid,/data-time=|artwork-card__footer|data-production-empty/);
   const Card=await component("../components/manga/MangaCard.jsx","MangaCard",{motion:{article:"article"},Link:({to,children,...props})=>React.createElement("a",{href:to,...props},children),getMangaCardImage:m=>m.cover,ProductionTimeBadge:fakeBadge});
   const manga={id:"m",slug:"m",title:"Title",route:"/mangas/m",cover:"/portfolio/cover.jpg",pageCount:19,summary:"Summary",productionTime:mangaFixture().productionTime};
   const html=renderToStaticMarkup(React.createElement(Card,{manga,index:1,categoryLabel:"Manga",t}));assert.ok(html.includes('data-time="6000"'));assert.ok(!html.includes('data-time="900"'));assert.ok(html.includes('/mangas/m'));assert.ok(html.includes('/portfolio/cover.jpg'));assert.ok(html.includes('19'));
@@ -131,11 +133,64 @@ test("Artwork overlay leaves date/image intact, while metadata placement reuses 
   const item={id:"a",title:"",alt:"Original alt",image:"/portfolio/image.jpg",width:800,height:1000,productionTime:actual(60)};
   for(const placement of ["top-right","bottom-right","metadata"]){
     const fakeBadge=props=>React.createElement("span",{"data-variant":props.variant,"data-placement":props.appearance.placement},"time");
-    const Artwork=await component("../components/gallery/ArtworkCard.jsx","ArtworkCard",{motion:{article:"article"},ProductionTimeBadge:fakeBadge,getProductionTimeBadgeAppearance:value=>getProductionTimeBadgeAppearance(value,{...productionTimeBadgeSettings,placement})});
+    const Artwork=await component("../components/gallery/ArtworkCard.jsx","ArtworkCard",{motion:{article:"article"},ProductionTimeBadge:fakeBadge,useLanguage:()=>({locale:"en"}),formatPortfolioDateLines,getProductionTimeBadgeAppearance:value=>getProductionTimeBadgeAppearance(value,{...productionTimeBadgeSettings,placement})});
     const html=renderToStaticMarkup(React.createElement(Artwork,{item,metadata:"19 May 2026",showProductionTime:true}));
     assert.equal((html.match(/data-variant="artwork"/g)||[]).length,1);assert.ok(html.includes(`data-placement="${placement}"`));
     assert.equal(html.includes('data-variant="artwork"')&&html.indexOf('data-variant="artwork"')<html.indexOf("</a>"),placement!=="metadata");
     assert.ok(html.includes("19 May 2026"));assert.ok(html.includes('alt="Original alt"'));assert.ok(html.includes('width="800" height="1000"'));assert.ok(html.includes('loading="lazy"'));
+  }
+});
+
+test("V2 Illustration footer reuses localized badges and dates; missing/invalid dates never invent a ribbon", async () => {
+  for (const locale of ["en", "fr", "ja"]) {
+    const t = getTranslations(locale);
+    const Badge = await component("../components/ProductionTimeBadge.jsx", "ProductionTimeBadge", { useLanguage: () => ({ locale, t }), getProductionTimePresentation, getProductionTimeBadgeAppearance });
+    const Artwork = await component("../components/gallery/ArtworkCard.jsx", "ArtworkCard", { motion: { article: "article" }, ProductionTimeBadge: Badge, useLanguage: () => ({ locale }), formatPortfolioDateLines, getProductionTimeBadgeAppearance });
+    const item = { id: "v2", title: "", alt: "Original drawing", image: "/image.jpg", date: "13-10-2026", productionTime: actual(60) };
+    const render = (props = {}) => renderToStaticMarkup(React.createElement(Artwork, { item, metadata: "full localized date", showProductionTime: true, ...props }));
+    const html = render();
+    assert.match(html, /artwork-card__footer/); assert.match(html, /artwork-card__date-ribbon/);
+    for (const line of formatPortfolioDateLines(item.date, locale)) assert.ok(html.includes(line));
+    assert.equal((html.match(/work-badge__copy/g) || []).length, 1);
+    assert.ok(html.includes(t.productionTime.compact.individual.actual));
+    assert.ok(html.indexOf('class="artwork-card__footer') > html.indexOf("</a>"));
+    const empty = render({ item: { ...item, productionTime: undefined } });
+    assert.match(empty, /artwork-card__footer--date-only/); assert.match(empty, /artwork-card__date-ribbon/);
+    assert.doesNotMatch(empty, /<svg|work-badge|production-time|data-production-kind=/);
+    assert.doesNotMatch(html, /artwork-card__footer--date-only/, "Valid durations keep V2");
+    for (const date of ["", "invalid"]) assert.doesNotMatch(render({ item: { ...item, date }, metadata: "" }), /date-ribbon|Invalid Date/);
+  }
+});
+
+test("V3 date-only ribbons replace absent/invalid time in every Illustration category without mutating data", async () => {
+  const missingValues = [undefined, null, "", {}, [], { minutes: 0, kind: "actual" }, { minutes: -1, kind: "estimated" }, { minutes: 60, kind: "unknown" }];
+  for (const locale of ["en", "fr", "ja"]) {
+    const t = getTranslations(locale), Badge = await component("../components/ProductionTimeBadge.jsx", "ProductionTimeBadge", { useLanguage: () => ({ locale, t }), getProductionTimePresentation, getProductionTimeBadgeAppearance });
+    const Artwork = await component("../components/gallery/ArtworkCard.jsx", "ArtworkCard", { motion: { article: "article" }, ProductionTimeBadge: Badge, useLanguage: () => ({ locale }), formatPortfolioDateLines, getProductionTimeBadgeAppearance });
+    for (const time of missingValues) {
+      const before = JSON.stringify(time);
+      for (const context of ["individual", "manga", "page", "group"]) for (const variant of ["compact", "detailed", "artwork"]) {
+        assert.equal(Badge({ time, context, variant }), null);
+      }
+      assert.equal(formatProductionTime(time, locale), ""); assert.equal(getProductionTimePresentation(time, locale, t.productionTime), null);
+      assert.equal(renderToStaticMarkup(React.createElement(Badge, { time, variant: "artwork" })), "");
+      for (const category of ["illustrations", "sketches", "paintings", "character-design", "backgrounds", "future-category"]) {
+        const item = { id: "missing", title: "", alt: "Original alt", image: "/original.jpg", date: "13-10-2026", category: [category], productionTime: time };
+        const card = renderToStaticMarkup(React.createElement(Artwork, { item, metadata: "13 October 2026", showProductionTime: true }));
+        assert.match(card, /artwork-card__footer--date-only/); assert.match(card, /artwork-card__date-ribbon/);
+        assert.doesNotMatch(card, /work-badge|production-time|<svg|Temps non renseigné|Time not recorded|制作時間未登録/);
+        for (const line of formatPortfolioDateLines(item.date, locale)) assert.ok(card.includes(line));
+        assert.equal((card.match(/class="sr-only"/g) || []).length, 1, "One accessible full date");
+        assert.ok(card.includes('alt="Original alt"')); assert.ok(card.indexOf('class="artwork-card__footer') > card.indexOf("</a>"));
+        for (const date of [undefined, "", "invalid"]) {
+          const undated = renderToStaticMarkup(React.createElement(Artwork, { item: { ...item, date }, metadata: "", showProductionTime: true }));
+          assert.doesNotMatch(undated, /artwork-card__footer|date-ribbon|Invalid Date|production-time/);
+        }
+        const animation = renderToStaticMarkup(React.createElement(Artwork, { item, metadata: "13 October 2026" }));
+        assert.doesNotMatch(animation, /work-badge|artwork-card__footer/);
+      }
+      assert.equal(JSON.stringify(time), before, "Rendering never mutates missing/invalid metadata");
+    }
   }
 });
 test("Reader navigation/rail/gestures/preloading stay unchanged; public code never calls an Admin API or writes durations",async()=>{

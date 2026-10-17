@@ -12,6 +12,7 @@ import { verifyIllustrationViewsAndScroll } from "./illustration-views-and-scrol
 import { verifyMangaReaderNavigation } from "./manga-reader-navigation.mjs";
 import { verifyVerticalSpreads } from "./manga-vertical-spreads.mjs";
 import { verifyHorizontalSpreads } from "./manga-horizontal-spreads.mjs";
+import { verifyIllustrationFooterV2 } from "./illustration-footer-v2.mjs";
 
 // Vite transform fixtures exist only in this isolated test server's memory.
 // No catalog, image, Admin, Reader preference or deployment file is rewritten.
@@ -75,10 +76,10 @@ try {
       const card=el.closest('.artwork-card--illustration'),cr=card?.getBoundingClientRect(),grid=card?.closest('.illustration-grid');
       const metadata=Boolean(grid&&el.dataset.badgePlacement==='metadata');
       const clock=duration?.querySelector('svg'),labelRect=label?.getBoundingClientRect();
-      return {text:el.textContent,size:parseFloat(s.fontSize),labelSize:label?parseFloat(getComputedStyle(label).fontSize):null,metadata,alignment:label?{label:getComputedStyle(label).textAlign,duration:getComputedStyle(duration).justifyContent,rightDifference:Math.abs(labelRect.right-value.getBoundingClientRect().right),centerDifference:Math.abs((labelRect.left+labelRect.right-clock.getBoundingClientRect().left-value.getBoundingClientRect().right)/2)}:null,tag:metadata?{compact:grid.classList.contains('illustration-grid--compact'),center:Math.abs((cr.left+cr.right-r.left-r.right)/2),left:cr.left,right:cr.right,overhang:r.bottom-cr.bottom,overflow:getComputedStyle(card).overflowY,collisions:[...grid.querySelectorAll('.artwork-card')].filter(other=>{if(other===card)return false;const o=other.getBoundingClientRect();return r.right>o.left+.5&&r.left<o.right-.5&&r.bottom>o.top+.5&&r.top<o.bottom-.5}).length}:null,contrast:(Math.max(f,b)+.05)/(Math.min(f,b)+.05),left:r.left,right:r.right,client:el.clientWidth,scroll:el.scrollWidth,images:el.querySelectorAll('img').length,inImage:lr?{left:lr.left,right:lr.right,top:lr.top,bottom:lr.bottom,badgeTop:r.top,badgeBottom:r.bottom}:null,pointer:s.pointerEvents};
+      return {text:el.textContent,size:parseFloat(s.fontSize),labelSize:label?parseFloat(getComputedStyle(label).fontSize):null,metadata,alignment:label?{label:getComputedStyle(label).textAlign,duration:duration?getComputedStyle(duration).justifyContent:'center',rightDifference:value?Math.abs(labelRect.right-value.getBoundingClientRect().right):0,centerDifference:value?Math.abs((labelRect.left+labelRect.right-clock.getBoundingClientRect().left-value.getBoundingClientRect().right)/2):Math.abs((labelRect.left+labelRect.right-r.left-r.right)/2)}:null,tag:metadata?{compact:grid.classList.contains('illustration-grid--compact'),center:Math.abs((cr.left+cr.right-r.left-r.right)/2),left:cr.left,right:cr.right,overhang:r.bottom-cr.bottom,overflow:getComputedStyle(card).overflowY,collisions:[...grid.querySelectorAll('.artwork-card')].filter(other=>{if(other===card)return false;const o=other.getBoundingClientRect();return r.right>o.left+.5&&r.left<o.right-.5&&r.bottom>o.top+.5&&r.top<o.bottom-.5}).length}:null,contrast:(Math.max(f,b)+.05)/(Math.min(f,b)+.05),left:r.left,right:r.right,client:el.clientWidth,scroll:el.scrollWidth,images:el.querySelectorAll('img').length,inImage:lr?{left:lr.left,right:lr.right,top:lr.top,bottom:lr.bottom,badgeTop:r.top,badgeBottom:r.bottom}:null,pointer:s.pointerEvents};
     });
   })()`);
-  const check=async(label,locale,theme,width)=>{const measures=await measure();for(const m of measures){assert.ok(m.size>=(locale==="ja"?14:13),JSON.stringify({label,locale,width,m}));if(m.labelSize!==null){assert.ok(m.labelSize>=(locale==="ja"?14:12.5),JSON.stringify({label,locale,width,m}));assert.equal(m.alignment.label,m.metadata?'center':'right');assert.equal(m.alignment.duration,m.metadata?'center':'flex-end');assert.ok((m.metadata?m.alignment.centerDifference:m.alignment.rightDifference)<1,JSON.stringify(m))}if(m.tag){assert.equal(m.tag.collisions,0,JSON.stringify({label,locale,width,m}));assert.ok(m.left>=m.tag.left&&m.right<=m.tag.right,JSON.stringify(m));if(m.tag.compact){assert.ok(m.tag.overhang<=0,'Compact badges stay inside their cards')}else{assert.ok(m.tag.center<1,JSON.stringify(m));assert.ok(m.tag.overhang>0&&m.tag.overhang<=24,JSON.stringify(m));assert.equal(m.tag.overflow,'visible')}}assert.ok(m.contrast>=4.5,JSON.stringify({label,locale,theme,width,m}));assert.ok(m.left>=-1&&m.right<=width+1&&m.scroll<=m.client+1,JSON.stringify({label,locale,width,m}));assert.equal(m.images,0);if(m.inImage){assert.ok(m.left>=m.inImage.left&&m.right<=m.inImage.right&&m.inImage.badgeTop>=m.inImage.top&&m.inImage.badgeBottom<=m.inImage.bottom,JSON.stringify({label,locale,width,m}));assert.equal(m.pointer,'none')}}
+  const check=async(label,locale,theme,width)=>{const measures=await measure();for(const m of measures){assert.ok(m.size>=(locale==="ja"?14:13),JSON.stringify({label,locale,width,m}));if(m.labelSize!==null){assert.ok(m.labelSize>=(locale==="ja"?14:12.5),JSON.stringify({label,locale,width,m}));assert.equal(m.alignment.label,m.metadata?'center':'right');assert.equal(m.alignment.duration,m.metadata?'center':'flex-end');assert.ok((m.metadata?m.alignment.centerDifference:m.alignment.rightDifference)<1,JSON.stringify(m))}if(m.tag){assert.equal(m.tag.collisions,0,JSON.stringify({label,locale,width,m}));assert.ok(m.left>=m.tag.left&&m.right<=m.tag.right,JSON.stringify(m));assert.ok(m.tag.overhang<=0,'V2 badges stay inside both large and compact cards');assert.equal(m.tag.overflow,'hidden')}assert.ok(m.contrast>=4.5,JSON.stringify({label,locale,theme,width,m}));assert.ok(m.left>=-1&&m.right<=width+1&&m.scroll<=m.client+1,JSON.stringify({label,locale,width,m}));assert.equal(m.images,0);if(m.inImage){assert.ok(m.left>=m.inImage.left&&m.right<=m.inImage.right&&m.inImage.badgeTop>=m.inImage.top&&m.inImage.badgeBottom<=m.inImage.bottom,JSON.stringify({label,locale,width,m}));assert.equal(m.pointer,'none')}}
     const dates=await evaluate("[...document.querySelectorAll('.artwork-card--illustration .artwork-card__metadata > p')].map(p=>{const parent=p.parentElement.getBoundingClientRect(),range=document.createRange();range.selectNodeContents(p);return {align:getComputedStyle(p).textAlign,lines:[...range.getClientRects()].map(r=>Math.abs((r.left+r.right)/2-(parent.left+parent.right)/2))}})");
     for(const date of dates){assert.equal(date.align,'center');assert.ok(date.lines.every(offset=>offset<2),JSON.stringify({locale,width,date}))}
     results.push({label,locale,theme,width,indicators:measures.length})};
@@ -87,7 +88,7 @@ try {
   // Fancybox places compact captions in its common footer, desktop captions
   // inside each slide. Ignore preloaded/inactive slides in either layout.
   const activeCaption="[...document.querySelectorAll('.fancybox__container .portfolio-lightbox-metadata')].find(el=>el.getBoundingClientRect().width&&(!el.closest('.fancybox__slide')||el.closest('.fancybox__slide').classList.contains('is-selected')))";
-  if(!process.argv.includes('--views-only')&&!process.argv.includes('--reader-navigation-only')) {
+  if(!process.argv.includes('--views-only')&&!process.argv.includes('--reader-navigation-only')&&!process.argv.includes('--footer-only')) {
   for(const locale of ["en","fr","ja"])for(const theme of ["light","dark"]){
     const text=getTranslations(locale).productionTime;
     await navigate("",locale,theme);await until("document.querySelectorAll('#selected-manga .manga-card').length===3");
@@ -101,9 +102,10 @@ try {
     await navigate("mangaka",locale,theme);await until("document.querySelectorAll('.manga-card').length>0");assert.equal(await evaluate("document.querySelectorAll('.manga-card .production-time').length"),1);
     for(const width of widths){await resize(width);await check("manga",locale,theme,width)}
     await navigate("illustration",locale,theme);await until(`document.querySelector('[data-lightbox-id=${JSON.stringify(ids[0])}]')`);
-    assert.equal(await evaluate("document.querySelectorAll('.artwork-card .production-time').length"),3,"Short/medium/long fixtures; absent and invalid remain badge-free");
+    assert.equal(await evaluate("document.querySelectorAll('.artwork-card .production-time').length"),3,"Only real durations have a measured/estimated indicator");
     assert.deepEqual(await evaluate("[...document.querySelectorAll('.artwork-card .work-badge')].map(el=>['short','medium','long'].find(t=>el.classList.contains('work-badge--'+t)))"),["short","medium","long"]);
     assert.equal(await evaluate("document.querySelectorAll('.artwork-card__metadata .production-time').length"),3);
+    assert.equal(await evaluate("document.querySelectorAll('.artwork-card__footer--date-only').length===document.querySelectorAll('.artwork-card').length-3"),true);
     assert.equal(await evaluate("document.querySelectorAll('.artwork-card__link .production-time').length"),0,"Default badges never obscure drawings");
     assert.ok((await evaluate("document.querySelector('.work-badge__label').textContent")).includes(text.compact.individual.actual));
     for(const width of widths){
@@ -202,11 +204,12 @@ try {
   await navigate("illustration","en","light",true);await until("document.querySelectorAll('.artwork-card').length>=5");
   const withoutBadges=await galleryGeometry(),imageOnly=cards=>cards.map(({height,...image})=>image);
   assert.deepEqual(imageOnly(withoutBadges),imageOnly(withBadges),"Metadata badges cannot change image sizes or cropping");
-  for(let i=0;i<5;i++)assert.equal(withBadges[i].height>withoutBadges[i].height,[0,1,4].includes(i),"Only a present valid duration adds a metadata row");
+  assert.equal(new Set(withBadges.slice(0,4).map(card=>card.height)).size,1,"V2 footers align within each large-card row, with or without time");
+  for(let i=0;i<5;i++)assert.ok(withBadges[i].height>=withoutBadges[i].height,"A duration cannot shrink a row or reserve an external badge overhang");
   // Retain exact overlay geometry coverage for both optional overlay settings.
   for(const placement of ['top-right','bottom-right']){
     await navigate('illustration','en','light',false,'&fixtureBadgePlacement='+placement);await until("document.querySelectorAll('.work-badge').length===3");
-    assert.deepEqual(await galleryGeometry(),withoutBadges,'Overlay cannot change image/card sizes or cropping');
+    assert.deepEqual(imageOnly(await galleryGeometry()),imageOnly(withoutBadges),'Optional overlays cannot change image sizes/cropping; absent-time cards retain V3');
   }
   for(const theme of ["light","dark"]){
     await navigate("illustration","fr",theme,false,"&fixtureBadgeMode=neutral");await until("document.querySelectorAll('.work-badge--neutral').length===3");
@@ -234,15 +237,15 @@ try {
   for(const locale of ['en','fr','ja'])for(const theme of ['light','dark']){
     await resize(1440);await navigate('illustration',locale,theme,false,'&fixtureLongDuration=estimated');
     await until("document.querySelector('.work-badge__label')");
-    const beforeLabel=await evaluate("(()=>{const badge=document.querySelector('.work-badge'),image=badge.closest('.artwork-card').querySelector('img'),r=image.getBoundingClientRect();return {width:badge.getBoundingClientRect().width,image:[r.width,r.height,image.getAttribute('src')]}})()");
+    const beforeLabel=await evaluate("(()=>{const badge=document.querySelector('.work-badge'),image=badge.closest('.artwork-card').querySelector('img'),r=image.getBoundingClientRect();return {width:badge.getBoundingClientRect().width,height:badge.getBoundingClientRect().height,image:[r.width,r.height,image.getAttribute('src')]}})()");
     await evaluate("(()=>{const label=document.querySelector('.work-badge__label');label.textContent=Array(4).fill(label.textContent).join(' — ')})()");
     await frameForAlignment();
-    const afterLabel=await evaluate("(()=>{const badge=document.querySelector('.work-badge'),image=badge.closest('.artwork-card').querySelector('img'),r=image.getBoundingClientRect();return {width:badge.getBoundingClientRect().width,image:[r.width,r.height,image.getAttribute('src')]}})()");
-    assert.ok(afterLabel.width>beforeLabel.width,JSON.stringify({locale,beforeLabel,afterLabel}));
+    const afterLabel=await evaluate("(()=>{const badge=document.querySelector('.work-badge'),image=badge.closest('.artwork-card').querySelector('img'),r=image.getBoundingClientRect();return {width:badge.getBoundingClientRect().width,height:badge.getBoundingClientRect().height,image:[r.width,r.height,image.getAttribute('src')]}})()");
+    assert.equal(afterLabel.width,beforeLabel.width,"V2 stays in its assigned column"); assert.ok(afterLabel.height>beforeLabel.height,"Long labels grow vertically, not beyond the card");
     assert.deepEqual(afterLabel.image,beforeLabel.image,'Long labels cannot change the image geometry/source');
     for(const width of [320,360,375,390,430,768,1024,1440,1920]){
       await resize(width);await check('long-label',locale,theme,width);
-      const metrics=await evaluate("(()=>{const card=document.querySelector('.artwork-card'),badge=card.querySelector('.work-badge'),r=badge.getBoundingClientRect(),meta=card.querySelector('.artwork-card__metadata'),range=document.createRange();range.selectNodeContents(badge.querySelector('.work-badge__label'));const plain=[...document.querySelectorAll('.artwork-card')].find(el=>!el.querySelector('.work-badge'));return {lines:range.getClientRects().length,max:meta.clientWidth-parseFloat(getComputedStyle(meta).paddingLeft)-parseFloat(getComputedStyle(meta).paddingRight),width:r.width,plainMargin:getComputedStyle(plain).marginBottom,overflow:document.documentElement.scrollWidth>innerWidth}})()");
+      const metrics=await evaluate("(()=>{const card=document.querySelector('.artwork-card'),badge=card.querySelector('.work-badge'),r=badge.getBoundingClientRect(),meta=card.querySelector('.artwork-card__metadata'),range=document.createRange();range.selectNodeContents(badge.querySelector('.work-badge__label'));const plain=document.querySelector('.artwork-card:has(.artwork-card__footer--date-only)');return {lines:range.getClientRects().length,max:meta.clientWidth-parseFloat(getComputedStyle(meta).paddingLeft)-parseFloat(getComputedStyle(meta).paddingRight),width:r.width,plainMargin:getComputedStyle(plain).marginBottom,overflow:document.documentElement.scrollWidth>innerWidth}})()");
       assert.equal(metrics.overflow,false);assert.equal(metrics.plainMargin,'0px');assert.ok(metrics.width<=metrics.max+1,JSON.stringify(metrics));
       if(width===320)assert.ok(metrics.lines>=3,JSON.stringify(metrics));
       if(width===375){await evaluate("document.querySelector('.work-badge').scrollIntoView({block:'center'})");await capture(`hanging-long-label-${locale}-${theme}`)}
@@ -287,19 +290,22 @@ try {
   assert.equal(await evaluate("document.querySelector('[data-reader-pagination]').getAttribute('aria-hidden')"),"true");
   await click("[data-horizontal-click-zones] button:nth-child(2)");await until("document.querySelector('main').dataset.readerInterface==='visible'");
   }
-  if(!process.argv.includes('--reader-navigation-only')) await verifyIllustrationViewsAndScroll({evaluate,command,until,click,navigate,resize,capture,slug,widths});
-  if(!process.argv.includes('--views-only')) await verifyMangaReaderNavigation({evaluate,command,until,click,navigate,resize,capture,slug,requests});
-  if(!process.argv.includes('--views-only')) await verifyVerticalSpreads({evaluate,command,until,click,navigate,capture,slug});
-  if(!process.argv.includes('--views-only')) await verifyHorizontalSpreads({evaluate,command,until,click,navigate,capture,slug,requests});
+  if(!process.argv.includes('--reader-navigation-only')) await verifyIllustrationFooterV2({evaluate,command,until,click,navigate,resize,capture,ids});
+  if(!process.argv.includes('--reader-navigation-only')&&!process.argv.includes('--footer-only')) await verifyIllustrationViewsAndScroll({evaluate,command,until,click,navigate,resize,capture,slug,widths});
+  if(!process.argv.includes('--views-only')&&!process.argv.includes('--footer-only')) await verifyMangaReaderNavigation({evaluate,command,until,click,navigate,resize,capture,slug,requests});
+  if(!process.argv.includes('--views-only')&&!process.argv.includes('--footer-only')) await verifyVerticalSpreads({evaluate,command,until,click,navigate,capture,slug});
+  if(!process.argv.includes('--views-only')&&!process.argv.includes('--footer-only')) await verifyHorizontalSpreads({evaluate,command,until,click,navigate,capture,slug,requests});
   // No-duration flavor strips only fixture metadata, not the real catalog.
   for(const route of ["","illustration","mangaka","mangas/"+slug]){
     await navigate(route,"en","light",true);await until(route.startsWith("mangas/")?"document.querySelector('[data-reader-mode]')":route==="illustration"?"document.querySelector('[data-fancybox=illustration-gallery]')":route==="mangaka"?"document.querySelector('.manga-card')":"document.querySelector('#selected-manga .manga-card')");
     assert.equal(await evaluate("document.querySelectorAll('.production-time,[data-reader-production-times]').length"),0);
+    assert.equal(await evaluate("document.querySelectorAll('[data-production-empty]').length"),0);
+    assert.equal(await evaluate("document.querySelectorAll('.artwork-card__footer--date-only').length"),route==='illustration'?await evaluate("document.querySelectorAll('.artwork-card').length"):0);
     if(route==="illustration"){await click(`[data-lightbox-id="${ids[0]}"]`);await until("document.querySelector('.fancybox__container')");assert.equal(await evaluate("document.querySelectorAll('.portfolio-lightbox-metadata').length"),0)}
   }
   assert.ok(!requests.some(url=>url.includes("/api/")),"Public render cannot depend on Admin APIs");
   assert.deepEqual(errors,[]);
-  const focusedSuite=process.argv.includes('--reader-navigation-only')?'Reader navigation':'Illustration views/scroll';
+  const focusedSuite=process.argv.includes('--reader-navigation-only')?'Reader navigation':process.argv.includes('--footer-only')?'Illustration V2/V3 footers':'Illustration views/scroll';
   console.log(`Public production Chrome QA: ${results.length} viewport/locale/theme checks; no local APIs or extra badge media, no runtime errors. ${results.length?'Short/medium/long/custom thresholds, neutral mode, three placements, five categories, unchanged image geometry; A/estimated/invalid/absent/groups, Home/Manga/Illustration/Lightbox/Reader, keyboard/double pages/live locale/touch RTL/hide-show/fullscreen, AA contrasts and computed type sizes OK.':`${focusedSuite} focused pass; run without flags for the complete Phase 4 matrix.`}`);
 } finally {
   socket?.close();if(browser&&browser.exitCode===null){const exited=new Promise(resolve=>browser.once("exit",resolve));browser.kill();await exited}await server?.close();

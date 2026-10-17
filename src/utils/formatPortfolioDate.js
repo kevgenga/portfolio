@@ -5,8 +5,8 @@ const formatOptions = {
   timeZone: "UTC",
 };
 
-export const formatPortfolioDate = (value, locale = "en") => {
-  if (typeof value !== "string" || !value.trim()) return "";
+const parsePortfolioDate = (value) => {
+  if (typeof value !== "string" || !value.trim()) return null;
 
   const date = value.trim();
   const dayFirstMatch = /^(\d{1,2})([-/])(\d{1,2})\2(\d{4})$/.exec(date);
@@ -25,7 +25,7 @@ export const formatPortfolioDate = (value, locale = "en") => {
     month = Number(yearFirstMatch[2]);
     day = Number(yearFirstMatch[3]);
   } else {
-    return "";
+    return null;
   }
 
   const parsedDate = new Date(Date.UTC(year, month - 1, day));
@@ -34,7 +34,21 @@ export const formatPortfolioDate = (value, locale = "en") => {
     parsedDate.getUTCMonth() === month - 1 &&
     parsedDate.getUTCDate() === day;
 
-  return isValidDate
-    ? new Intl.DateTimeFormat(locale === "ja" ? "ja-JP" : locale === "fr" ? "fr-FR" : "en-GB", formatOptions).format(parsedDate)
-    : "";
+  return isValidDate ? parsedDate : null;
+};
+
+export const formatPortfolioDate = (value, locale = "en") => {
+  const parsedDate = parsePortfolioDate(value);
+  return parsedDate ? new Intl.DateTimeFormat(locale === "ja" ? "ja-JP" : locale === "fr" ? "fr-FR" : "en-GB", formatOptions).format(parsedDate) : "";
+};
+
+// Illustration ribbon only: natural month/day order, without splitting a
+// translated month name or changing the full dates used elsewhere on the site.
+export const formatPortfolioDateLines = (value, locale = "en") => {
+  const parsedDate = parsePortfolioDate(value);
+  if (!parsedDate) return [];
+  const language = locale === "ja" ? "ja-JP" : locale === "fr" ? "fr-FR" : "en-US";
+  const dayMonth = new Intl.DateTimeFormat(language, { day: "numeric", month: "long", timeZone: "UTC" }).format(parsedDate);
+  const year = new Intl.DateTimeFormat(language, { year: "numeric", timeZone: "UTC" }).format(parsedDate);
+  return locale === "ja" ? [year, dayMonth] : [dayMonth, year];
 };
